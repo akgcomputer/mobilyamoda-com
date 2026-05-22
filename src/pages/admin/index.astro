@@ -1,20 +1,222 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
-const auth = Astro.cookies.get('admin_auth');
-if (!auth || auth.value !== 'true') {
-  return Astro.redirect('/admin/login');
-}
+// Mock veriler
+const stats = {
+  totalPosts: 42,
+  publishedPosts: 38,
+  totalViews: 15680,
+  totalLikes: 2340,
+  totalComments: 156,
+  totalUsers: 8,
+  pendingComments: 12,
+  scheduledPosts: 3
+};
+
+const recentPosts = [
+  { id: 1, title: 'Yapay Zeka ile İçerik Üretimi', status: 'published', views: 1250, likes: 89, createdAt: '2026-05-20' },
+  { id: 2, title: 'Seyahat Rehberi: Sapanca', status: 'draft', views: 0, likes: 0, createdAt: '2026-05-21' },
+  { id: 3, title: 'En İyi 10 Yazılım Aracı', status: 'published', views: 3420, likes: 156, createdAt: '2026-05-19' },
+  { id: 4, title: 'Sağlıklı Beslenme Tüyoları', status: 'scheduled', views: 0, likes: 0, createdAt: '2026-05-22' },
+];
+
+const popularPosts = [...recentPosts].sort((a,b) => b.views - a.views).slice(0, 5);
+
+// Son 7 gün için ziyaretçi verisi
+const visitorData = [
+  { date: '22 May', count: 2340 },
+  { date: '21 May', count: 2890 },
+  { date: '20 May', count: 3100 },
+  { date: '19 May', count: 2780 },
+  { date: '18 May', count: 2450 },
+  { date: '17 May', count: 1980 },
+  { date: '16 May', count: 1670 },
+];
 ---
 
-<BaseLayout title="Admin Panel">
-  <div class="max-w-7xl mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-8">
-      <h1 class="text-2xl font-bold">Admin Panel</h1>
-      <a href="/admin/logout" class="text-red-500">Çıkış</a>
+<BaseLayout title="Dashboard - Admin">
+  <div class="p-6">
+    <div class="mb-8">
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Hoş geldiniz! İşte sitenizin özeti</p>
     </div>
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-      <p>Hoş geldiniz! İçerik yönetimi yakında.</p>
+
+    <!-- İstatistik Kartları -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Toplam İçerik</p>
+            <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalPosts}</p>
+            <p class="text-xs text-green-600 mt-1">+{stats.publishedPosts} yayında</p>
+          </div>
+          <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path></svg>
+          </div>
+        </div>
+        <a href="/admin/posts" class="text-sm text-blue-600 hover:text-blue-700 mt-3 inline-block">Tüm içerikler →</a>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border-l-4 border-green-500">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Toplam Görüntülenme</p>
+            <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalViews.toLocaleString()}</p>
+            <p class="text-xs text-green-600 mt-1">+%12 bu hafta</p>
+          </div>
+          <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border-l-4 border-purple-500">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Yorumlar</p>
+            <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalComments}</p>
+            <p class="text-xs text-yellow-600 mt-1">{stats.pendingComments} onay bekliyor</p>
+          </div>
+          <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border-l-4 border-orange-500">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Kullanıcılar</p>
+            <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalUsers}</p>
+            <p class="text-xs text-gray-500 mt-1">+2 bu ay</p>
+          </div>
+          <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ziyaretçi Grafiği + Bekleyen İşlemler -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Son 7 Gün Ziyaretçi</h2>
+          <select class="text-sm border rounded-lg px-3 py-1 dark:bg-gray-700">
+            <option>Günlük</option>
+            <option>Haftalık</option>
+            <option>Aylık</option>
+          </select>
+        </div>
+        <div class="h-64 flex items-end gap-2">
+          {visitorData.map((day, i) => (
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-full bg-orange-500 rounded-t-lg transition-all hover:bg-orange-600" style="height: ${(day.count / 3500) * 200}px"></div>
+              <span class="text-xs text-gray-500 rotate-45 origin-left">{day.date}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Bekleyen İşlemler</h2>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+            <div>
+              <p class="font-medium text-yellow-800 dark:text-yellow-300">{stats.pendingComments} Yorum</p>
+              <p class="text-xs text-yellow-600">Onay bekliyor</p>
+            </div>
+            <button class="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg">İncele</button>
+          </div>
+          <div class="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div>
+              <p class="font-medium text-blue-800 dark:text-blue-300">{stats.scheduledPosts} İçerik</p>
+              <p class="text-xs text-blue-600">Planlanmış</p>
+            </div>
+            <button class="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg">Görüntüle</button>
+          </div>
+          <div class="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <div>
+              <p class="font-medium text-green-800 dark:text-green-300">Yedekleme</p>
+              <p class="text-xs text-green-600">Son yedek: 3 gün önce</p>
+            </div>
+            <button class="px-3 py-1 bg-green-600 text-white text-sm rounded-lg">Yedekle</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Son İçerikler ve En Popüler -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Son İçerikler</h2>
+          <a href="/admin/posts" class="text-sm text-orange-600 hover:text-orange-700">Tümü →</a>
+        </div>
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+          {recentPosts.map(post => (
+            <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center justify-between">
+              <div>
+                <a href={`/admin/posts/${post.id}`} class="font-medium text-gray-900 dark:text-white hover:text-orange-600">{post.title}</a>
+                <div class="flex items-center gap-3 mt-1">
+                  <span class={`text-xs px-2 py-0.5 rounded-full ${
+                    post.status === 'published' ? 'bg-green-100 text-green-700' :
+                    post.status === 'draft' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-blue-100 text-blue-700'
+                  }`}>
+                    {post.status === 'published' ? 'Yayında' : post.status === 'draft' ? 'Taslak' : 'Planlanmış'}
+                  </span>
+                  <span class="text-xs text-gray-500">👁️ {post.views}</span>
+                  <span class="text-xs text-gray-500">❤️ {post.likes}</span>
+                </div>
+              </div>
+              <a href={`/admin/posts/${post.id}`} class="p-2 text-gray-500 hover:text-orange-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">En Popüler İçerikler</h2>
+        </div>
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+          {popularPosts.map((post, idx) => (
+            <div class="p-4 flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm">#{idx + 1}</div>
+              <div class="flex-1">
+                <a href={`/admin/posts/${post.id}`} class="font-medium text-gray-900 dark:text-white hover:text-orange-600">{post.title}</a>
+                <div class="flex items-center gap-3 mt-1">
+                  <span class="text-xs text-gray-500">👁️ {post.views.toLocaleString()}</span>
+                  <span class="text-xs text-gray-500">❤️ {post.likes}</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-semibold text-gray-900 dark:text-white">{Math.round((post.views / stats.totalViews) * 100)}%</span>
+                <div class="w-16 h-1 bg-gray-200 rounded-full mt-1">
+                  <div class="h-1 bg-orange-500 rounded-full" style="width: ${(post.views / stats.totalViews) * 100}%"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <!-- Hızlı İçerik Ekleme -->
+    <div class="mt-6 bg-gradient-to-r from-orange-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+      <div class="flex flex-col lg:flex-row items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold">Hızlı İçerik Ekle</h2>
+          <p class="text-sm opacity-90 mt-1">Hemen yeni bir içerik oluşturun</p>
+        </div>
+        <a href="/admin/posts/new" class="px-6 py-3 bg-white text-orange-600 rounded-lg font-semibold hover:shadow-lg transition flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Yeni İçerik Oluştur
+        </a>
+      </div>
     </div>
   </div>
 </BaseLayout>

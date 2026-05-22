@@ -1,0 +1,6 @@
+name = "laflaf"
+compatibility_date = "2026-01-01"
+
+[vars]
+SITE_TITLE = "Laflaf"
+SITE_DESCRIPTION = "Meraklı İçerikleri Keşfet"
