@@ -1,0 +1,71 @@
+---
+let error = Astro.url.searchParams.get('error');
+---
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Giriş - Laflaf</title>
+  <link rel="stylesheet" href="/src/styles/global.css">
+</head>
+<body class="bg-gray-100 dark:bg-gray-900">
+  <div class="min-h-screen flex items-center justify-center px-4">
+    <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md w-96">
+      <h1 class="text-2xl font-bold text-center mb-6 text-gray-900 dark:text-white">Admin Giriş</h1>
+      
+      {error && (
+        <div class="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-3 rounded mb-4">
+          Şifre yanlış
+        </div>
+      )}
+      
+      <form id="loginForm" class="space-y-4">
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          placeholder="Şifre" 
+          class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
+          required 
+        />
+        <button type="submit" class="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition">
+          Giriş
+        </button>
+      </form>
+      
+      <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-4">
+        Demo şifre: <strong>laflaf123</strong>
+      </p>
+    </div>
+  </div>
+
+  <script>
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('password').value;
+    
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+      });
+      
+      if (response.ok) {
+        // Redirect on success
+        window.location.href = '/admin';
+      } else {
+        window.location.href = '/admin/login?error=1';
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      window.location.href = '/admin/login?error=1';
+    }
+  });
+</script>
+</body>
+</html>
