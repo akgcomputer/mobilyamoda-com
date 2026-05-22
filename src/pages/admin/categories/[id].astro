@@ -1,0 +1,157 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+// Mock kategori verileri
+const categories = [
+  { id: 1, name: 'Teknoloji', slug: 'teknoloji', description: 'Yapay zeka, yazılım, donanım ve teknoloji haberleri', color: '#3b82f6', icon: '💻', status: 'active' },
+  { id: 2, name: 'Seyahat', slug: 'seyahat', description: 'Gezi rehberleri, rotalar ve tatil önerileri', color: '#10b981', icon: '✈️', status: 'active' },
+  { id: 3, name: 'Yemek', slug: 'yemek', description: 'Tarifler, mutfak önerileri ve lezzet durakları', color: '#f59e0b', icon: '🍜', status: 'active' },
+];
+
+const id = parseInt(Astro.params.id);
+const category = categories.find(c => c.id === id);
+
+if (!category) {
+  return Astro.redirect('/admin/categories');
+}
+
+let success = '';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const name = formData.get('name');
+  const slug = formData.get('slug');
+  const description = formData.get('description');
+  const color = formData.get('color');
+  const icon = formData.get('icon');
+  
+  if (name && slug) {
+    // Güncelleme işlemi (mock)
+    success = 'Kategori başarıyla güncellendi';
+  } else {
+    error = 'Kategori adı ve slug gerekli';
+  }
+}
+---
+
+<BaseLayout title={`${category.name} - Kategori Düzenle`} isAdmin={true}>
+    
+    <div class="max-w-3xl mx-auto px-4 py-8">
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+      <a href="/admin" class="hover:text-orange-500">Dashboard</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      <a href="/admin/categories" class="hover:text-orange-500">Kategoriler</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      <span class="text-gray-700 dark:text-gray-300 font-medium">Düzenle</span>
+    </div>
+
+    <!-- Geri Butonu -->
+    <a href="/admin/categories" class="inline-flex items-center gap-2 text-gray-600 hover:text-orange-500 transition mb-6">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+      Kategorilere Dön
+    </a>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Kategori Düzenle</h1>
+        <p class="text-sm text-gray-500 mt-1">Kategori bilgilerini güncelleyin</p>
+      </div>
+
+      {success && (
+        <div class="bg-green-50 border-l-4 border-green-500 text-green-700 p-4 m-6 rounded">
+          ✅ {success}
+        </div>
+      )}
+      {error && (
+        <div class="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 m-6 rounded">
+          ❌ {error}
+        </div>
+      )}
+
+      <form method="POST" class="p-6 space-y-6">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Kategori Adı *</label>
+          <input type="text" name="name" value={category.name} required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Slug *</label>
+          <input type="text" name="slug" value={category.slug} required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700" />
+          <p class="text-xs text-gray-500 mt-1">URL'de kullanılacak (örnek: teknoloji)</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Açıklama</label>
+          <textarea name="description" rows="4" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700">{category.description}</textarea>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Renk</label>
+            <div class="flex items-center gap-3">
+              <input type="color" name="color" value={category.color} class="w-16 h-10 rounded border cursor-pointer" />
+              <input type="text" value={category.color} class="flex-1 px-4 py-2 border rounded-lg dark:bg-gray-700" readonly />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">İkon (Emoji)</label>
+            <input type="text" name="icon" value={category.icon} class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700" placeholder="📁" />
+          </div>
+        </div>
+
+        <div class="pt-4 flex gap-3">
+          <button type="submit" class="flex-1 bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 transition font-medium">
+            Değişiklikleri Kaydet
+          </button>
+          <a href="/admin/categories" class="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition text-center">
+            İptal
+          </a>
+        </div>
+      </form>
+    </div>
+
+    <!-- Önizleme Kartı -->
+    <div class="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 uppercase tracking-wide">Önizleme</h3>
+      <div class="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={`background-color: ${category.color}20`}>
+          <span id="previewIcon">{category.icon}</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="previewName" class="font-bold text-lg text-gray-900 dark:text-white">{category.name}</span>
+            <div class="w-3 h-3 rounded-full" style={`background-color: ${category.color}`}></div>
+          </div>
+          <p id="previewSlug" class="text-xs text-gray-500">/{category.slug}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Canlı önizleme
+    const nameInput = document.querySelector('input[name="name"]');
+    const slugInput = document.querySelector('input[name="slug"]');
+    const iconInput = document.querySelector('input[name="icon"]');
+    const colorInput = document.querySelector('input[name="color"]');
+    const textColorInput = document.querySelector('input[type="text"][value]');
+    
+    function updatePreview() {
+      document.getElementById('previewName').innerText = nameInput.value || 'Kategori Adı';
+      document.getElementById('previewSlug').innerText = '/' + (slugInput.value || 'kategori-slug');
+      document.getElementById('previewIcon').innerText = iconInput.value || '📁';
+      const color = colorInput.value;
+      const previewBox = document.querySelector('#previewIcon').parentElement;
+      if (previewBox) previewBox.style.backgroundColor = `${color}20`;
+      document.querySelector('.w-3.h-3.rounded-full').style.backgroundColor = color;
+      if (textColorInput) textColorInput.value = color;
+    }
+    
+    nameInput?.addEventListener('input', updatePreview);
+    slugInput?.addEventListener('input', updatePreview);
+    iconInput?.addEventListener('input', updatePreview);
+    colorInput?.addEventListener('change', updatePreview);
+  </script>
+</BaseLayout>
