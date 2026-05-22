@@ -1,11 +1,62 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+// Mock içerikler
+const posts = [
+  { id: 1, title: 'Meraklı İçerik 1', excerpt: 'İçerik özeti...', image: null, date: '2024-01-01', slug: 'icerik-1' },
+  { id: 2, title: 'Meraklı İçerik 2', excerpt: 'İçerik özeti...', image: null, date: '2024-01-02', slug: 'icerik-2' },
+  { id: 3, title: 'Meraklı İçerik 3', excerpt: 'İçerik özeti...', image: null, date: '2024-01-03', slug: 'icerik-3' },
+  { id: 4, title: 'Meraklı İçerik 4', excerpt: 'İçerik özeti...', image: null, date: '2024-01-04', slug: 'icerik-4' },
+];
+
+const categories = ['Keşfet', 'En Popüler', 'En Yeni', 'En Beğenilenler', 'Trend'];
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<BaseLayout title="Laflaf - Meraklı İçerikleri Keşfet">
+  <!-- Hero -->
+  <div class="text-center py-12 bg-gradient-to-r from-orange-500 to-purple-600 text-white">
+    <h1 class="text-4xl md:text-6xl font-bold">Meraklı, <span class="italic">İçerikleri Keşfet..</span></h1>
+    <p class="text-xl mt-2">LAFLAF.net</p>
+  </div>
+
+  <!-- Arama -->
+  <div class="max-w-2xl mx-auto px-4 -mt-6">
+    <div class="relative">
+      <input type="text" placeholder="Arama yap..." class="w-full px-5 py-4 pl-12 rounded-full border shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-800 dark:border-gray-700">
+      <svg class="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </div>
+  </div>
+
+  <!-- Filtreler -->
+  <div class="flex flex-wrap justify-center gap-3 mt-8 px-4">
+    {categories.map(cat => (
+      <button class="px-4 py-2 rounded-full border bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-orange-500 hover:text-white transition">
+        {cat}
+      </button>
+    ))}
+  </div>
+
+  <!-- Grid -->
+  <div class="max-w-7xl mx-auto px-4 py-10">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {posts.map(post => (
+        <a href={`/${post.slug}`} class="group bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow hover:shadow-lg transition">
+          <div class="aspect-square bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center">
+            <span class="text-white text-4xl">📄</span>
+          </div>
+          <div class="p-4">
+            <h3 class="font-bold text-lg group-hover:text-orange-500 transition">{post.title}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{post.date}</p>
+          </div>
+        </a>
+      ))}
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t py-8 text-center text-gray-500 dark:border-gray-800">
+    <p>© 2024 Laflaf. Tüm hakları saklıdır.</p>
+  </footer>
+</BaseLayout>
