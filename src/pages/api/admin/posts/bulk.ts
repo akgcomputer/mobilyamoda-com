@@ -15,7 +15,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const workbook = xlsx.read(arrayBuffer, { type: 'array' });
+    const data = new Uint8Array(arrayBuffer);
+    const workbook = xlsx.read(data, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     
@@ -95,7 +96,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   } catch (error) {
     console.error('Toplu yükleme hatası:', error);
-    return new Response(JSON.stringify({ error: 'Yükleme sırasında bir hata oluştu.' }), {
+    return new Response(JSON.stringify({ error: 'Yükleme sırasında bir hata oluştu: ' + (error as Error).message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
