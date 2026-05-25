@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS posts (
   status TEXT NOT NULL DEFAULT 'draft', -- 'draft', 'published', 'scheduled', 'archived'
   isSponsored INTEGER DEFAULT 0, -- 0 = false, 1 = true
   category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   views INTEGER DEFAULT 0,
   likes INTEGER DEFAULT 0,
   commentCount INTEGER DEFAULT 0,
