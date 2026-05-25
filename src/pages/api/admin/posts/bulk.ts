@@ -15,9 +15,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    
-    const workbook = xlsx.read(buffer, { type: 'buffer' });
+    const workbook = xlsx.read(arrayBuffer, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     

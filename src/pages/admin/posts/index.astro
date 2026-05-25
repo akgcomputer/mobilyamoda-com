@@ -481,55 +481,35 @@ const statusLabels = {
       
       const label = document.querySelector('label[for="excelUpload"]');
       const originalHtml = label.innerHTML;
-      label.innerHTML = '⏳ Okunuyor...';
+      label.innerHTML = '⏳ İşleniyor...';
       label.classList.add('pointer-events-none', 'opacity-70');
       
-      // Dosyayı önyüzde oku ve sayısını bul
-      const reader = new FileReader();
-      reader.onload = async (e) => {
+      if(confirm('Şablon sunucuya yüklenecek ve işlenecek, onaylıyor musunuz?')) {
+        label.innerHTML = '⏳ Yükleniyor...';
+        const formData = new FormData();
+        formData.append('file', file);
+        
         try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = window.XLSX.read(data, {type: 'array'});
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          const rows = window.XLSX.utils.sheet_to_json(sheet);
+          const res = await fetch('/api/admin/posts/bulk', {
+            method: 'POST',
+            body: formData
+          });
+          const resultData = await res.json();
           
-          const validRowsCount = rows.filter(r => r.title).length;
-          
-          if(validRowsCount === 0) {
-            alert('Şablonda geçerli (başlığı olan) kayıt bulunamadı.');
-            resetLabel();
-            return;
-          }
-          
-          if(confirm('Şablon eklendi. Toplam ' + validRowsCount + ' adet içerik yüklenecek, onaylıyor musunuz?')) {
-            // Yüklemeye başla
-            label.innerHTML = '⏳ Yükleniyor...';
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            const res = await fetch('/api/admin/posts/bulk', {
-              method: 'POST',
-              body: formData
-            });
-            const resultData = await res.json();
-            
-            if (resultData.success) {
-              alert(resultData.count + ' içerik başarıyla eklendi.');
-              window.location.reload();
-            } else {
-              alert('Hata: ' + resultData.error);
-              resetLabel();
-            }
+          if (resultData.success) {
+            alert(resultData.count + ' içerik başarıyla eklendi.');
+            window.location.reload();
           } else {
+            alert('Hata: ' + resultData.error);
             resetLabel();
           }
-        } catch(err) {
-          alert('Dosya okunamadı: ' + err.message);
+        } catch (err) {
+          alert('Sunucuya bağlanılamadı: ' + err.message);
           resetLabel();
         }
-      };
-      reader.readAsArrayBuffer(file);
+      } else {
+        resetLabel();
+      }
       
       function resetLabel() {
         label.innerHTML = originalHtml;
