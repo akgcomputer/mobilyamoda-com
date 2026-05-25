@@ -1,0 +1,276 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+// Sponsorlu içerikler (mock)
+let sponsorluIcerikler = [
+  { id: 1, title: 'En İyi Yazılım Araçları 2026', slug: 'yazilim-araclari', views: 12500, likes: 890, status: 'active', startDate: '2026-05-01', endDate: '2026-06-01' },
+  { id: 2, title: 'Seyahat Rehberi: Sapanca', slug: 'sapanca-rehberi', views: 8400, likes: 456, status: 'active', startDate: '2026-05-10', endDate: '2026-06-10' },
+  { id: 3, title: 'Sağlıklı Beslenme Tüyoları', slug: 'saglikli-beslenme', views: 3200, likes: 234, status: 'expired', startDate: '2026-04-01', endDate: '2026-05-01' },
+];
+
+// Reklam alanları
+let reklamAlanlari = [
+  { id: 1, name: 'Ana Sayfa - Üst Banner', position: 'home_top', code: '<div class="bg-gray-200 p-4 text-center">Reklam Kodu</div>', status: 'active' },
+  { id: 2, name: 'Ana Sayfa - Sidebar', position: 'home_sidebar', code: '<div class="bg-gray-200 p-4 text-center">Sidebar Reklam</div>', status: 'active' },
+  { id: 3, name: 'İçerik - İçi', position: 'content_middle', code: '<div class="bg-gray-200 p-4 text-center">İçerik İçi Reklam</div>', status: 'inactive' },
+  { id: 4, name: 'İçerik - Alt', position: 'content_bottom', code: '<div class="bg-gray-200 p-4 text-center">İçerik Altı Reklam</div>', status: 'active' },
+  { id: 5, name: 'Kategori - Üst', position: 'category_top', code: '<div class="bg-gray-200 p-4 text-center">Kategori Üst Reklam</div>', status: 'active' },
+];
+
+let mesaj = '';
+let hata = '';
+let aktifSekme = 'sponsorlu'; // sponsorlu veya reklam
+
+// Form işleme
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const islem = formData.get('islem');
+  const tip = formData.get('tip');
+  
+  if (tip === 'sponsorlu') {
+    if (islem === 'ekle') {
+      const title = formData.get('title');
+      if (title) {
+        sponsorluIcerikler.push({
+          id: sponsorluIcerikler.length + 1,
+          title: title,
+          slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          views: 0,
+          likes: 0,
+          status: 'active',
+          startDate: formData.get('startDate') || new Date().toISOString().split('T')[0],
+          endDate: formData.get('endDate') || '',
+        });
+        mesaj = 'Sponsorlu içerik eklendi';
+      }
+    } else if (islem === 'sil') {
+      const id = parseInt(formData.get('id'));
+      sponsorluIcerikler = sponsorluIcerikler.filter(i => i.id !== id);
+      mesaj = 'Sponsorlu içerik silindi';
+    } else if (islem === 'toggle') {
+      const id = parseInt(formData.get('id'));
+      const index = sponsorluIcerikler.findIndex(i => i.id === id);
+      if (index !== -1) {
+        sponsorluIcerikler[index].status = sponsorluIcerikler[index].status === 'active' ? 'expired' : 'active';
+        mesaj = 'Durum güncellendi';
+      }
+    }
+  } else if (tip === 'reklam') {
+    if (islem === 'ekle') {
+      const name = formData.get('name');
+      const position = formData.get('position');
+      if (name && position) {
+        reklamAlanlari.push({
+          id: reklamAlanlari.length + 1,
+          name,
+          position,
+          code: formData.get('code') || '',
+          status: 'active',
+        });
+        mesaj = 'Reklam alanı eklendi';
+      }
+    } else if (islem === 'sil') {
+      const id = parseInt(formData.get('id'));
+      reklamAlanlari = reklamAlanlari.filter(a => a.id !== id);
+      mesaj = 'Reklam alanı silindi';
+    } else if (islem === 'toggle') {
+      const id = parseInt(formData.get('id'));
+      const index = reklamAlanlari.findIndex(a => a.id === id);
+      if (index !== -1) {
+        reklamAlanlari[index].status = reklamAlanlari[index].status === 'active' ? 'inactive' : 'active';
+        mesaj = 'Durum güncellendi';
+      }
+    } else if (islem === 'guncelle') {
+      const id = parseInt(formData.get('id'));
+      const index = reklamAlanlari.findIndex(a => a.id === id);
+      if (index !== -1) {
+        reklamAlanlari[index].code = formData.get('code') || '';
+        mesaj = 'Reklam kodu güncellendi';
+      }
+    }
+  }
+}
+
+// URL'den aktif sekmeyi al
+const urlParams = Astro.url.searchParams;
+if (urlParams.has('tab')) {
+  aktifSekme = urlParams.get('tab');
+}
+---
+
+<BaseLayout title="Reklam Alanları" isAdmin={true}>
+  <div class="space-y-6">
+    <!-- Sekmeler -->
+    <div class="flex border-b border-gray-200 dark:border-gray-700">
+      <a href="/admin/ads?tab=sponsorlu" class={`px-4 py-2 text-sm font-medium transition ${aktifSekme === 'sponsorlu' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+        📢 Sponsorlu İçerikler
+      </a>
+      <a href="/admin/ads?tab=reklam" class={`px-4 py-2 text-sm font-medium transition ${aktifSekme === 'reklam' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+        🎯 Reklam Alanları
+      </a>
+      <a href="/admin/ads?tab=google" class={`px-4 py-2 text-sm font-medium transition ${aktifSekme === 'google' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+        📊 Google Ads
+      </a>
+    </div>
+
+    {mesaj && <div class="bg-green-100 text-green-700 p-3 rounded">{mesaj}</div>}
+    {hata && <div class="bg-red-100 text-red-700 p-3 rounded">{hata}</div>}
+
+    <!-- Sponsorlu İçerikler Sekmesi -->
+    {aktifSekme === 'sponsorlu' && (
+      <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h2 class="text-lg font-semibold mb-4">Yeni Sponsorlu İçerik Ekle</h2>
+          <form method="POST" class="flex flex-wrap gap-3">
+            <input type="hidden" name="tip" value="sponsorlu" />
+            <input type="hidden" name="islem" value="ekle" />
+            <input type="text" name="title" placeholder="İçerik başlığı" required class="flex-1 min-w-[200px] px-3 py-2 border rounded dark:bg-gray-700" />
+            <input type="date" name="startDate" class="px-3 py-2 border rounded dark:bg-gray-700" />
+            <input type="date" name="endDate" class="px-3 py-2 border rounded dark:bg-gray-700" />
+            <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">Sponsor Ekle</button>
+          </form>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th class="px-4 py-3 text-left">İçerik</th>
+                <th class="px-4 py-3 text-left">Görüntülenme</th>
+                <th class="px-4 py-3 text-left">Beğeni</th>
+                <th class="px-4 py-3 text-left">Başlangıç</th>
+                <th class="px-4 py-3 text-left">Bitiş</th>
+                <th class="px-4 py-3 text-center">Durum</th>
+                <th class="px-4 py-3 text-center">İşlem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sponsorluIcerikler.map(item => (
+                <tr class="border-t dark:border-gray-700">
+                  <td class="px-4 py-3">
+                    <a href={`/${item.slug}`} target="_blank" class="text-orange-600 hover:underline">{item.title}</a>
+                  </td>
+                  <td class="px-4 py-3">{item.views.toLocaleString()}</td>
+                  <td class="px-4 py-3">{item.likes.toLocaleString()}</td>
+                  <td class="px-4 py-3">{item.startDate}</td>
+                  <td class="px-4 py-3">{item.endDate || '-'}</td>
+                  <td class="px-4 py-3 text-center">
+                    <span class={`px-2 py-1 text-xs rounded-full ${item.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                      {item.status === 'active' ? 'Aktif' : 'Süresi Doldu'}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <div class="flex justify-center gap-2">
+                      <form method="POST" class="inline">
+                        <input type="hidden" name="tip" value="sponsorlu" />
+                        <input type="hidden" name="islem" value="toggle" />
+                        <input type="hidden" name="id" value={item.id} />
+                        <button type="submit" class="text-blue-600 hover:text-blue-800" title="Durum Değiştir">🔄</button>
+                      </form>
+                      <form method="POST" class="inline" onsubmit="return confirm('Sil?')">
+                        <input type="hidden" name="tip" value="sponsorlu" />
+                        <input type="hidden" name="islem" value="sil" />
+                        <input type="hidden" name="id" value={item.id} />
+                        <button type="submit" class="text-red-600 hover:text-red-800">🗑️</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+
+    <!-- Reklam Alanları Sekmesi -->
+    {aktifSekme === 'reklam' && (
+      <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h2 class="text-lg font-semibold mb-4">Yeni Reklam Alanı Ekle</h2>
+          <form method="POST" class="flex flex-wrap gap-3">
+            <input type="hidden" name="tip" value="reklam" />
+            <input type="hidden" name="islem" value="ekle" />
+            <input type="text" name="name" placeholder="Alan adı" required class="flex-1 px-3 py-2 border rounded dark:bg-gray-700" />
+            <select name="position" class="px-3 py-2 border rounded dark:bg-gray-700">
+              <option value="home_top">Ana Sayfa - Üst</option>
+              <option value="home_sidebar">Ana Sayfa - Sidebar</option>
+              <option value="content_top">İçerik - Üst</option>
+              <option value="content_middle">İçerik - Orta</option>
+              <option value="content_bottom">İçerik - Alt</option>
+              <option value="category_top">Kategori - Üst</option>
+              <option value="category_sidebar">Kategori - Sidebar</option>
+            </select>
+            <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">Ekle</button>
+          </form>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {reklamAlanlari.map(ad => (
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+              <div class="flex justify-between items-start mb-3">
+                <div>
+                  <h3 class="font-semibold">{ad.name}</h3>
+                  <p class="text-xs text-gray-500">Pozisyon: {ad.position}</p>
+                </div>
+                <div class="flex gap-2">
+                  <form method="POST" class="inline">
+                    <input type="hidden" name="tip" value="reklam" />
+                    <input type="hidden" name="islem" value="toggle" />
+                    <input type="hidden" name="id" value={ad.id} />
+                    <button type="submit" class={`px-2 py-1 text-xs rounded ${ad.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                      {ad.status === 'active' ? 'Aktif' : 'Pasif'}
+                    </button>
+                  </form>
+                  <form method="POST" class="inline" onsubmit="return confirm('Sil?')">
+                    <input type="hidden" name="tip" value="reklam" />
+                    <input type="hidden" name="islem" value="sil" />
+                    <input type="hidden" name="id" value={ad.id} />
+                    <button type="submit" class="text-red-600 hover:text-red-800">🗑️</button>
+                  </form>
+                </div>
+              </div>
+              <form method="POST">
+                <input type="hidden" name="tip" value="reklam" />
+                <input type="hidden" name="islem" value="guncelle" />
+                <input type="hidden" name="id" value={ad.id} />
+                <textarea name="code" rows="3" class="w-full px-3 py-2 border rounded font-mono text-sm dark:bg-gray-700 mb-2">{ad.code}</textarea>
+                <button type="submit" class="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700">Kodu Güncelle</button>
+              </form>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <!-- Google Ads Sekmesi -->
+    {aktifSekme === 'google' && (
+      <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 class="text-lg font-semibold mb-4">📊 Google Ads Ayarları</h2>
+          <p class="text-sm text-gray-500 mb-4">Google AdSense kodlarınızı aşağıdaki alanlara girebilirsiniz.</p>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium mb-1">Publisher ID (pub-xxx)</label>
+              <input type="text" placeholder="pub-1234567890" class="w-full px-3 py-2 border rounded dark:bg-gray-700" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Ana Sayfa Banner Kodu</label>
+              <textarea rows="4" placeholder='<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-xxx"></script>' class="w-full px-3 py-2 border rounded font-mono text-sm dark:bg-gray-700"></textarea>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">İçerik İçi Reklam Kodu</label>
+              <textarea rows="4" class="w-full px-3 py-2 border rounded font-mono text-sm dark:bg-gray-700"></textarea>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Sidebar Reklam Kodu</label>
+              <textarea rows="4" class="w-full px-3 py-2 border rounded font-mono text-sm dark:bg-gray-700"></textarea>
+            </div>
+            <button class="bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700">Kaydet</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+</BaseLayout>

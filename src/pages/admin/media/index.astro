@@ -1,0 +1,120 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+// Gerçek medya dosyalarını oku (uploads klasöründen)
+let mediaFiles: any[] = [];
+
+if (typeof globalThis.process !== 'undefined' && !globalThis.navigator?.userAgent?.includes('Cloudflare')) {
+  try {
+    const fsName = ['node', 'fs'].join(':');
+    const pathName = ['node', 'path'].join(':');
+    const fs = await import(/* @vite-ignore */ fsName);
+    const path = await import(/* @vite-ignore */ pathName);
+    
+    const uploadsDir = path.resolve('./public/uploads');
+    if (fs.existsSync(uploadsDir)) {
+      const files = fs.readdirSync(uploadsDir);
+      
+      mediaFiles = files.map((fileName: string, index: number) => {
+        const stats = fs.statSync(path.join(uploadsDir, fileName));
+        return {
+          id: index + 1,
+          name: fileName,
+          url: `/uploads/${fileName}`,
+          size: (stats.size / 1024).toFixed(1) + ' KB',
+          date: stats.birthtime.toISOString().split('T')[0]
+        };
+      });
+      // En yeniler en üstte
+      mediaFiles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+  } catch(e) {
+    console.error('Medya dosyaları okunamadı:', e);
+  }
+}
+
+let mesaj = '';
+
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const fileName = formData.get('name') as string;
+    
+    if (typeof globalThis.process !== 'undefined' && fileName) {
+      const fsName = ['node', 'fs'].join(':');
+      const pathName = ['node', 'path'].join(':');
+      const fs = await import(/* @vite-ignore */ fsName);
+      const path = await import(/* @vite-ignore */ pathName);
+      const filePath = path.resolve('./public/uploads', fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        mediaFiles = mediaFiles.filter(m => m.name !== fileName);
+        mesaj = 'Dosya başarıyla silindi.';
+      }
+    }
+  } catch (e) {
+    console.error('Dosya silinirken hata:', e);
+  }
+}
+---
+
+<BaseLayout title="Medya Kütüphanesi" isAdmin={true}>
+  <div class="p-6">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold mb-2">Medya Kütüphanesi</h1>
+      
+      <!-- Arama -->
+      <input 
+        type="text" 
+        id="arama" 
+        placeholder="Dosya adında ara..." 
+        class="w-full md:w-96 px-4 py-2 border rounded-lg dark:bg-gray-800"
+      />
+    </div>
+
+    {mesaj && <div class="bg-green-100 text-green-700 p-3 rounded mb-4">{mesaj}</div>}
+
+    <!-- Resim Grid -->
+    <div id="mediaGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+      {mediaFiles.map(file => (
+        <div class="media-item bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden group" data-name={file.name.toLowerCase()}>
+          <div class="aspect-square bg-gray-100 dark:bg-gray-700">
+            <img src={file.url} alt={file.name} class="w-full h-full object-cover" />
+          </div>
+          <div class="p-2">
+            <p class="text-xs truncate">{file.name}</p>
+            <div class="flex justify-between items-center mt-1">
+              <span class="text-xs text-gray-500">{file.size}</span>
+              <form method="POST" onsubmit="return confirm('Silmek istediğinize emin misiniz?')">
+                <input type="hidden" name="action" value="delete" />
+                <input type="hidden" name="name" value={file.name} />
+                <button type="submit" class="text-red-600 hover:text-red-800 text-xs">🗑️</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {mediaFiles.length === 0 && (
+      <div class="text-center py-12 text-gray-500">Henüz medya dosyası yok</div>
+    )}
+  </div>
+
+  <script>
+    const arama = document.getElementById('arama');
+    const mediaItems = document.querySelectorAll('.media-item');
+    
+    arama.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      mediaItems.forEach(item => {
+        const name = item.dataset.name;
+        if (name.includes(term)) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+  </script>
+</BaseLayout>

@@ -1,0 +1,368 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getUsers, createUser } from '../lib/db';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+
+// Basit Cookie tabanlı Mock Authentication
+const isLoggedIn = Astro.cookies.has('user_session');
+let userRole = 'Abone';
+let userName = 'Misafir';
+let errorMessage = '';
+let successMessage = '';
+
+if (isLoggedIn) {
+  const sessionData = Astro.cookies.get('user_session')?.json();
+  if (sessionData) {
+    userRole = sessionData.role;
+    userName = sessionData.name;
+  }
+}
+
+// Form Post İşlemleri
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const action = formData.get('action');
+
+  if (action === 'register' || action === 'login') {
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    
+    if (!email || !password) {
+      errorMessage = 'E-posta ve şifre zorunludur.';
+    } else {
+      const users = await getUsers(dbBinding);
+      const existingUser = users.find(u => u.email === email);
+      
+      if (existingUser) {
+        // Giriş Yap
+        if (existingUser.password === password) {
+          if (existingUser.status !== 'aktif') {
+            errorMessage = 'Hesabınız henüz onaylanmamıştır. Lütfen yöneticinin onaylamasını bekleyin.';
+          } else {
+            Astro.cookies.set('user_session', { id: existingUser.id, name: existingUser.name, role: existingUser.role }, { path: '/' });
+            if (existingUser.role !== 'abone') {
+              return Astro.redirect('/admin');
+            }
+            return Astro.redirect('/profil');
+          }
+        } else {
+          errorMessage = 'Şifre hatalı.';
+        }
+      } else {
+        // Kayıt Ol
+        const name = formData.get('name') as string || 'Yeni Kullanıcı';
+        const phone = formData.get('phone') as string || '';
+        const role = formData.get('role') as string || 'abone';
+        const password_confirm = formData.get('password_confirm') as string;
+        
+        if (password !== password_confirm) {
+          errorMessage = 'Şifreler eşleşmiyor.';
+        } else {
+          const clientIp = Astro.clientAddress || 'Bilinmiyor';
+          const newUser = await createUser({
+            name, email, password, phone, role: role.toLowerCase(), status: 'pasif', ip: clientIp
+          }, dbBinding);
+          
+          if (newUser) {
+            successMessage = 'Kayıt başarılı! Yöneticinin onayından sonra giriş yapabilirsiniz.';
+          } else {
+            errorMessage = 'Kayıt sırasında bir hata oluştu.';
+          }
+        }
+      }
+    }
+  }
+
+  if (action === 'logout') {
+    Astro.cookies.delete('user_session', { path: '/' });
+    return Astro.redirect('/profil');
+  }
+}
+---
+
+<BaseLayout title={isLoggedIn ? "Profilim" : "Giriş / Kayıt"} description="Laflaf kullanıcı işlemleri sayfası.">
+  <div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    
+    {isLoggedIn ? (
+      <!-- PROFİL (GİRİŞ YAPILMIŞ DURUM) -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="p-8 sm:p-12">
+          <div class="flex items-center gap-6 mb-10 pb-8 border-b dark:border-gray-700">
+            <div class="w-24 h-24 bg-gradient-to-tr from-purple-500 to-orange-500 rounded-full flex items-center justify-center text-white text-4xl font-bold">
+              {userName.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h1 class="text-3xl font-bold mb-1">{userName}</h1>
+              <div class="flex items-center gap-3">
+                <span class="inline-block px-3 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium">
+                  {userRole}
+                </span>
+                <span class="text-sm text-gray-500 flex items-center gap-1">
+                  <i class="far fa-comment-dots"></i> 14 İçeriğe Yorum Yaptınız
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <!-- Bildirim Ayarları -->
+            <div>
+              <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                <i class="fas fa-bell text-orange-500"></i> Bildirim Tercihleri
+              </h2>
+              <form class="space-y-4">
+                <label class="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition">
+                  <input type="checkbox" checked class="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
+                  <span>Yeni yorum bildirimleri</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition">
+                  <input type="checkbox" checked class="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
+                  <span>Yeni kullanıcı kaydı bildirimleri</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition">
+                  <input type="checkbox" checked class="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
+                  <span>Sponsorluk süresi dolum bildirimleri</span>
+                </label>
+                <button type="button" class="mt-4 px-6 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition">Ayarları Kaydet</button>
+              </form>
+            </div>
+
+            <!-- Aksiyonlar -->
+            <div>
+              <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                <i class="fas fa-bolt text-orange-500"></i> Hızlı İşlemler
+              </h2>
+              <div class="space-y-4">
+                {userRole !== 'abone' && (
+                  <a href="/admin" class="flex items-center gap-3 w-full p-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition font-medium">
+                    <i class="fas fa-tachometer-alt text-xl"></i> Yönetim Paneline Git
+                  </a>
+                )}
+                <form method="POST">
+                  <input type="hidden" name="action" value="logout" />
+                  <button type="submit" class="flex items-center gap-3 w-full p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition font-medium text-left">
+                    <i class="fas fa-sign-out-alt text-xl"></i> Çıkış Yap
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    ) : (
+      <!-- GİRİŞ / KAYIT FORMU (GİRİŞ YAPILMAMIŞ DURUM) -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden max-w-2xl mx-auto" id="authContainer">
+        <div class="p-8 sm:p-12">
+          
+          <!-- Hata & Başarı Mesajları -->
+          {errorMessage && (
+            <div class="mb-6 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-xl border border-red-200 dark:border-red-800">
+              {errorMessage}
+            </div>
+          )}
+          {successMessage && (
+            <div class="mb-6 p-4 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-xl border border-green-200 dark:border-green-800">
+              {successMessage}
+            </div>
+          )}
+
+          <!-- KAYIT FORMU -->
+          <div id="registerSection">
+            <div class="text-center mb-8">
+              <h1 class="text-3xl font-bold mb-2">Aramıza Katıl</h1>
+              <p class="text-gray-500 dark:text-gray-400 mb-4">İçeriklere yorum yapmak ve bildirim almak için hemen üye olun.</p>
+              <button type="button" id="showLoginBtn" class="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition font-medium">
+                Zaten üye misiniz? Giriş Yap
+              </button>
+            </div>
+
+            <form method="POST" id="registerForm" class="space-y-6">
+              <input type="hidden" name="action" value="register" />
+              
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium mb-1">Ad Soyad</label>
+                  <input type="text" name="name" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="Ahmet Yılmaz">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1">Cep Telefonu</label>
+                  <input type="tel" name="phone" class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="05XX XXX XX XX">
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium mb-1">E-posta</label>
+                <input type="email" name="email" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="ornek@email.com">
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium mb-1">Şifre</label>
+                  <input type="password" name="password" id="regPassword" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="••••••••">
+                  <div class="mt-2 text-xs text-gray-500 space-y-1" id="pwRequirements">
+                    <p class="req-length text-red-500">❌ En az 8 karakter</p>
+                    <p class="req-upper text-red-500">❌ Büyük harf içermeli</p>
+                    <p class="req-lower text-red-500">❌ Küçük harf içermeli</p>
+                    <p class="req-number text-red-500">❌ Rakam içermeli</p>
+                    <p class="req-symbol text-red-500">❌ Sembol içermeli (@$!%*?& vb.)</p>
+                  </div>
+                  <div id="pwSuccess" class="hidden mt-2 text-sm font-bold text-green-600">✅ Şifre zorluk seviyesi uygun</div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1">Şifre (Tekrar)</label>
+                  <input type="password" name="password_confirm" id="regPasswordConfirm" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="••••••••">
+                  <div id="pwMatchError" class="hidden mt-2 text-xs text-red-500">Şifreler eşleşmiyor</div>
+                </div>
+              </div>
+
+              <div class="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
+                <label class="block text-sm font-bold mb-3">Hesap Türü Seçimi</label>
+                <div class="flex flex-wrap gap-6">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="role" value="Abone" checked class="text-purple-600 focus:ring-purple-500">
+                    <span class="text-sm">Abone (Sadece Okur/Yorum Yapar)</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="role" value="Yazar" class="text-purple-600 focus:ring-purple-500">
+                    <span class="text-sm">Yazar (İçerik Girebilir)</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="role" value="Editör" class="text-purple-600 focus:ring-purple-500">
+                    <span class="text-sm">Editör (Tüm İçerikleri Düzenleyebilir)</span>
+                  </label>
+                </div>
+              </div>
+
+              <button type="submit" id="registerSubmitBtn" disabled class="w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed">
+                Lütfen Şifre Kriterlerini Sağlayın
+              </button>
+            </form>
+          </div>
+
+          <!-- GİRİŞ FORMU -->
+          <div id="loginSection" class="hidden">
+            <div class="text-center mb-10">
+              <h1 class="text-3xl font-bold mb-2">Giriş Yap</h1>
+              <p class="text-gray-500 dark:text-gray-400 mb-4">Hesabınıza giriş yaparak devam edin.</p>
+              <button type="button" id="showRegisterBtn" class="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition font-medium">
+                Hesabınız yok mu? Aramıza Katılın
+              </button>
+            </div>
+
+            <form method="POST" class="space-y-6">
+              <input type="hidden" name="action" value="login" />
+              
+              <div>
+                <label class="block text-sm font-medium mb-1">E-posta</label>
+                <input type="email" name="email" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="ornek@email.com">
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium mb-1">Şifre</label>
+                <input type="password" name="password" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="••••••••">
+              </div>
+
+              <button type="submit" class="w-full py-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 transition font-bold text-lg">
+                Giriş Yap
+              </button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    )}
+
+  </div>
+
+  <script is:inline>
+    // Tab geçişleri
+    const showLoginBtn = document.getElementById('showLoginBtn');
+    const showRegisterBtn = document.getElementById('showRegisterBtn');
+    const loginSection = document.getElementById('loginSection');
+    const registerSection = document.getElementById('registerSection');
+    
+    if (showLoginBtn && showRegisterBtn) {
+      showLoginBtn.addEventListener('click', () => {
+        registerSection.classList.add('hidden');
+        loginSection.classList.remove('hidden');
+      });
+      
+      showRegisterBtn.addEventListener('click', () => {
+        loginSection.classList.add('hidden');
+        registerSection.classList.remove('hidden');
+      });
+    }
+
+    // Şifre Zorluk Kontrolü
+    const pwInput = document.getElementById('regPassword');
+    const pwConfirm = document.getElementById('regPasswordConfirm');
+    const submitBtn = document.getElementById('registerSubmitBtn');
+    const reqList = document.getElementById('pwRequirements');
+    const pwSuccess = document.getElementById('pwSuccess');
+    const matchError = document.getElementById('pwMatchError');
+
+    if (pwInput && submitBtn) {
+      function validatePassword() {
+        const val = pwInput.value;
+        const confVal = pwConfirm.value;
+        
+        let isValid = true;
+
+        // Kurallar
+        const rules = [
+          { regex: /.{8,}/, el: document.querySelector('.req-length') },
+          { regex: /[A-Z]/, el: document.querySelector('.req-upper') },
+          { regex: /[a-z]/, el: document.querySelector('.req-lower') },
+          { regex: /[0-9]/, el: document.querySelector('.req-number') },
+          { regex: /[^A-Za-z0-9]/, el: document.querySelector('.req-symbol') }
+        ];
+
+        rules.forEach(rule => {
+          if (rule.regex.test(val)) {
+            rule.el.classList.replace('text-red-500', 'text-green-500');
+            rule.el.innerText = rule.el.innerText.replace('❌', '✅');
+          } else {
+            rule.el.classList.replace('text-green-500', 'text-red-500');
+            rule.el.innerText = rule.el.innerText.replace('✅', '❌');
+            isValid = false;
+          }
+        });
+
+        // Şifreler eşleşiyor mu?
+        let isMatch = false;
+        if (confVal.length > 0) {
+          if (val === confVal) {
+            matchError.classList.add('hidden');
+            isMatch = true;
+          } else {
+            matchError.classList.remove('hidden');
+          }
+        }
+
+        // Tüm kurallar geçildiyse
+        if (isValid) {
+          reqList.classList.add('hidden');
+          pwSuccess.classList.remove('hidden');
+        } else {
+          reqList.classList.remove('hidden');
+          pwSuccess.classList.add('hidden');
+        }
+
+        if (isValid && isMatch) {
+          submitBtn.disabled = false;
+          submitBtn.className = 'w-full py-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 transition font-bold text-lg';
+          submitBtn.innerText = 'Aramıza Katıl';
+        } else {
+          submitBtn.disabled = true;
+          submitBtn.className = 'w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed';
+          submitBtn.innerText = 'Lütfen Kriterleri Sağlayın';
+        }
+      }
+
+      pwInput.addEventListener('input', validatePassword);
+      pwConfirm.addEventListener('input', validatePassword);
+    }
+  </script>
+</BaseLayout>

@@ -1,28 +1,20 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getDashboardStats, getAllPosts } from '../../lib/db';
 
-// Mock veriler
-const stats = {
-  totalPosts: 42,
-  publishedPosts: 38,
-  totalViews: 15680,
-  totalLikes: 2340,
-  totalComments: 156,
-  totalUsers: 8,
-  pendingComments: 12,
-  scheduledPosts: 3
-};
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const stats = await getDashboardStats(dbBinding);
+const dbPosts = await getAllPosts(dbBinding);
 
-const recentPosts = [
-  { id: 1, title: 'Yapay Zeka ile İçerik Üretimi', status: 'published', views: 1250, likes: 89, createdAt: '2026-05-20' },
-  { id: 2, title: 'Seyahat Rehberi: Sapanca', status: 'draft', views: 0, likes: 0, createdAt: '2026-05-21' },
-  { id: 3, title: 'En İyi 10 Yazılım Aracı', status: 'published', views: 3420, likes: 156, createdAt: '2026-05-19' },
-  { id: 4, title: 'Sağlıklı Beslenme Tüyoları', status: 'scheduled', views: 0, likes: 0, createdAt: '2026-05-22' },
-];
+// Son içerikler
+const recentPosts = dbPosts.slice(0, 4);
 
-const popularPosts = [...recentPosts].sort((a,b) => b.views - a.views).slice(0, 5);
+// En popüler içerikler
+const popularPosts = [...dbPosts]
+  .sort((a, b) => (b.views || 0) - (a.views || 0))
+  .slice(0, 5);
 
-// Son 7 gün için ziyaretçi verisi
+// Son 7 gün için ziyaretçi verisi (Burayı şimdilik statik tutabiliriz ya da veritabanı loglarından üretebiliriz)
 const visitorData = [
   { date: '22 May', count: 2340 },
   { date: '21 May', count: 2890 },

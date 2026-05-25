@@ -1,14 +1,27 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import { getCategories, createPost } from '../../../lib/db';
-import { sendPushNotification } from '../../../lib/push';
-import { uploadFile } from '../../../lib/storage';
+import { getCategories, getAllPosts, updatePost } from '../../../lib/db';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
-const mediaBinding = Astro.locals.runtime?.env?.MEDIA_BUCKET;
+const { id } = Astro.params;
+
+const sessionData = Astro.cookies.has('user_session') ? Astro.cookies.get('user_session')?.json() : null;
+const userRole = sessionData?.role || 'misafir';
+const userId = sessionData?.id;
 
 let success = false;
 let error = '';
+
+// Get Post
+const posts = userRole === 'yazar' ? await getAllPosts(dbBinding, userId) : await getAllPosts(dbBinding);
+const post = posts.find(p => p.id === parseInt(id as string));
+
+if (!post) {
+  return Astro.redirect('/admin/posts');
+}
+
+// Fetch categories from DB
+const categories = await getCategories(dbBinding);
 
 // Turkish Slugification Helper
 function slugify(text: string): string {
@@ -25,9 +38,6 @@ function slugify(text: string): string {
     .trim();
 }
 
-const sessionData = Astro.cookies.has('user_session') ? Astro.cookies.get('user_session')?.json() : null;
-const userId = sessionData?.id || 1; // Default to Admin (1) if not found
-
 if (Astro.request.method === 'POST') {
   try {
     const formData = await Astro.request.formData();
@@ -42,27 +52,44 @@ if (Astro.request.method === 'POST') {
     const metaTitle = formData.get('meta_title') as string;
     const metaDescription = formData.get('meta_description') as string;
 
-    let imageUrl = formData.get('featured_image_url') as string;
+    let imageUrl = formData.get('featured_image_url') as string || post.imageUrl;
 
-    // Handle Image Upload
+    // Handle Local Image Upload (Node.js fallback environment)
     const featuredImageFile = formData.get('featured_image');
     if (featuredImageFile && featuredImageFile instanceof File && featuredImageFile.size > 0) {
-      const uploadedPath = await uploadFile(featuredImageFile, mediaBinding, 'post');
-      if (uploadedPath) {
-        imageUrl = uploadedPath;
+      if (typeof globalThis.process !== 'undefined' && !globalThis.navigator?.userAgent?.includes('Cloudflare')) {
+        try {
+          const fsName = ['node', 'fs'].join(':');
+          const pathName = ['node', 'path'].join(':');
+          const fs = await import(/* @vite-ignore */ fsName);
+          const path = await import(/* @vite-ignore */ pathName);
+          const uploadsDir = path.resolve('./public/uploads');
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          const buffer = Buffer.from(await featuredImageFile.arrayBuffer());
+          const ext = path.extname(featuredImageFile.name) || '.jpg';
+          const fileName = `post-${Date.now()}${ext}`;
+          fs.writeFileSync(path.join(uploadsDir, fileName), buffer);
+          imageUrl = `/uploads/${fileName}`;
+        } catch (e) {
+          console.error('Local file upload failed:', e);
+        }
       }
     }
 
     if (!title || !content || content === '<p><br></p>') {
       error = 'Başlık ve içerik doldurulması zorunludur.';
     } else {
-      const slug = slugify(title);
+      let slug = post.slug;
+      if (title !== post.title) {
+        slug = slugify(title);
+      }
       
-      // Calculate read time (rough estimate: 200 words per minute)
       const wordCount = content.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(w => w.length > 0).length;
       const readTime = Math.max(1, Math.ceil(wordCount / 200));
 
-      const newPost = await createPost({
+      await updatePost(post.id, {
         title,
         slug,
         content,
@@ -70,7 +97,6 @@ if (Astro.request.method === 'POST') {
         status,
         isSponsored,
         category_id,
-        author_id: userId,
         readTime,
         imageUrl,
         tags,
@@ -78,36 +104,27 @@ if (Astro.request.method === 'POST') {
         metaDescription
       }, dbBinding);
 
-      if (newPost) {
-        success = true;
-        if (status === 'published') {
-          // Send push notifications async (don't block UI)
-          try {
-            sendPushNotification(
-              title, 
-              newPost.excerpt || 'Yeni bir içerik eklendi!', 
-              `/${newPost.slug}`, 
-              dbBinding
-            ).catch(e => console.error(e));
-          } catch (e) {
-            console.error("Push notification trigger error:", e);
-          }
-        }
-      } else {
-        error = 'İçerik veritabanına kaydedilemedi. Slug benzersiz olmalıdır.';
-      }
+      // Güncellenmiş post'u tekrar çekelim ki arayüzde doğru görünsün
+      post.title = title;
+      post.content = content;
+      post.status = status;
+      post.category_id = category_id;
+      post.tags = tags;
+      post.metaTitle = metaTitle;
+      post.metaDescription = metaDescription;
+      post.imageUrl = imageUrl;
+      post.isSponsored = isSponsored;
+
+      success = true;
     }
   } catch (err) {
-    console.error('New post save error:', err);
-    error = 'İçerik kaydedilirken bir hata oluştu.';
+    console.error('Edit post save error:', err);
+    error = 'İçerik güncellenirken bir hata oluştu.';
   }
 }
-
-// Fetch categories from DB
-const categories = await getCategories(dbBinding);
 ---
 
-<BaseLayout title="Yeni İçerik - Admin" isAdmin={true}>
+<BaseLayout title="İçerik Düzenle - Admin" isAdmin={true}>
   <div class="max-w-4xl mx-auto px-4 py-8 pb-24">
     <!-- Breadcrumb -->
     <div class="flex items-center gap-2 text-sm text-gray-500 mb-6">
@@ -115,7 +132,7 @@ const categories = await getCategories(dbBinding);
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
       <a href="/admin/posts" class="hover:text-orange-500 transition">İçerikler</a>
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-      <span class="text-gray-700 dark:text-gray-300 font-medium">İçerik Ekle</span>
+      <span class="text-gray-700 dark:text-gray-300 font-medium">İçerik Düzenle</span>
     </div>
 
     <!-- Geri Butonu -->
@@ -125,15 +142,10 @@ const categories = await getCategories(dbBinding);
     </a>
 
     {success && (
-        <div class="bg-green-100 border border-green-200 text-green-700 p-4 rounded-lg mb-6">
-          ✅ İçerik başarıyla kaydedildi! <a href="/admin/posts" class="underline font-semibold ml-2">Tüm İçeriklere Dön</a>
+        <div class="bg-green-100 border border-green-200 text-green-700 p-4 rounded-lg mb-6 flex justify-between items-center">
+          <span>✅ İçerik başarıyla güncellendi!</span>
+          <a href="/admin/posts" class="text-green-800 underline font-semibold text-sm">İçeriklere Dön</a>
         </div>
-        <script>
-          // Reload admin posts page after a short delay to reflect new post
-          setTimeout(() => {
-            window.location.href = '/admin/posts';
-          }, 500);
-        </script>
       )}
 
     {error && (
@@ -149,25 +161,21 @@ const categories = await getCategories(dbBinding);
         <input 
           type="text" 
           name="title" 
+          value={post.title}
           required 
           class="w-full px-4 py-3 text-2xl font-bold border-0 border-b-2 border-gray-200 dark:border-gray-700 focus:border-orange-500 focus:ring-0 bg-transparent dark:bg-transparent text-gray-900 dark:text-white transition"
           placeholder="İçerik başlığını girin..."
         />
       </div>
 
-      <!-- Zengin Metin Editörü (TinyMCE) -->
+      <!-- Zengin Metin Editörü -->
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide p-6 pb-0">İçerik *</label>
         
         <!-- Editor alanı -->
         <div class="p-6 bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-          <div id="editor-container" class="min-h-[400px] bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-b-lg text-gray-900 dark:text-gray-100"></div>
-          <input type="hidden" name="content" id="hiddenContent">
-        </div>
-        <div class="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
-          <div class="text-sm text-gray-500">
-            💡 İpucu: Metin yazdıktan sonra Taslak veya Yayınla butonlarıyla kaydedebilirsiniz.
-          </div>
+          <div id="editor-container" class="min-h-[400px] bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-b-lg text-gray-900 dark:text-gray-100" set:html={post.content}></div>
+          <input type="hidden" name="content" id="hiddenContent" value={post.content}>
         </div>
       </div>
 
@@ -178,7 +186,7 @@ const categories = await getCategories(dbBinding);
           <select name="category_id" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent">
             <option value="">Seçiniz</option>
             {categories.map(cat => (
-              <option value={cat.id}>{cat.name}</option>
+              <option value={cat.id} selected={cat.id === post.category_id}>{cat.name}</option>
             ))}
           </select>
         </div>
@@ -187,6 +195,7 @@ const categories = await getCategories(dbBinding);
           <input 
             type="text" 
             name="tags" 
+            value={post.tags}
             placeholder="teknoloji, yapay-zeka, yazılım"
             class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
@@ -197,15 +206,14 @@ const categories = await getCategories(dbBinding);
       <!-- Sponsorlu İçerik -->
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <label class="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" name="isSponsored" class="w-6 h-6 text-orange-500 rounded border-gray-300 focus:ring-orange-500" />
+          <input type="checkbox" name="isSponsored" class="w-6 h-6 text-orange-500 rounded border-gray-300 focus:ring-orange-500" checked={post.isSponsored} />
           <span class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Bu bir Sponsorlu İçeriktir</span>
         </label>
         <p class="text-xs text-gray-500 mt-2">İşaretlendiğinde, bu içerik ana sayfada her zaman kalıcı olarak ve özel bir rozet ile gösterilir.</p>
       </div>
 
       <!-- Görseller -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Ana Görsel - Dosya ve URL -->
+      <div class="grid grid-cols-1 gap-6">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Ana Görsel</label>
           <div class="space-y-3">
@@ -214,29 +222,11 @@ const categories = await getCategories(dbBinding);
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <p class="text-sm text-gray-500">Dosyadan seçin veya sürükleyin</p>
-              <img id="featuredPreview" class="hidden mt-4 max-h-32 mx-auto rounded shadow" />
+              <img id="featuredPreview" src={post.imageUrl || ''} class={`mt-4 max-h-32 mx-auto rounded shadow ${!post.imageUrl ? 'hidden' : ''}`} />
               <input type="file" id="featuredInput" name="featured_image" accept="image/*" class="hidden" />
             </div>
             <div>
-              <input type="url" name="featured_image_url" placeholder="veya görsel URL'si girin" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
-            </div>
-          </div>
-        </div>
-        
-        <!-- Galeri - Dosya ve URL (Demo amaçlı yerel) -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Galeri (Ek Görseller)</label>
-          <div class="space-y-3">
-            <div id="galleryArea" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-gray-700 cursor-pointer transition">
-              <svg class="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <p class="text-sm text-gray-500">Birden fazla görsel seçin</p>
-              <div id="galleryPreview" class="flex flex-wrap gap-2 mt-4 justify-center"></div>
-              <input type="file" id="galleryInput" multiple accept="image/*" class="hidden" />
-            </div>
-            <div>
-              <input type="text" name="gallery_urls" placeholder="veya görsel URL'lerini virgülle girin" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
+              <input type="url" name="featured_image_url" value="" placeholder="veya yeni görsel URL'si girin" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
             </div>
           </div>
         </div>
@@ -248,13 +238,13 @@ const categories = await getCategories(dbBinding);
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium mb-1">Meta Başlık</label>
-            <input type="text" name="meta_title" maxlength="60" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
-            <div class="text-xs text-gray-500 mt-1"><span id="metaTitleCount">0</span>/60</div>
+            <input type="text" name="meta_title" value={post.metaTitle} maxlength="60" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
+            <div class="text-xs text-gray-500 mt-1"><span id="metaTitleCount">{post.metaTitle?.length || 0}</span>/60</div>
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Meta Açıklama</label>
-            <textarea name="meta_description" rows="2" maxlength="160" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"></textarea>
-            <div class="text-xs text-gray-500 mt-1"><span id="metaDescCount">0</span>/160</div>
+            <textarea name="meta_description" rows="2" maxlength="160" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500">{post.metaDescription}</textarea>
+            <div class="text-xs text-gray-500 mt-1"><span id="metaDescCount">{post.metaDescription?.length || 0}</span>/160</div>
           </div>
         </div>
       </div>
@@ -266,11 +256,11 @@ const categories = await getCategories(dbBinding);
             📝 <span id="wordCount">0</span> kelime
           </div>
           <div class="flex gap-3">
-            <button type="submit" name="status" value="draft" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition font-medium">
-              Taslak Kaydet
+            <button type="submit" name="status" value="draft" class={`px-6 py-3 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition font-medium ${post.status === 'draft' ? 'ring-2 ring-orange-500' : ''}`}>
+              Taslak Yap
             </button>
-            <button type="submit" name="status" value="published" class="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition font-medium shadow-lg">
-              Yayınla
+            <button type="submit" name="status" value="published" class={`px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition font-medium shadow-lg ${post.status === 'published' ? 'ring-2 ring-offset-2 ring-orange-500' : ''}`}>
+              Değişiklikleri Kaydet
             </button>
           </div>
         </div>
@@ -321,10 +311,15 @@ const categories = await getCategories(dbBinding);
       placeholder: 'İçeriğinizi buraya yazın...'
     });
 
-    quill.on('text-change', function() {
+    // İlk kelime sayımı
+    function updateWordCount() {
       const text = quill.getText();
       const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
       if (wordCountSpan) wordCountSpan.innerText = text.trim().length > 0 ? words : 0;
+    }
+
+    quill.on('text-change', function() {
+      updateWordCount();
       document.getElementById('hiddenContent').value = quill.root.innerHTML;
     });
 
@@ -347,26 +342,6 @@ const categories = await getCategories(dbBinding);
         };
         reader.readAsDataURL(file);
       }
-    });
-
-    // Gallery - dosya
-    const galInput = document.getElementById('galleryInput');
-    const galArea = document.getElementById('galleryArea');
-    const galPreview = document.getElementById('galleryPreview');
-    galArea.addEventListener('click', () => galInput.click());
-    galInput.addEventListener('change', (e) => {
-      const files = Array.from(e.target.files);
-      galPreview.innerHTML = '';
-      files.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const img = document.createElement('img');
-          img.src = ev.target.result;
-          img.className = 'w-16 h-16 object-cover rounded border shadow';
-          galPreview.appendChild(img);
-        };
-        reader.readAsDataURL(file);
-      });
     });
 
     // Meta counters

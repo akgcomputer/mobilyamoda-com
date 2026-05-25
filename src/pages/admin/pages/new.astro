@@ -1,0 +1,297 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { createPage } from '../../../lib/db';
+import { uploadFile } from '../../../lib/storage';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const mediaBinding = Astro.locals.runtime?.env?.MEDIA_BUCKET;
+
+let success = false;
+let error = '';
+
+function slugify(text: string): string {
+  const trMap: Record<string, string> = {
+    'ç': 'c', 'Ç': 'C', 'ğ': 'g', 'Ğ': 'G', 'ı': 'i', 'İ': 'I',
+    'ö': 'o', 'Ö': 'O', 'ş': 's', 'Ş': 'S', 'ü': 'u', 'Ü': 'U'
+  };
+  return text
+    .replace(/[çÇğĞıİöÖşŞüÜ]/g, match => trMap[match])
+    .toLowerCase()
+    .replace(/[^a-z0-9 -]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim();
+}
+
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    
+    const title = formData.get('title') as string;
+    let slug = formData.get('slug') as string;
+    if (!slug && title) slug = slugify(title);
+    if (!slug) slug = 'sayfa-' + Date.now();
+
+    const section1 = formData.get('section1') as string;
+    const section3 = formData.get('section3') as string;
+    const section6 = formData.get('section6') as string;
+    
+    const hero_slogan = formData.get('hero_slogan') as string;
+    const hero_button_text = formData.get('hero_button_text') as string;
+    const hero_button_link = formData.get('hero_button_link') as string;
+    const metaTitle = formData.get('metaTitle') as string;
+    const metaDescription = formData.get('metaDescription') as string;
+
+    // Local file upload helper
+    const handleUploads = async (fileKey: string, isMultiple = false) => {
+      let urls: string[] = [];
+      const files = isMultiple ? formData.getAll(fileKey) : [formData.get(fileKey)];
+      
+      for (const file of files) {
+        if (file && file instanceof File && file.size > 0) {
+          const uploadedPath = await uploadFile(file, mediaBinding, 'page');
+          if (uploadedPath) urls.push(uploadedPath);
+        }
+      }
+      return isMultiple ? urls : (urls.length > 0 ? urls[0] : null);
+    };
+
+    // Hero Image
+    let hero_image = formData.get('hero_image_url') as string;
+    const uploadedHero = await handleUploads('hero_image_file', false) as string;
+    if (uploadedHero) hero_image = uploadedHero;
+
+    // Slider Images
+    let sliderUrlsStr = formData.get('slider_urls') as string;
+    let slider_images = sliderUrlsStr ? sliderUrlsStr.split(',').map(s => s.trim()).filter(s => s) : [];
+    const uploadedSliders = await handleUploads('slider_files[]', true) as string[];
+    slider_images = [...slider_images, ...uploadedSliders];
+
+    // Gallery Images
+    let galleryUrlsStr = formData.get('gallery_urls') as string;
+    let gallery_images = galleryUrlsStr ? galleryUrlsStr.split(',').map(s => s.trim()).filter(s => s) : [];
+    const uploadedGallery = await handleUploads('gallery_files[]', true) as string[];
+    gallery_images = [...gallery_images, ...uploadedGallery];
+
+    // References Images
+    let refUrlsStr = formData.get('ref_urls') as string;
+    let references_data = refUrlsStr ? refUrlsStr.split(',').map(s => s.trim()).filter(s => s) : [];
+    const uploadedRefs = await handleUploads('ref_files[]', true) as string[];
+    references_data = [...references_data, ...uploadedRefs];
+
+    const newPage = await createPage({
+      title,
+      slug,
+      section1,
+      slider_images: JSON.stringify(slider_images),
+      hero_image,
+      hero_slogan,
+      hero_button_text,
+      hero_button_link,
+      section3,
+      gallery_images: JSON.stringify(gallery_images),
+      references_data: JSON.stringify(references_data),
+      section6,
+      metaTitle,
+      metaDescription
+    }, dbBinding);
+
+    if (newPage) {
+      success = true;
+    } else {
+      error = 'Sayfa kaydedilirken bir hata oluştu. Slug benzersiz olmalıdır.';
+    }
+  } catch (err) {
+    console.error('New page save error:', err);
+    error = 'Sayfa kaydedilirken sistemsel bir hata oluştu.';
+  }
+}
+---
+
+<BaseLayout title="Yeni Sabit Sayfa - Admin" isAdmin={true}>
+  <div class="max-w-5xl mx-auto px-4 py-8 pb-24">
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+      <a href="/admin" class="hover:text-orange-500 transition">Dashboard</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      <a href="/admin/pages" class="hover:text-orange-500 transition">Sabit Sayfalar</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      <span class="text-gray-700 dark:text-gray-300 font-medium">Sayfa Oluştur</span>
+    </div>
+
+    <a href="/admin/pages" class="inline-flex items-center gap-2 text-gray-600 hover:text-orange-500 transition mb-6">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+      Geri
+    </a>
+
+    {success && (
+      <div class="bg-green-100 border border-green-200 text-green-700 p-4 rounded-lg mb-6 flex justify-between items-center">
+        <span>✅ Sayfa başarıyla oluşturuldu!</span>
+        <a href="/admin/pages" class="font-bold underline">Listeye Dön</a>
+      </div>
+      <script>
+        setTimeout(() => window.location.href = '/admin/pages', 1000);
+      </script>
+    )}
+
+    {error && (
+      <div class="bg-red-100 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+        ❌ {error}
+      </div>
+    )}
+
+    <form method="POST" enctype="multipart/form-data" class="space-y-8" id="pageForm">
+      
+      <!-- Başlık ve Slug -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Sayfa Başlığı</label>
+            <input type="text" name="title" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" placeholder="(İsteğe bağlı)" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Sayfa Linki (Slug) *</label>
+            <input type="text" name="slug" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" placeholder="Örn: hakkimizda (Boş bırakırsanız başlıktan üretilir)" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Bölüm 1: İçerik -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide p-6 pb-0">Bölüm 1: Giriş İçeriği</label>
+        <div class="p-6">
+          <div id="editor1" class="min-h-[200px] border rounded-b-lg"></div>
+          <input type="hidden" name="section1" id="hiddenSec1">
+        </div>
+      </div>
+
+      <!-- Bölüm 2: Slider -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Bölüm 2: Slider Görselleri</label>
+        <div class="space-y-4">
+          <input type="file" name="slider_files[]" multiple accept="image/*" class="w-full text-sm" />
+          <input type="text" name="slider_urls" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="veya görsel URL'lerini virgülle girin" />
+          <p class="text-xs text-gray-500">Bu alana eklenen görseller sayfa içinde otomatik kayan bir slider olarak gösterilecektir.</p>
+        </div>
+      </div>
+
+      <!-- Bölüm 2.5: Tam Genişlik Resim ve Slogan -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 uppercase tracking-wide">Bölüm 2 Ek: Tam Genişlik Reklam/Banner</label>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2 md:col-span-2">
+            <label class="block text-sm font-medium">Arkaplan Görseli</label>
+            <input type="file" name="hero_image_file" accept="image/*" class="w-full text-sm" />
+            <input type="text" name="hero_image_url" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="veya görsel URL'si" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium">Slogan / Başlık</label>
+            <input type="text" name="hero_slogan" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="Bizimle İletişime Geçin" />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium">Buton Metni</label>
+              <input type="text" name="hero_button_text" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="İletişim" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium">Buton Linki</label>
+              <input type="text" name="hero_button_link" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="/iletisim" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bölüm 3: İçerik -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide p-6 pb-0">Bölüm 3: Orta Alan İçeriği</label>
+        <div class="p-6">
+          <div id="editor3" class="min-h-[200px] border rounded-b-lg"></div>
+          <input type="hidden" name="section3" id="hiddenSec3">
+        </div>
+      </div>
+
+      <!-- Bölüm 4: Galeri -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Bölüm 4: Resim Galerisi</label>
+        <div class="space-y-4">
+          <input type="file" name="gallery_files[]" multiple accept="image/*" class="w-full text-sm" />
+          <input type="text" name="gallery_urls" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="veya görsel URL'lerini virgülle girin" />
+          <p class="text-xs text-gray-500">Izgara (grid) şeklinde yan yana dizilecek galeri fotoğrafları.</p>
+        </div>
+      </div>
+
+      <!-- Bölüm 5: Referanslar -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Bölüm 5: Referans Logoları</label>
+        <div class="space-y-4">
+          <input type="file" name="ref_files[]" multiple accept="image/*" class="w-full text-sm" />
+          <input type="text" name="ref_urls" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="veya görsel URL'lerini virgülle girin" />
+          <p class="text-xs text-gray-500">Müşterilerinizin veya partnerlerinizin logolarını buradan ekleyebilirsiniz.</p>
+        </div>
+      </div>
+
+      <!-- Bölüm 6: Son İçerik -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide p-6 pb-0">Bölüm 6: Alt Kısım İçeriği</label>
+        <div class="p-6">
+          <div id="editor6" class="min-h-[200px] border rounded-b-lg"></div>
+          <input type="hidden" name="section6" id="hiddenSec6">
+        </div>
+      </div>
+
+      <!-- SEO -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 uppercase tracking-wide">🔍 SEO Ayarları</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Meta Başlık</label>
+            <input type="text" name="metaTitle" maxlength="60" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Meta Açıklama</label>
+            <textarea name="metaDescription" rows="2" maxlength="160" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kaydet Butonu -->
+      <div class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t dark:border-gray-800 shadow-lg p-4 z-50">
+        <div class="max-w-5xl mx-auto flex justify-end">
+          <button type="submit" class="px-8 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition font-medium shadow-lg text-lg">
+            Sayfayı Kaydet ve Yayınla
+          </button>
+        </div>
+      </div>
+
+    </form>
+  </div>
+
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" is:inline>
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js" is:inline></script>
+  <style is:global>
+    .ql-toolbar { @apply bg-gray-50 dark:bg-gray-700 dark:border-gray-600 rounded-t-lg; }
+    .ql-container { @apply text-base font-sans; }
+    .dark .ql-snow .ql-stroke { stroke: #d1d5db; }
+    .dark .ql-snow .ql-fill { fill: #d1d5db; }
+    .dark .ql-snow .ql-picker { color: #d1d5db; }
+  </style>
+  <script is:inline>
+    const form = document.getElementById('pageForm');
+    
+    const qOpts = {
+      theme: 'snow',
+      modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link', 'image', 'video'], ['clean'] ] },
+      placeholder: 'İçeriğinizi buraya yazın...'
+    };
+
+    const quill1 = new Quill('#editor1', qOpts);
+    const quill3 = new Quill('#editor3', qOpts);
+    const quill6 = new Quill('#editor6', qOpts);
+
+    form?.addEventListener('submit', function() {
+      document.getElementById('hiddenSec1').value = quill1.root.innerHTML === '<p><br></p>' ? '' : quill1.root.innerHTML;
+      document.getElementById('hiddenSec3').value = quill3.root.innerHTML === '<p><br></p>' ? '' : quill3.root.innerHTML;
+      document.getElementById('hiddenSec6').value = quill6.root.innerHTML === '<p><br></p>' ? '' : quill6.root.innerHTML;
+    });
+  </script>
+</BaseLayout>

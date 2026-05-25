@@ -1,49 +1,175 @@
+---
+import { getSettings } from '../lib/db';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const settings = await getSettings(dbBinding);
+const menuItems = settings.menu_items ? JSON.parse(settings.menu_items) : [
+  { title: 'Ana Sayfa', url: '/' },
+  { title: 'Yaşam', url: '/yasam' },
+  { title: 'Teknoloji', url: '/teknoloji' },
+  { title: 'Kadın', url: '/kadin' },
+  { title: 'Otomobil', url: '/otomobil' },
+  { title: 'Anne & Bebek', url: '/anne-bebek' },
+];
+---
 <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
   <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex justify-between items-center h-16">
       <!-- Logo -->
       <a href="/" class="flex items-center gap-2">
-        <span class="text-xl font-bold bg-gradient-to-r from-orange-500 to-purple-600 bg-clip-text text-transparent">LAFLAF</span>
-        <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">.net</span>
+        {settings.site_logo && (settings.site_logo.startsWith('http') || settings.site_logo.startsWith('/')) ? (
+          <img src={settings.site_logo} alt={settings.site_title || 'Logo'} class="h-8 w-auto object-contain" />
+        ) : (
+          <span class="text-2xl font-black tracking-tighter bg-gradient-to-r from-orange-500 to-purple-600 bg-clip-text text-transparent">
+            {settings.site_logo && settings.site_logo.length <= 3 ? settings.site_logo : (settings.site_title || 'LAF')}
+          </span>
+        )}
       </a>
 
-      <!-- Desktop Menu -->
-      <div class="hidden md:flex items-center gap-6">
-        <a href="/kategori/kesfet" class="text-gray-700 dark:text-gray-300 hover:text-orange-500 transition">Keşfet</a>
-        <a href="/kategori/en-populer" class="text-gray-700 dark:text-gray-300 hover:text-orange-500 transition">En Popüler</a>
-        <a href="/kategori/trend" class="text-gray-700 dark:text-gray-300 hover:text-orange-500 transition">Trend</a>
-        <a href="/admin" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">Admin</a>
-      </div>
-
-      <!-- Mobile Menu Button -->
-      <button id="mobile-menu-btn" class="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
-    </div>
-
-    <!-- Mobile Menu Panel -->
-    <div id="mobile-menu" class="hidden md:hidden py-4 border-t border-gray-200 dark:border-gray-700">
-      <div class="flex flex-col space-y-3">
-        <a href="/kategori/kesfet" class="px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition">Keşfet</a>
-        <a href="/kategori/en-populer" class="px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition">En Popüler</a>
-        <a href="/kategori/trend" class="px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition">Trend</a>
-        <a href="/admin" class="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition text-center">Admin</a>
+      <!-- Sağ İkonlar (dark/light uyumlu) -->
+      <div class="flex items-center gap-4">
+        <!-- Arama İkonu -->
+        <a href="/arama" class="text-gray-700 dark:text-white hover:text-orange-500 transition text-xl">
+          <i class="fas fa-search"></i>
+        </a>
+        
+        <!-- Kullanıcı İkonu -->
+        <a href="/profil" class="text-gray-700 dark:text-white hover:text-orange-500 transition text-xl">
+          <i class="far fa-user-circle"></i>
+        </a>
+        
+        <!-- Bildirim İkonu -->
+        <div class="relative">
+          <a href="/profil" class="text-gray-700 dark:text-white hover:text-red-500 transition text-xl">
+            <i class="far fa-bell"></i>
+          </a>
+          <span class="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse pointer-events-none"></span>
+        </div>
+        <button id="themeToggle" class="text-2xl focus:outline-none hover:scale-110 transition text-gray-700 dark:text-gray-200">
+            <i id="themeIcon" class="fas fa-moon"></i>
+          </button>
+        
+        <!-- Menü İkonu (sandwich) -->
+        <button id="menuIconBtn" class="text-gray-700 dark:text-white hover:text-orange-500 transition text-xl">
+          <i class="fas fa-bars"></i>
+        </button>
       </div>
     </div>
   </nav>
 </header>
 
+<!-- Off-Canvas Yan Menü -->
+<div id="sideMenuOverlay" class="fixed inset-0 bg-black/50 z-[60] hidden opacity-0 transition-opacity duration-300"></div>
+<div id="sideMenu" class="fixed top-0 right-0 h-full w-80 bg-white dark:bg-gray-900 shadow-2xl z-[70] transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+  <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
+    <span class="text-xl font-bold bg-gradient-to-r from-orange-500 to-purple-600 bg-clip-text text-transparent">Menü</span>
+    <button id="closeMenuBtn" class="text-gray-500 hover:text-red-500 transition text-2xl p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+  <div class="flex-1 overflow-y-auto p-6">
+    <ul class="space-y-2">
+      {menuItems.map((item: any) => (
+        <li>
+          <a href={item.url} class="block px-4 py-3 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-gray-800 hover:text-orange-500 transition font-medium">
+            <i class="fas fa-link w-6 text-gray-400"></i> {item.title}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+  <div class="p-6 border-t border-gray-200 dark:border-gray-800 text-center text-sm text-gray-500">
+    <p>&copy; 2026 Laflaf.net</p>
+  </div>
+</div>
+
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const menuBtn = document.getElementById('mobile-menu-btn');
-    const mobileMenu = document.getElementById('mobile-menu');
-
-    if (menuBtn && mobileMenu) {
-      menuBtn.addEventListener('click', () => {
-        mobileMenu.classList.toggle('hidden');
+    // Dark/Light Mode Toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const htmlElement = document.documentElement;
+    
+    // Başlangıç temasını kontrol et
+    if (localStorage.getItem('theme') === 'light') {
+      htmlElement.classList.remove('dark');
+      htmlElement.classList.add('light');
+      if (themeIcon) {
+        themeIcon.classList.remove('fa-moon');
+        themeIcon.classList.add('fa-sun');
+      }
+    } else {
+      htmlElement.classList.add('dark');
+      if (themeIcon) {
+        themeIcon.classList.remove('fa-sun');
+        themeIcon.classList.add('fa-moon');
+      }
+    }
+    
+    // Toggle butonu
+    if (themeToggle) {
+      themeToggle.addEventListener('click', () => {
+        if (htmlElement.classList.contains('dark')) {
+          htmlElement.classList.remove('dark');
+          htmlElement.classList.add('light');
+          localStorage.setItem('theme', 'light');
+          if (themeIcon) {
+            themeIcon.classList.remove('fa-moon');
+            themeIcon.classList.add('fa-sun');
+          }
+        } else {
+          htmlElement.classList.remove('light');
+          htmlElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+          if (themeIcon) {
+            themeIcon.classList.remove('fa-sun');
+            themeIcon.classList.add('fa-moon');
+          }
+        }
       });
     }
+    
+    // Menü butonu ve Yan Menü İşlemleri
+    const menuBtn = document.getElementById('menuIconBtn');
+    const closeMenuBtn = document.getElementById('closeMenuBtn');
+    const sideMenu = document.getElementById('sideMenu');
+    const sideMenuOverlay = document.getElementById('sideMenuOverlay');
+
+    function openMenu() {
+      if (sideMenu && sideMenuOverlay) {
+        sideMenuOverlay.classList.remove('hidden');
+        // Force reflow
+        void sideMenuOverlay.offsetWidth;
+        sideMenuOverlay.classList.remove('opacity-0');
+        sideMenu.classList.remove('translate-x-full');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    function closeMenu() {
+      if (sideMenu && sideMenuOverlay) {
+        sideMenu.classList.add('translate-x-full');
+        sideMenuOverlay.classList.add('opacity-0');
+        setTimeout(() => {
+          sideMenuOverlay.classList.add('hidden');
+          document.body.style.overflow = '';
+        }, 300);
+      }
+    }
+
+    if (menuBtn) {
+      menuBtn.addEventListener('click', openMenu);
+    }
+    
+    if (closeMenuBtn) {
+      closeMenuBtn.addEventListener('click', closeMenu);
+    }
+
+    if (sideMenuOverlay) {
+      sideMenuOverlay.addEventListener('click', closeMenu);
+    }
+
+    // Window event listener for opening from other components if needed
+    window.addEventListener('openSideMenu', openMenu);
   });
 </script>

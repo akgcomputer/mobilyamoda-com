@@ -1,0 +1,310 @@
+---
+// [slug].astro - Tekil İçerik Görünümü
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getPostBySlug, getPosts, getCommentsByPost } from '../../lib/db';
+
+const slug = Astro.params.slug;
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const post = await getPostBySlug(slug as string, dbBinding);
+
+if (!post) {
+  return Astro.redirect('/');
+}
+
+// Tüm içerikleri çekip benzer ve farklı kategoridekileri ayıralım
+const allPosts = await getPosts(dbBinding);
+const sameCategoryPosts = allPosts.filter(p => p.category?.id === post.category?.id && p.id !== post.id).sort(() => Math.random() - 0.5).slice(0, 5);
+const differentCategoryPosts = allPosts.filter(p => p.category?.id !== post.category?.id && p.id !== post.id).sort(() => Math.random() - 0.5).slice(0, 5);
+
+// Fetch comments
+const comments = await getCommentsByPost(post.id, dbBinding);
+
+// Yazar Adı
+const authorName = "LAFLAF Aİ"; // İlerde session.isAdmin kontrolü ile değişebilir
+
+const formatNumber = (num?: number) => {
+  if (!num) return '0';
+  if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return num.toString();
+};
+
+const currentUrl = Astro.url.href;
+---
+
+<BaseLayout title={post.title} description={post.excerpt}>
+  
+  <!-- Breadcrumbs -->
+  <div class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center text-sm text-gray-500 dark:text-gray-400 flex-wrap gap-y-2">
+      <a href="/" class="hover:text-purple-500 transition"><i class="fas fa-home"></i> Ana Sayfa</a>
+      <i class="fas fa-chevron-right text-xs mx-2"></i>
+      {post.category?.parent && (
+        <>
+          <a href={`/${post.category.parent.slug}`} class="hover:text-purple-500 transition">{post.category.parent.name}</a>
+          <i class="fas fa-chevron-right text-xs mx-2"></i>
+        </>
+      )}
+      <a href={`/${post.category?.slug || 'genel'}`} class="hover:text-purple-500 transition">{post.category?.name || 'Genel'}</a>
+      <i class="fas fa-chevron-right text-xs mx-2"></i>
+      <span class="text-gray-900 dark:text-gray-200 truncate max-w-[200px] sm:max-w-md">{post.title}</span>
+    </div>
+  </div>
+
+  <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col lg:flex-row gap-8">
+      
+      <!-- SOL SIDEBAR: Aynı Kategori & Reklamlar -->
+      <aside class="w-full lg:w-72 flex-shrink-0 space-y-8 order-2 lg:order-1">
+        <!-- Üst Dikdörtgen Reklam -->
+        <div class="w-full h-64 bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-400 dark:border-gray-600">
+          <span class="text-gray-500 text-sm font-medium">Reklam Alanı (Dikdörtgen)</span>
+        </div>
+        
+        <!-- Kendi Kategorisinden İçerikler -->
+        <div class="bg-white dark:bg-gray-900 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+          <h3 class="text-lg font-bold mb-4 border-b pb-2 dark:border-gray-700">Benzer İçerikler</h3>
+          <div class="space-y-4">
+            {sameCategoryPosts.map(p => (
+              <a href={`/${p.category?.slug || 'genel'}/${p.slug}`} class="flex gap-3 group">
+                <div class="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                  {p.imageUrl ? <img src={p.imageUrl} class="w-full h-full object-cover group-hover:scale-110 transition" /> : <i class="fas fa-image flex items-center justify-center h-full text-gray-400"></i>}
+                </div>
+                <div>
+                  <h4 class="text-sm font-medium line-clamp-2 group-hover:text-purple-500 transition">{p.title}</h4>
+                  <span class="text-xs text-gray-500 mt-1 block">{p.readTime || 3} dk</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+        
+        <!-- Alt Kare Reklam -->
+        <div class="w-full aspect-square bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-400 dark:border-gray-600">
+          <span class="text-gray-500 text-sm font-medium">Reklam Alanı (Kare)</span>
+        </div>
+      </aside>
+
+      <!-- ORTA ALAN: ANA İÇERİK -->
+      <main class="flex-1 min-w-0 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden order-1 lg:order-2">
+        
+        <article class="p-6 md:p-10">
+          <!-- Kategori -->
+          <div class="mb-4 flex flex-wrap gap-2">
+            {post.category?.parent && (
+              <a href={`/${post.category.parent.slug}`} class="inline-block px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm font-semibold hover:bg-purple-200 transition">
+                {post.category.parent.name}
+              </a>
+            )}
+            <a href={`/${post.category?.slug || 'genel'}`} class="inline-block px-3 py-1 bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 rounded-full text-sm font-semibold hover:bg-orange-200 transition">
+              {post.category?.name || 'Genel'}
+            </a>
+          </div>
+
+          <!-- Başlık -->
+          <h1 class="text-3xl md:text-5xl font-bold mb-6 text-gray-900 dark:text-white leading-tight">{post.title}</h1>
+
+          <!-- Meta (Yazar, Okunma, Beğeni, Okuma Süresi) -->
+          <div class="flex flex-wrap items-center gap-6 text-sm text-gray-600 dark:text-gray-400 mb-8 pb-6 border-b dark:border-gray-800">
+            <span class="flex items-center gap-2 font-medium text-gray-900 dark:text-white">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 flex items-center justify-center text-white">
+                <i class="fas fa-robot"></i>
+              </div>
+              {authorName}
+            </span>
+            <span class="flex items-center gap-1"><i class="far fa-clock"></i> {post.readTime || 3} dk</span>
+            <span class="flex items-center gap-1"><i class="far fa-eye"></i> {formatNumber(post.views)}</span>
+            <span class="flex items-center gap-1"><i class="far fa-heart text-red-500"></i> <span id="likeCountText">{formatNumber(post.likes)}</span></span>
+          </div>
+
+          <!-- Featured Image -->
+          {post.imageUrl && (
+            <div class="mb-10 rounded-2xl overflow-hidden shadow-lg bg-gray-100 dark:bg-gray-800">
+              <img src={post.imageUrl} alt={post.title} class="w-full h-auto object-cover max-h-[600px]" />
+            </div>
+          )}
+
+          <!-- İçerik -->
+          <div class="prose prose-lg md:prose-xl max-w-none dark:prose-invert text-gray-800 dark:text-gray-200 prose-headings:font-bold prose-a:text-purple-600 hover:prose-a:text-purple-500" set:html={post.content} />
+
+          <!-- Etiketler -->
+          {post.tags && (
+            <div class="mt-12 pt-6 border-t dark:border-gray-800 flex flex-wrap gap-2">
+              <span class="font-medium mr-2 flex items-center text-gray-500">Etiketler:</span>
+              {post.tags.split(',').map((tag: string) => {
+                const t = tag.trim();
+                return (
+                <a href={`/etiket/${t.toLowerCase().replace(/ /g, '-')}`} class="text-sm px-4 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-full text-gray-700 dark:text-gray-300 transition">
+                  #{t}
+                </a>
+              )})}
+            </div>
+          )}
+
+          <!-- Aksiyon ve Paylaşım Alanı -->
+          <div class="mt-12 flex flex-col items-center p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700 gap-6">
+            
+            <button 
+              id="likeBtn" 
+              data-id={post.id}
+              class="flex-shrink-0 flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:shadow-lg hover:scale-105 transition-all font-bold text-lg"
+            >
+              <i class="fas fa-heart text-xl"></i>
+              <span>Beğen (<span id="btnLikeCount">{formatNumber(post.likes)}</span>)</span>
+            </button>
+
+            <div class="w-full text-center">
+              <p class="text-sm font-medium mb-3 text-gray-600 dark:text-gray-400">Bu içeriği paylaş:</p>
+              <div class="flex flex-wrap justify-center gap-2">
+                <a href={`https://twitter.com/intent/tweet?url=${currentUrl}&text=${post.title}`} target="_blank" class="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center hover:opacity-80 transition" title="X"><svg class="w-4 h-4 fill-current" viewBox="0 0 1200 1227"><path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z"></path></svg></a>
+                <a href={`https://www.facebook.com/sharer/sharer.php?u=${currentUrl}`} target="_blank" class="w-10 h-10 rounded-full bg-[#4267B2] text-white flex items-center justify-center hover:opacity-80 transition" title="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href={`https://api.whatsapp.com/send?text=${post.title} ${currentUrl}`} target="_blank" class="w-10 h-10 rounded-full bg-[#25D366] text-white flex items-center justify-center hover:opacity-80 transition" title="WhatsApp"><i class="fab fa-whatsapp text-lg"></i></a>
+                <a href={`https://t.me/share/url?url=${currentUrl}&text=${post.title}`} target="_blank" class="w-10 h-10 rounded-full bg-[#0088cc] text-white flex items-center justify-center hover:opacity-80 transition" title="Telegram"><i class="fab fa-telegram-plane text-lg"></i></a>
+                <a href={`https://www.linkedin.com/shareArticle?mini=true&url=${currentUrl}&title=${post.title}`} target="_blank" class="w-10 h-10 rounded-full bg-[#0077b5] text-white flex items-center justify-center hover:opacity-80 transition" title="LinkedIn"><i class="fab fa-linkedin-in text-lg"></i></a>
+                <a href={`https://pinterest.com/pin/create/button/?url=${currentUrl}&description=${post.title}`} target="_blank" class="w-10 h-10 rounded-full bg-[#E60023] text-white flex items-center justify-center hover:opacity-80 transition" title="Pinterest"><i class="fab fa-pinterest-p text-lg"></i></a>
+                <a href={`https://www.instagram.com/`} target="_blank" class="w-10 h-10 rounded-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] text-white flex items-center justify-center hover:opacity-80 transition" title="Instagram"><i class="fab fa-instagram text-lg"></i></a>
+                <button onclick="navigator.clipboard.writeText(window.location.href); alert('Bağlantı kopyalandı!')" class="w-10 h-10 rounded-full bg-gray-600 text-white flex items-center justify-center hover:opacity-80 transition" title="Bağlantıyı Kopyala"><i class="fas fa-link"></i></button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Yorumlar Bölümü -->
+        <section class="p-6 md:p-10 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
+          <h3 class="text-2xl font-bold mb-8">Yorumlar</h3>
+          
+          <!-- Yorum Formu -->
+          <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-10">
+            <h4 class="font-semibold mb-4">Bir Yorum Bırakın</h4>
+            <form id="commentForm" class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium mb-1">Ad Soyad</label>
+                  <input type="text" required class="w-full px-4 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none" placeholder="Adınız Soyadınız">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1">E-posta (Gizli kalacak)</label>
+                  <input type="email" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none" placeholder="ornek@email.com">
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">Yorumunuz</label>
+                <textarea required rows="4" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none" placeholder="Düşüncelerinizi paylaşın..."></textarea>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="checkbox" id="robotCheck" required class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
+                <label for="robotCheck" class="text-sm">Ben robot değilim</label>
+              </div>
+              <button type="submit" class="bg-purple-600 text-white px-6 py-2.5 rounded-lg hover:bg-purple-700 transition font-medium">Yorumu Gönder</button>
+            </form>
+            <div id="commentSuccess" class="hidden mt-4 p-4 bg-green-100 text-green-700 rounded-lg">Yorumunuz başarıyla gönderildi! Onaylandıktan sonra yayınlanacaktır.</div>
+          </div>
+
+          <!-- Yorumlar Listesi (Veritabanından çekilen) -->
+          <div class="space-y-6">
+            {comments.length > 0 ? comments.map(comment => (
+              <div class="flex gap-4 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                <div class="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-lg flex-shrink-0">
+                  {comment.author_name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <h5 class="font-semibold">{comment.author_name}</h5>
+                  </div>
+                  <p class="text-gray-700 dark:text-gray-300 text-sm">{comment.content}</p>
+                </div>
+              </div>
+            )) : (
+              <p class="text-gray-500 text-sm italic">Henüz yorum yapılmamış. İlk yorumu siz yapın!</p>
+            )}
+          </div>
+        </section>
+
+      </main>
+
+      <!-- SAĞ SIDEBAR: Farklı Kategoriler & Reklamlar -->
+      <aside class="w-full lg:w-72 flex-shrink-0 space-y-8 order-3">
+        <!-- Üst Dikdörtgen Reklam -->
+        <div class="w-full h-64 bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-400 dark:border-gray-600">
+          <span class="text-gray-500 text-sm font-medium">Reklam Alanı (Dikdörtgen)</span>
+        </div>
+        
+        <!-- Farklı Kategorilerden İçerikler -->
+        <div class="bg-white dark:bg-gray-900 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+          <h3 class="text-lg font-bold mb-4 border-b pb-2 dark:border-gray-700">İlginizi Çekebilir</h3>
+          <div class="space-y-4">
+            {differentCategoryPosts.map(p => (
+              <a href={`/${p.category?.slug || 'genel'}/${p.slug}`} class="flex gap-3 group">
+                <div class="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                  {p.imageUrl ? <img src={p.imageUrl} class="w-full h-full object-cover group-hover:scale-110 transition" /> : <i class="fas fa-image flex items-center justify-center h-full text-gray-400"></i>}
+                </div>
+                <div>
+                  <h4 class="text-sm font-medium line-clamp-2 group-hover:text-purple-500 transition">{p.title}</h4>
+                  <span class="text-xs text-purple-500 mt-1 block">{p.category?.name}</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+        
+        <!-- Alt Kare Reklam -->
+        <div class="w-full aspect-square bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-400 dark:border-gray-600">
+          <span class="text-gray-500 text-sm font-medium">Reklam Alanı (Kare)</span>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // Beğeni Butonu
+  const likeBtn = document.getElementById('likeBtn');
+  const btnLikeCount = document.getElementById('btnLikeCount');
+  const likeCountText = document.getElementById('likeCountText');
+  const postId = likeBtn?.dataset.id;
+
+  if (postId && localStorage.getItem('liked_' + postId)) {
+    if (likeBtn) {
+      likeBtn.classList.remove('from-orange-500', 'to-red-500', 'hover:shadow-lg', 'hover:scale-105');
+      likeBtn.classList.add('bg-green-600', 'scale-100');
+      likeBtn.setAttribute('disabled', 'true');
+      const span = likeBtn.querySelector('span:nth-child(2)');
+      if (span) span.textContent = 'Beğenildi!';
+    }
+  }
+
+  likeBtn?.addEventListener('click', async () => {
+    if (!postId || localStorage.getItem('liked_' + postId)) return;
+    
+    if (btnLikeCount) btnLikeCount.textContent = (parseInt(btnLikeCount.textContent || '0') + 1).toString();
+    if (likeCountText) likeCountText.textContent = (parseInt(likeCountText.textContent || '0') + 1).toString();
+    
+    likeBtn.classList.remove('from-orange-500', 'to-red-500', 'hover:shadow-lg', 'hover:scale-105');
+    likeBtn.classList.add('bg-green-600', 'scale-100');
+    likeBtn.setAttribute('disabled', 'true');
+    const span = likeBtn.querySelector('span:nth-child(2)');
+    if (span) span.textContent = 'Beğenildi!';
+    
+    localStorage.setItem('liked_' + postId, 'true');
+    
+    try {
+      await fetch('/api/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId })
+      });
+    } catch(e) {
+      console.error('Beğeni kaydedilemedi:', e);
+    }
+  });
+
+  // Yorum Formu
+  const commentForm = document.getElementById('commentForm');
+  const commentSuccess = document.getElementById('commentSuccess');
+  
+  commentForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    commentForm.classList.add('hidden');
+    commentSuccess?.classList.remove('hidden');
+  });
+</script>
