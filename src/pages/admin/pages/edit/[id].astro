@@ -276,9 +276,36 @@ try { currentRefUrls = JSON.parse(page.references_data || '[]').join(', '); } ca
   <script is:inline>
     const form = document.getElementById('pageForm');
     
+    // Quill Customizations
+    const Link = Quill.import('formats/link');
+    class MyLink extends Link {
+      static create(value) {
+        if (value && typeof value === 'string') {
+          if (!value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('mailto:') && !value.startsWith('tel:') && !value.startsWith('/')) {
+            value = 'https://' + value;
+          }
+        }
+        return super.create(value);
+      }
+    }
+    Quill.register(MyLink, true);
+
+    const ColorStyle = Quill.import('attributors/style/color');
+    const BackgroundStyle = Quill.import('attributors/style/background');
+    Quill.register(ColorStyle, true);
+    Quill.register(BackgroundStyle, true);
+
     const qOpts = {
       theme: 'snow',
-      modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link', 'image', 'video'], ['clean'] ] }
+      modules: { toolbar: [ 
+        [{ 'header': [1, 2, 3, false] }], 
+        ['bold', 'italic', 'underline', 'strike'], 
+        [{'list': 'ordered'}, {'list': 'bullet'}], 
+        ['link', 'image', 'video'], 
+        [{ 'color': [] }, { 'background': [] }],
+        ['clean'] 
+      ] },
+      placeholder: 'İçeriğinizi buraya yazın...'
     };
 
     const quill1 = new Quill('#editor1', qOpts);

@@ -214,7 +214,7 @@ if (Astro.request.method === 'POST') {
               <input type="file" id="featuredInput" name="featured_image" accept="image/*" class="hidden" />
             </div>
             <div class="flex gap-2">
-              <input type="url" id="featured_image_url" name="featured_image_url" value="" placeholder="veya yeni görsel URL'si girin" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
+              <input type="text" id="featured_image_url" name="featured_image_url" value="" placeholder="veya yeni görsel URL'si girin" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
               <MediaPicker inputId="featured_image_url" />
             </div>
           </div>
@@ -283,6 +283,25 @@ if (Astro.request.method === 'POST') {
   <script is:inline>
     const wordCountSpan = document.getElementById('wordCount');
     const form = document.getElementById('postForm');
+
+    // Quill Customizations
+    const Link = Quill.import('formats/link');
+    class MyLink extends Link {
+      static create(value) {
+        if (value && typeof value === 'string') {
+          if (!value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('mailto:') && !value.startsWith('tel:') && !value.startsWith('/')) {
+            value = 'https://' + value;
+          }
+        }
+        return super.create(value);
+      }
+    }
+    Quill.register(MyLink, true);
+
+    const ColorStyle = Quill.import('attributors/style/color');
+    const BackgroundStyle = Quill.import('attributors/style/background');
+    Quill.register(ColorStyle, true);
+    Quill.register(BackgroundStyle, true);
 
     // Quill Initialization
     const quill = new Quill('#editor-container', {
