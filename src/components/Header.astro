@@ -37,6 +37,16 @@ const menuItems = settings.menu_items ? JSON.parse(settings.menu_items) : [
         <a href="/profil" class="text-gray-700 dark:text-white hover:text-orange-500 transition text-xl">
           <i class="far fa-user-circle"></i>
         </a>
+
+        <!-- Sepet İkonu -->
+        {settings.site_mode === 'ecommerce' || settings.site_mode === 'mixed' ? (
+          <div class="relative">
+            <a href="/sepet" class="text-gray-700 dark:text-white hover:text-orange-500 transition text-xl">
+              <i class="fas fa-shopping-cart"></i>
+            </a>
+            <span id="headerCartBadge" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center opacity-0 transition-opacity pointer-events-none">0</span>
+          </div>
+        ) : null}
         
         <!-- Bildirim İkonu -->
         <div class="relative">
@@ -160,16 +170,51 @@ const menuItems = settings.menu_items ? JSON.parse(settings.menu_items) : [
       }
     }
 
-    if (menuBtn) {
+    if (menuBtn && closeMenuBtn && sideMenu && sideMenuOverlay) {
       menuBtn.addEventListener('click', openMenu);
+      closeMenuBtn.addEventListener('click', closeMenu);
+      sideMenuOverlay.addEventListener('click', closeMenu);
     }
     
-    if (closeMenuBtn) {
-      closeMenuBtn.addEventListener('click', closeMenu);
+    // Header Cart Badge Update Logic
+    const headerCartBadge = document.getElementById('headerCartBadge');
+    
+    function updateHeaderCartBadge() {
+      if (!headerCartBadge) return;
+      try {
+        const cartStr = localStorage.getItem('laflaf_cart');
+        if (cartStr) {
+          const cart = JSON.parse(cartStr);
+          const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+          if (totalItems > 0) {
+            headerCartBadge.textContent = totalItems.toString();
+            headerCartBadge.classList.remove('opacity-0');
+          } else {
+            headerCartBadge.classList.add('opacity-0');
+          }
+        } else {
+          headerCartBadge.classList.add('opacity-0');
+        }
+      } catch (e) {
+        console.error('Error updating cart badge', e);
+      }
     }
 
-    if (sideMenuOverlay) {
-      sideMenuOverlay.addEventListener('click', closeMenu);
+    // İlk yüklemede badge güncelle
+    if (headerCartBadge) {
+      updateHeaderCartBadge();
+      
+      // Başka sekmelerden localStorage değişirse tetiklensin
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'laflaf_cart') {
+          updateHeaderCartBadge();
+        }
+      });
+      
+      // Aynı sayfada sepete ekleme yapıldığında tetiklenmesi için custom event
+      window.addEventListener('cart_updated', () => {
+        updateHeaderCartBadge();
+      });
     }
 
     // Window event listener for opening from other components if needed
