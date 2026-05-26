@@ -17,8 +17,16 @@ const sessionData = Astro.cookies.has('user_session') ? Astro.cookies.get('user_
 const userRole = sessionData?.role || 'misafir';
 const userName = sessionData?.name || 'Misafir';
 
-if (isAdmin && userRole === 'abone') {
-  return Astro.redirect('/');
+if (isAdmin) {
+  if (userRole === 'abone') {
+    return Astro.redirect('/');
+  }
+  if (userRole === 'editor' || userRole === 'yazar') {
+    const path = Astro.url.pathname.replace(/\/$/, '');
+    if (path !== '/admin' && !path.startsWith('/admin/posts')) {
+      return Astro.redirect('/admin');
+    }
+  }
 }
 
 const siteTitle = settings.site_title || 'Laflaf';
@@ -36,15 +44,15 @@ const cookieText = settings.cookie_text || 'Bu site size daha iyi bir deneyim su
 
 
 // Menü görünürlük kontrolleri
-const canSeeSayfalar = userRole === 'admin' || userRole === 'editor';
+const canSeeSayfalar = userRole === 'admin';
 const canSeeKategoriler = userRole === 'admin';
-const canSeeYorumlar = userRole === 'admin' || userRole === 'editor';
+const canSeeYorumlar = userRole === 'admin';
 const canSeeReklamlar = userRole === 'admin';
 const canSeeKullanicilar = userRole === 'admin';
 const canSeeAyarlar = userRole === 'admin';
-const canSeeBildirimler = userRole === 'admin' || userRole === 'editor';
+const canSeeBildirimler = userRole === 'admin';
 const canSeeGuvenlik = userRole === 'admin';
-const canSeeMedya = userRole === 'admin' || userRole === 'editor';
+const canSeeMedya = userRole === 'admin';
 ---
 
 <!DOCTYPE html>
