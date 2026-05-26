@@ -40,8 +40,39 @@ export interface Category {
   id: number;
   name: string;
   slug: string;
-  parent_id?: number | null;
-  icon?: string;
+  parent_id: number | null;
+  icon: string | null;
+  type: string; // 'blog' | 'product'
+  image_url: string | null;
+}
+
+export interface Brand {
+  id: number;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  is_popular: number;
+  createdAt: string;
+}
+
+export interface Product {
+  id: number;
+  category_id: number | null;
+  brand_id: number | null;
+  name: string;
+  slug: string;
+  excerpt: string | null;
+  description: string | null;
+  price: number;
+  compare_at_price: number | null;
+  image_url: string | null;
+  badge_top_left: string | null;
+  badge_top_right: string | null;
+  rating: number;
+  review_count: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Comment {
@@ -109,23 +140,31 @@ async function saveLocalDb(local: any) {
 
 // --- CATEGORIES ---
 
-export async function getCategories(db?: any): Promise<Category[]> {
+export async function getCategories(db?: any, type: string | null = 'blog'): Promise<Category[]> {
   if (db) {
+    if (type) {
+      const { results } = await db.prepare("SELECT * FROM categories WHERE type = ? ORDER BY name ASC").bind(type).all();
+      return results;
+    }
     const { results } = await db.prepare("SELECT * FROM categories ORDER BY name ASC").all();
     return results;
   }
   const local = await getLocalDb();
   if (local) {
-    return local.data.categories || [];
+    let cats = local.data.categories || [];
+    if (type) cats = cats.filter((c: any) => c.type === type);
+    return cats;
   }
   return [];
 }
 
 export async function createCategory(data: any, db?: any): Promise<Category | null> {
+  const cType = data.type || 'blog';
+  const imgUrl = data.image_url || null;
   if (db) {
     const result = await db.prepare(
-      "INSERT INTO categories (name, slug, parent_id, icon) VALUES (?, ?, ?, ?) RETURNING *"
-    ).bind(data.name, data.slug, data.parent_id || null, data.icon || null).first();
+      "INSERT INTO categories (name, slug, parent_id, icon, type, image_url) VALUES (?, ?, ?, ?, ?, ?) RETURNING *"
+    ).bind(data.name, data.slug, data.parent_id || null, data.icon || null, cType, imgUrl).first();
     return result;
   }
   const local = await getLocalDb();
@@ -135,7 +174,9 @@ export async function createCategory(data: any, db?: any): Promise<Category | nu
       name: data.name,
       slug: data.slug,
       parent_id: data.parent_id || null,
-      icon: data.icon || null
+      icon: data.icon || null,
+      type: cType,
+      image_url: imgUrl
     };
     local.data.categories.push(newCat);
     await saveLocalDb(local);
@@ -145,10 +186,12 @@ export async function createCategory(data: any, db?: any): Promise<Category | nu
 }
 
 export async function updateCategory(id: number, data: any, db?: any): Promise<Category | null> {
+  const cType = data.type || 'blog';
+  const imgUrl = data.image_url || null;
   if (db) {
     const result = await db.prepare(
-      "UPDATE categories SET name = ?, slug = ?, parent_id = ?, icon = ? WHERE id = ? RETURNING *"
-    ).bind(data.name, data.slug, data.parent_id || null, data.icon || null, id).first();
+      "UPDATE categories SET name = ?, slug = ?, parent_id = ?, icon = ?, type = ?, image_url = ? WHERE id = ? RETURNING *"
+    ).bind(data.name, data.slug, data.parent_id || null, data.icon || null, cType, imgUrl, id).first();
     return result;
   }
   const local = await getLocalDb();
@@ -180,6 +223,194 @@ export async function deleteCategory(id: number, db?: any): Promise<boolean> {
     local.data.categories = local.data.categories.filter((c: any) => c.id !== id);
     await saveLocalDb(local);
     return local.data.categories.length < before;
+  }
+  return false;
+}
+
+// --- BRANDS ---
+
+export async function getBrands(db?: any): Promise<Brand[]> {
+  if (db) {
+    const { results } = await db.prepare("SELECT * FROM brands ORDER BY name ASC").all();
+    return results;
+  }
+  const local = await getLocalDb();
+  if (local) return local.data.brands || [];
+  return [];
+}
+
+export async function createBrand(data: any, db?: any): Promise<Brand | null> {
+  const now = new Date().toISOString();
+  if (db) {
+    const result = await db.prepare(
+      "INSERT INTO brands (name, slug, logo_url, is_popular, createdAt) VALUES (?, ?, ?, ?, ?) RETURNING *"
+    ).bind(data.name, data.slug, data.logo_url || null, data.is_popular ? 1 : 0, now).first();
+    return result;
+  }
+  const local = await getLocalDb();
+  if (local) {
+    if (!local.data.brands) local.data.brands = [];
+    const newBrand = {
+      id: (local.data.brands.reduce((max: number, b: any) => b.id > max ? b.id : max, 0) || 0) + 1,
+      name: data.name,
+      slug: data.slug,
+      logo_url: data.logo_url || null,
+      is_popular: data.is_popular ? 1 : 0,
+      createdAt: now
+    };
+    local.data.brands.push(newBrand);
+    await saveLocalDb(local);
+    return newBrand;
+  }
+  return null;
+}
+
+export async function updateBrand(id: number, data: any, db?: any): Promise<Brand | null> {
+  if (db) {
+    const result = await db.prepare(
+      "UPDATE brands SET name = ?, slug = ?, logo_url = ?, is_popular = ? WHERE id = ? RETURNING *"
+    ).bind(data.name, data.slug, data.logo_url || null, data.is_popular ? 1 : 0, id).first();
+    return result;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.brands) {
+    const idx = local.data.brands.findIndex((b: any) => b.id === id);
+    if (idx !== -1) {
+      local.data.brands[idx] = { ...local.data.brands[idx], ...data };
+      await saveLocalDb(local);
+      return local.data.brands[idx];
+    }
+  }
+  return null;
+}
+
+export async function deleteBrand(id: number, db?: any): Promise<boolean> {
+  if (db) {
+    const { success } = await db.prepare("DELETE FROM brands WHERE id = ?").bind(id).run();
+    return success;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.brands) {
+    const before = local.data.brands.length;
+    local.data.brands = local.data.brands.filter((b: any) => b.id !== id);
+    if (local.data.brands.length !== before) {
+      await saveLocalDb(local);
+      return true;
+    }
+  }
+  return false;
+}
+
+// --- PRODUCTS ---
+
+export async function getProducts(db?: any): Promise<Product[]> {
+  if (db) {
+    const { results } = await db.prepare("SELECT * FROM products ORDER BY createdAt DESC").all();
+    return results;
+  }
+  const local = await getLocalDb();
+  if (local) return local.data.products || [];
+  return [];
+}
+
+export async function getProductById(id: number, db?: any): Promise<Product | null> {
+  if (db) {
+    const result = await db.prepare("SELECT * FROM products WHERE id = ?").bind(id).first();
+    return result;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.products) {
+    return local.data.products.find((p: any) => p.id === id) || null;
+  }
+  return null;
+}
+
+export async function createProduct(data: any, db?: any): Promise<Product | null> {
+  const now = new Date().toISOString();
+  if (db) {
+    const result = await db.prepare(`
+      INSERT INTO products (
+        category_id, brand_id, name, slug, excerpt, description, 
+        price, compare_at_price, image_url, badge_top_left, badge_top_right, 
+        rating, review_count, status, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *
+    `).bind(
+      data.category_id || null, data.brand_id || null, data.name, data.slug, data.excerpt || null, data.description || null,
+      data.price || 0, data.compare_at_price || null, data.image_url || null, data.badge_top_left || null, data.badge_top_right || null,
+      data.rating || 0, data.review_count || 0, data.status || 'aktif', now, now
+    ).first();
+    return result;
+  }
+  const local = await getLocalDb();
+  if (local) {
+    if (!local.data.products) local.data.products = [];
+    const newProduct = {
+      id: (local.data.products.reduce((max: number, p: any) => p.id > max ? p.id : max, 0) || 0) + 1,
+      category_id: data.category_id || null,
+      brand_id: data.brand_id || null,
+      name: data.name,
+      slug: data.slug,
+      excerpt: data.excerpt || null,
+      description: data.description || null,
+      price: data.price || 0,
+      compare_at_price: data.compare_at_price || null,
+      image_url: data.image_url || null,
+      badge_top_left: data.badge_top_left || null,
+      badge_top_right: data.badge_top_right || null,
+      rating: data.rating || 0,
+      review_count: data.review_count || 0,
+      status: data.status || 'aktif',
+      createdAt: now,
+      updatedAt: now
+    };
+    local.data.products.push(newProduct);
+    await saveLocalDb(local);
+    return newProduct;
+  }
+  return null;
+}
+
+export async function updateProduct(id: number, data: any, db?: any): Promise<Product | null> {
+  const now = new Date().toISOString();
+  if (db) {
+    const result = await db.prepare(`
+      UPDATE products SET 
+        category_id = ?, brand_id = ?, name = ?, slug = ?, excerpt = ?, description = ?, 
+        price = ?, compare_at_price = ?, image_url = ?, badge_top_left = ?, badge_top_right = ?, 
+        status = ?, updatedAt = ?
+      WHERE id = ? RETURNING *
+    `).bind(
+      data.category_id || null, data.brand_id || null, data.name, data.slug, data.excerpt || null, data.description || null,
+      data.price || 0, data.compare_at_price || null, data.image_url || null, data.badge_top_left || null, data.badge_top_right || null,
+      data.status || 'aktif', now, id
+    ).first();
+    return result;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.products) {
+    const idx = local.data.products.findIndex((p: any) => p.id === id);
+    if (idx !== -1) {
+      local.data.products[idx] = { ...local.data.products[idx], ...data, updatedAt: now };
+      await saveLocalDb(local);
+      return local.data.products[idx];
+    }
+  }
+  return null;
+}
+
+export async function deleteProduct(id: number, db?: any): Promise<boolean> {
+  if (db) {
+    const { success } = await db.prepare("DELETE FROM products WHERE id = ?").bind(id).run();
+    return success;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.products) {
+    const before = local.data.products.length;
+    local.data.products = local.data.products.filter((p: any) => p.id !== id);
+    if (local.data.products.length !== before) {
+      await saveLocalDb(local);
+      return true;
+    }
   }
   return false;
 }

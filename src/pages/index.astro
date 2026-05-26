@@ -3,7 +3,9 @@
 // Public Frontend - Koyu tema, masonry grid, sonsuz kaydırma
 
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getPosts, getCategories } from '../lib/db';
+import { getPosts, getCategories, getProducts, getBrands } from '../lib/db';
+import StoryCategories from '../components/ecommerce/StoryCategories.astro';
+import ProductCard from '../components/ecommerce/ProductCard.astro';
 
 
 // Format sayıları (1.234 -> 1.2k)
@@ -21,6 +23,8 @@ function formatNumber(num: number): string {
 const dbBinding = Astro.locals.runtime?.env?.DB;
 const dbPosts = await getPosts(dbBinding);
 const dbCategories = await getCategories(dbBinding);
+const dbProducts = await getProducts(dbBinding);
+const dbBrands = await getBrands(dbBinding);
 
 // Gerçek içerikler
 const initialContents = dbPosts.map(p => ({
@@ -125,10 +129,26 @@ const borderColors = [
 ];
 ---
 
-<BaseLayout title="Vitrin Galeri | Keşfet, İlham Al, Paylaş" description="Dinamik galeri deneyimi ile içerikleri keşfedin. Görsel odaklı, modern ve premium içerik platformu.">
-  <div class="min-h-screen" id="appRoot">
-    <!-- Ana Container -->
-    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5">
+<BaseLayout title="Laflaf - En Yeni İçerikler">
+  
+  <StoryCategories />
+
+  {dbProducts.length > 0 && (
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Yeni Ürünler</h2>
+        <a href="/urunler" class="text-orange-600 text-sm font-semibold hover:underline">Tümünü Gör</a>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        {dbProducts.slice(0, 5).map(product => (
+          <ProductCard product={product} brands={dbBrands} />
+        ))}
+      </div>
+    </div>
+  )}
+
+  <!-- Ana İçerik Konteyneri -->
+  <div class="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-5">
       
       <!-- Slogan & Arama Alanı -->
       <div class="flex justify-center items-center gap-4 mb-6">
