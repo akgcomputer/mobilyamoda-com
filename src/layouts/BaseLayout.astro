@@ -58,8 +58,14 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
     tailwind.config = { darkMode: 'class' }
   </script>
   <script is:inline>
-    const theme = localStorage.getItem('theme');
-    if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    try {
+      const theme = localStorage.getItem('theme');
+      if (theme === 'light') {
+        document.documentElement.classList.remove('dark');
+      } else {
+        document.documentElement.classList.add('dark');
+      }
+    } catch (e) {
       document.documentElement.classList.add('dark');
     }
   </script>
@@ -359,7 +365,7 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
     if (themeToggle) {
       themeToggle.addEventListener('click', () => {
         document.documentElement.classList.toggle('dark');
-        localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        try { localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light'); } catch (e) {}
       });
     }
     
@@ -368,7 +374,7 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
     if (themeTogglePublic) {
       themeTogglePublic.addEventListener('click', () => {
         document.documentElement.classList.toggle('dark');
-        localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        try { localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light'); } catch (e) {}
       });
     }
     
@@ -384,7 +390,10 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
     const popupContent = document.getElementById('globalPopupContent');
     const closePopupBtn = document.getElementById('closePopupBtn');
     
-    if (popup && !localStorage.getItem('popup_seen')) {
+    let popupSeen = false;
+    try { popupSeen = !!localStorage.getItem('popup_seen'); } catch (e) {}
+    
+    if (popup && !popupSeen) {
       setTimeout(() => {
         popup.classList.remove('hidden');
         // Trigger reflow
@@ -392,7 +401,7 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
         popup.classList.remove('opacity-0');
         popupContent?.classList.remove('scale-95');
         popupContent?.classList.add('scale-100');
-        localStorage.setItem('popup_seen', 'true');
+        try { localStorage.setItem('popup_seen', 'true'); } catch (e) {}
       }, 1000);
     }
 
@@ -409,7 +418,10 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
     const cookieBanner = document.getElementById('cookieBanner');
     const acceptCookiesBtn = document.getElementById('acceptCookiesBtn');
 
-    if (cookieBanner && !localStorage.getItem('cookies_accepted')) {
+    let cookiesAccepted = false;
+    try { cookiesAccepted = !!localStorage.getItem('cookies_accepted'); } catch (e) {}
+
+    if (cookieBanner && !cookiesAccepted) {
       setTimeout(() => {
         cookieBanner.classList.remove('translate-y-full');
       }, 500);
@@ -417,7 +429,7 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
 
     if (acceptCookiesBtn && cookieBanner) {
       acceptCookiesBtn.addEventListener('click', async () => {
-        localStorage.setItem('cookies_accepted', 'true');
+        try { localStorage.setItem('cookies_accepted', 'true'); } catch (e) {}
         cookieBanner.classList.add('translate-y-full');
         
         // Push notification izni iste
