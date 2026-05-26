@@ -71,8 +71,31 @@ export interface Product {
   rating: number;
   review_count: number;
   status: string;
+  unit: string;
+  min_order_qty: number;
   createdAt: string;
   updatedAt: string;
+  variants?: ProductVariant[];
+  wholesalePrices?: WholesalePrice[];
+}
+
+export interface ProductVariant {
+  id: number;
+  product_id: number;
+  name: string;
+  sku: string | null;
+  price: number | null;
+  stock: number;
+  image_url: string | null;
+  createdAt: string;
+}
+
+export interface WholesalePrice {
+  id: number;
+  product_id: number;
+  min_qty: number;
+  price_per_unit: number;
+  createdAt: string;
 }
 
 export interface Comment {
@@ -316,11 +339,22 @@ export async function getProducts(db?: any): Promise<Product[]> {
 export async function getProductById(id: number, db?: any): Promise<Product | null> {
   if (db) {
     const result = await db.prepare("SELECT * FROM products WHERE id = ?").bind(id).first();
-    return result;
+    if (result) {
+      const { results: variants } = await db.prepare("SELECT * FROM product_variants WHERE product_id = ? ORDER BY id ASC").bind(id).all();
+      const { results: wholesalePrices } = await db.prepare("SELECT * FROM wholesale_prices WHERE product_id = ? ORDER BY min_qty ASC").bind(id).all();
+      result.variants = variants;
+      result.wholesalePrices = wholesalePrices;
+    }
+    return result as Product | null;
   }
   const local = await getLocalDb();
   if (local && local.data.products) {
-    return local.data.products.find((p: any) => p.id === id) || null;
+    const p = local.data.products.find((p: any) => p.id === id);
+    if (p) {
+      p.variants = (local.data.product_variants || []).filter((v: any) => v.product_id === id).sort((a: any, b: any) => a.id - b.id);
+      p.wholesalePrices = (local.data.wholesale_prices || []).filter((w: any) => w.product_id === id).sort((a: any, b: any) => a.min_qty - b.min_qty);
+      return p;
+    }
   }
   return null;
 }
@@ -332,14 +366,14 @@ export async function createProduct(data: any, db?: any): Promise<Product | null
       INSERT INTO products (
         category_id, brand_id, name, slug, excerpt, description, 
         price, compare_at_price, image_url, badge_top_left, badge_top_right, 
-        rating, review_count, status, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *
+        rating, review_count, status, unit, min_order_qty, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *
     `).bind(
       data.category_id || null, data.brand_id || null, data.name, data.slug, data.excerpt || null, data.description || null,
       data.price || 0, data.compare_at_price || null, data.image_url || null, data.badge_top_left || null, data.badge_top_right || null,
-      data.rating || 0, data.review_count || 0, data.status || 'aktif', now, now
+      data.rating || 0, data.review_count || 0, data.status || 'aktif', data.unit || 'Adet', data.min_order_qty || 1, now, now
     ).first();
-    return result;
+    return result as Product | null;
   }
   const local = await getLocalDb();
   if (local) {
@@ -360,12 +394,14 @@ export async function createProduct(data: any, db?: any): Promise<Product | null
       rating: data.rating || 0,
       review_count: data.review_count || 0,
       status: data.status || 'aktif',
+      unit: data.unit || 'Adet',
+      min_order_qty: data.min_order_qty || 1,
       createdAt: now,
       updatedAt: now
     };
     local.data.products.push(newProduct);
     await saveLocalDb(local);
-    return newProduct;
+    return newProduct as Product;
   }
   return null;
 }
@@ -377,14 +413,14 @@ export async function updateProduct(id: number, data: any, db?: any): Promise<Pr
       UPDATE products SET 
         category_id = ?, brand_id = ?, name = ?, slug = ?, excerpt = ?, description = ?, 
         price = ?, compare_at_price = ?, image_url = ?, badge_top_left = ?, badge_top_right = ?, 
-        status = ?, updatedAt = ?
+        status = ?, unit = ?, min_order_qty = ?, updatedAt = ?
       WHERE id = ? RETURNING *
     `).bind(
       data.category_id || null, data.brand_id || null, data.name, data.slug, data.excerpt || null, data.description || null,
       data.price || 0, data.compare_at_price || null, data.image_url || null, data.badge_top_left || null, data.badge_top_right || null,
-      data.status || 'aktif', now, id
+      data.status || 'aktif', data.unit || 'Adet', data.min_order_qty || 1, now, id
     ).first();
-    return result;
+    return result as Product | null;
   }
   const local = await getLocalDb();
   if (local && local.data.products) {
@@ -408,6 +444,94 @@ export async function deleteProduct(id: number, db?: any): Promise<boolean> {
     const before = local.data.products.length;
     local.data.products = local.data.products.filter((p: any) => p.id !== id);
     if (local.data.products.length !== before) {
+      await saveLocalDb(local);
+      return true;
+    }
+  }
+  return false;
+}
+
+// --- PRODUCT VARIANTS ---
+export async function createProductVariant(data: any, db?: any): Promise<ProductVariant | null> {
+  const now = new Date().toISOString();
+  if (db) {
+    const result = await db.prepare(`
+      INSERT INTO product_variants (product_id, name, sku, price, stock, image_url, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *
+    `).bind(
+      data.product_id, data.name, data.sku || null, data.price || null, data.stock || 0, data.image_url || null, now
+    ).first();
+    return result as ProductVariant;
+  }
+  const local = await getLocalDb();
+  if (local) {
+    if (!local.data.product_variants) local.data.product_variants = [];
+    const newVariant = {
+      id: (local.data.product_variants.reduce((max: number, p: any) => p.id > max ? p.id : max, 0) || 0) + 1,
+      ...data,
+      createdAt: now
+    };
+    local.data.product_variants.push(newVariant);
+    await saveLocalDb(local);
+    return newVariant;
+  }
+  return null;
+}
+
+export async function deleteProductVariant(id: number, db?: any): Promise<boolean> {
+  if (db) {
+    const { success } = await db.prepare("DELETE FROM product_variants WHERE id = ?").bind(id).run();
+    return success;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.product_variants) {
+    const before = local.data.product_variants.length;
+    local.data.product_variants = local.data.product_variants.filter((p: any) => p.id !== id);
+    if (local.data.product_variants.length !== before) {
+      await saveLocalDb(local);
+      return true;
+    }
+  }
+  return false;
+}
+
+// --- WHOLESALE PRICES ---
+export async function createWholesalePrice(data: any, db?: any): Promise<WholesalePrice | null> {
+  const now = new Date().toISOString();
+  if (db) {
+    const result = await db.prepare(`
+      INSERT INTO wholesale_prices (product_id, min_qty, price_per_unit, createdAt)
+      VALUES (?, ?, ?, ?) RETURNING *
+    `).bind(
+      data.product_id, data.min_qty, data.price_per_unit, now
+    ).first();
+    return result as WholesalePrice;
+  }
+  const local = await getLocalDb();
+  if (local) {
+    if (!local.data.wholesale_prices) local.data.wholesale_prices = [];
+    const newWP = {
+      id: (local.data.wholesale_prices.reduce((max: number, p: any) => p.id > max ? p.id : max, 0) || 0) + 1,
+      ...data,
+      createdAt: now
+    };
+    local.data.wholesale_prices.push(newWP);
+    await saveLocalDb(local);
+    return newWP;
+  }
+  return null;
+}
+
+export async function deleteWholesalePrice(id: number, db?: any): Promise<boolean> {
+  if (db) {
+    const { success } = await db.prepare("DELETE FROM wholesale_prices WHERE id = ?").bind(id).run();
+    return success;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.wholesale_prices) {
+    const before = local.data.wholesale_prices.length;
+    local.data.wholesale_prices = local.data.wholesale_prices.filter((p: any) => p.id !== id);
+    if (local.data.wholesale_prices.length !== before) {
       await saveLocalDb(local);
       return true;
     }

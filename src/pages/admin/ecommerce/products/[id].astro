@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
-import { getProductById, updateProduct, getCategories, getBrands } from '../../../../lib/db';
+import { getProductById, updateProduct, getCategories, getBrands, createProductVariant, deleteProductVariant, createWholesalePrice, deleteWholesalePrice } from '../../../../lib/db';
 import MediaPicker from '../../../../components/admin/MediaPicker.astro';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
@@ -12,66 +12,82 @@ if (isNaN(productId)) {
   return Astro.redirect('/admin/ecommerce/products');
 }
 
+let hata = '';
+let basari = '';
+
+// İşlem Yönetimi
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const action = formData.get('action') as string;
+
+    if (action === 'update_product') {
+      const name = formData.get('name') as string;
+      const slug = formData.get('slug') as string;
+      const category_id = parseInt(formData.get('category_id') as string) || null;
+      const brand_id = parseInt(formData.get('brand_id') as string) || null;
+      const excerpt = formData.get('excerpt') as string;
+      const description = formData.get('description') as string;
+      const price = parseFloat(formData.get('price') as string) || 0;
+      const compare_at_price = formData.get('compare_at_price') ? parseFloat(formData.get('compare_at_price') as string) : null;
+      const unit = formData.get('unit') as string || 'Adet';
+      const min_order_qty = parseInt(formData.get('min_order_qty') as string) || 1;
+      const image_url = formData.get('image_url') as string;
+      const badge_top_left = formData.get('badge_top_left') as string;
+      const badge_top_right = formData.get('badge_top_right') as string;
+      const status = formData.get('status') as string || 'aktif';
+
+      await updateProduct(productId, {
+        category_id, brand_id, name, slug, excerpt, description,
+        price, compare_at_price, unit, min_order_qty, image_url, badge_top_left, badge_top_right,
+        status
+      }, dbBinding);
+      basari = 'Ürün genel bilgileri başarıyla güncellendi.';
+    } 
+    else if (action === 'add_variant') {
+      const vName = formData.get('v_name') as string;
+      const vSku = formData.get('v_sku') as string;
+      const vPrice = formData.get('v_price') ? parseFloat(formData.get('v_price') as string) : null;
+      const vStock = parseInt(formData.get('v_stock') as string) || 0;
+      if (vName) {
+        await createProductVariant({ product_id: productId, name: vName, sku: vSku, price: vPrice, stock: vStock }, dbBinding);
+        basari = 'Varyasyon eklendi.';
+      }
+    }
+    else if (action === 'delete_variant') {
+      const vId = parseInt(formData.get('variant_id') as string);
+      if (vId) {
+        await deleteProductVariant(vId, dbBinding);
+        basari = 'Varyasyon silindi.';
+      }
+    }
+    else if (action === 'add_wholesale') {
+      const wMinQty = parseInt(formData.get('w_min_qty') as string);
+      const wPrice = parseFloat(formData.get('w_price') as string);
+      if (wMinQty && wPrice) {
+        await createWholesalePrice({ product_id: productId, min_qty: wMinQty, price_per_unit: wPrice }, dbBinding);
+        basari = 'Toptan fiyat eklendi.';
+      }
+    }
+    else if (action === 'delete_wholesale') {
+      const wId = parseInt(formData.get('wholesale_id') as string);
+      if (wId) {
+        await deleteWholesalePrice(wId, dbBinding);
+        basari = 'Toptan fiyat kuralı silindi.';
+      }
+    }
+
+  } catch (err) {
+    console.error('Update product error:', err);
+    hata = 'İşlem sırasında bir hata oluştu.';
+  }
+}
+
+// Verileri Her Durumda Yeniden Çek (Güncel görmek için)
 const product = await getProductById(productId, dbBinding);
 
 if (!product) {
   return Astro.redirect('/admin/ecommerce/products');
-}
-
-let hata = '';
-let basari = '';
-
-function slugify(text: string): string {
-  const trMap: Record<string, string> = {
-    'ç': 'c', 'Ç': 'C', 'ğ': 'g', 'Ğ': 'G', 'ı': 'i', 'İ': 'I',
-    'ö': 'o', 'Ö': 'O', 'ş': 's', 'Ş': 'S', 'ü': 'u', 'Ü': 'U'
-  };
-  return text
-    .replace(/[çÇğĞıİöÖşŞüÜ]/g, match => trMap[match])
-    .toLowerCase()
-    .replace(/[^a-z0-9 -]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim();
-}
-
-if (Astro.request.method === 'POST') {
-  try {
-    const formData = await Astro.request.formData();
-    const name = formData.get('name') as string;
-    let slug = formData.get('slug') as string;
-    if (!slug) slug = slugify(name);
-    
-    const category_id = parseInt(formData.get('category_id') as string) || null;
-    const brand_id = parseInt(formData.get('brand_id') as string) || null;
-    const excerpt = formData.get('excerpt') as string;
-    const description = formData.get('description') as string;
-    const price = parseFloat(formData.get('price') as string) || 0;
-    const compare_at_price = formData.get('compare_at_price') ? parseFloat(formData.get('compare_at_price') as string) : null;
-    const image_url = formData.get('image_url') as string;
-    const badge_top_left = formData.get('badge_top_left') as string;
-    const badge_top_right = formData.get('badge_top_right') as string;
-    const status = formData.get('status') as string || 'aktif';
-
-    if (!name || !price) {
-      hata = 'Ürün adı ve fiyat zorunludur.';
-    } else {
-      await updateProduct(productId, {
-        category_id, brand_id, name, slug, excerpt, description,
-        price, compare_at_price, image_url, badge_top_left, badge_top_right,
-        status
-      }, dbBinding);
-      basari = 'Ürün başarıyla güncellendi.';
-      Object.assign(product, {
-        category_id, brand_id, name, slug, excerpt, description,
-        price, compare_at_price, image_url, badge_top_left, badge_top_right,
-        status
-      });
-    }
-  } catch (err) {
-    console.error('Update product error:', err);
-    hata = 'Ürün güncellenirken bir hata oluştu. Slug benzersiz olmayabilir.';
-  }
 }
 
 const categories = await getCategories(dbBinding, 'product');
@@ -79,7 +95,6 @@ const brands = await getBrands(dbBinding);
 ---
 
 <BaseLayout title={`${product.name} Düzenle - Admin`} isAdmin={true}>
-  <!-- Quill Tema CSS -->
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
 
   <div class="p-6">
@@ -89,7 +104,7 @@ const brands = await getBrands(dbBinding);
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">#{product.id} ID'li ürünü güncelliyorsunuz</p>
       </div>
       <div class="flex gap-2">
-        <a href={`/urunler/${product.slug}`} target="_blank" class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg transition text-sm font-medium flex items-center">
+        <a href={`/urunler/detay/${product.slug}`} target="_blank" class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg transition text-sm font-medium flex items-center">
           <i class="fas fa-eye mr-2"></i> Görüntüle
         </a>
         <a href="/admin/ecommerce/products" class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg transition text-sm font-medium flex items-center">
@@ -99,105 +114,237 @@ const brands = await getBrands(dbBinding);
     </div>
 
     {hata && (
-      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6">
         <span class="block sm:inline">{hata}</span>
       </div>
     )}
 
     {basari && (
-      <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6" role="alert">
+      <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6">
         <span class="block sm:inline">{basari}</span>
         <button onclick="this.parentElement.remove()" class="absolute top-0 bottom-0 right-0 px-4 py-3 text-green-700">✕</button>
       </div>
     )}
 
-    <form method="POST" id="productForm" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       
-      <!-- Sol Kolon (Ana İçerik) -->
+      <!-- Sol Kolon (Ana İçerik + Varyasyonlar) -->
       <div class="lg:col-span-2 space-y-6">
         
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
-          <div class="mb-4">
-            <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Ürün Adı *</label>
-            <input type="text" name="name" value={product.name} required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none transition" />
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Kısa Açıklama (Excerpt)</label>
-            <textarea name="excerpt" rows="2" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none transition">{product.excerpt || ''}</textarea>
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Detaylı Açıklama (HTML)</label>
-            <input type="hidden" name="description" id="description" value={product.description || ''} />
-            <div id="editor-container" class="h-64 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-b-lg border-gray-300 dark:border-gray-600"></div>
-          </div>
-        </div>
-
-        <!-- Görsel ve Rozetler -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
-          <h2 class="text-lg font-bold mb-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Görsel ve 4-Köşe Rozetleri</h2>
+        <form method="POST" id="productForm" class="space-y-6">
+          <input type="hidden" name="action" value="update_product" />
           
-          <div class="mb-6">
-            <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Ana Görsel (Dik Format Önerilir)</label>
-            <div class="flex gap-2 mb-2">
-              <input type="text" id="image_url" name="image_url" value={product.image_url || ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" />
-              <MediaPicker inputId="image_url" />
+          <!-- Temel Bilgiler -->
+          <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
+            <div class="mb-4">
+              <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Ürün Adı *</label>
+              <input type="text" name="name" value={product.name} required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
             </div>
-            {product.image_url && (
-              <div class="mt-2 w-24 h-32 rounded border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-900">
-                <img src={product.image_url} alt={product.name} class="w-full h-full object-cover" />
-              </div>
-            )}
+
+            <div class="mb-4">
+              <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Kısa Açıklama (Excerpt)</label>
+              <textarea name="excerpt" rows="2" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500">{product.excerpt || ''}</textarea>
+            </div>
+
+            <div class="mb-4">
+              <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Detaylı Açıklama (HTML)</label>
+              <input type="hidden" name="description" id="description" value={product.description || ''} />
+              <div id="editor-container" class="h-64 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-b-lg border-gray-300 dark:border-gray-600"></div>
+            </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div>
-              <label class="block text-xs font-semibold mb-1 text-gray-500 uppercase">Sol Üst Rozet</label>
-              <input type="text" name="badge_top_left" value={product.badge_top_left || ''} class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+          <!-- Görsel ve Rozetler -->
+          <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
+            <h2 class="text-lg font-bold mb-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Görsel ve 4-Köşe Rozetleri</h2>
+            <div class="mb-6">
+              <div class="flex gap-2 mb-2">
+                <input type="text" id="image_url" name="image_url" value={product.image_url || ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+                <MediaPicker inputId="image_url" />
+              </div>
+              {product.image_url && (
+                <div class="mt-2 w-24 h-32 rounded border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-900">
+                  <img src={product.image_url} class="w-full h-full object-cover" />
+                </div>
+              )}
             </div>
-            <div>
-              <label class="block text-xs font-semibold mb-1 text-gray-500 uppercase">Sağ Üst Rozet</label>
-              <input type="text" name="badge_top_right" value={product.badge_top_right || ''} class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div>
+                <label class="block text-xs font-semibold mb-1 text-gray-500 uppercase">Sol Üst Rozet</label>
+                <input type="text" name="badge_top_left" value={product.badge_top_left || ''} class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold mb-1 text-gray-500 uppercase">Sağ Üst Rozet</label>
+                <input type="text" name="badge_top_right" value={product.badge_top_right || ''} class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              </div>
             </div>
           </div>
+
+          <!-- Sağ Kolon Mobil Görünüm İçin Buraya Taşan Inputları Ekledik -->
+          <!-- Normalde sağda olacak fiyat vs. de form içinde gitmeli -->
+          <!-- Bunu çözmek için sağ kolonu form dışına atmak yerine, genel bir ayar kullanabiliriz veya gizli inputlar kullanabiliriz.  -->
+          <!-- En temizi sağ kolonu formun içine almaktır. Ama düzen için aşağıda yapalım. -->
+        </form>
+
+        <!-- VARYASYONLAR -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
+          <h2 class="text-lg font-bold mb-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Ürün Varyasyonları (Seçenekler)</h2>
+          
+          <div class="mb-6 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Yeni Varyasyon Ekle</h3>
+            <form method="POST" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+              <input type="hidden" name="action" value="add_variant" />
+              <div class="md:col-span-2">
+                <label class="block text-xs text-gray-500 mb-1">Seçenek Adı (Örn: Siyah - L)</label>
+                <input type="text" name="v_name" required class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-white" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Stok (Adet)</label>
+                <input type="number" name="v_stock" value="10" required class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-white" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Ek Fiyat (Opsiyonel)</label>
+                <input type="number" step="0.01" name="v_price" placeholder="Boş = Normal Fiyat" class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-white" />
+              </div>
+              <div>
+                <button type="submit" class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded px-3 py-2 text-sm font-medium transition">Ekle</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Mevcut Varyasyonlar Listesi -->
+          {product.variants && product.variants.length > 0 ? (
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm text-left">
+                <thead class="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th class="px-4 py-2">Seçenek</th>
+                    <th class="px-4 py-2">Stok</th>
+                    <th class="px-4 py-2">Fiyat (Eğer farklıysa)</th>
+                    <th class="px-4 py-2 text-right">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+                  {product.variants.map(v => (
+                    <tr>
+                      <td class="px-4 py-2 font-medium">{v.name}</td>
+                      <td class="px-4 py-2">{v.stock}</td>
+                      <td class="px-4 py-2">{v.price ? `${v.price} ₺` : '-'}</td>
+                      <td class="px-4 py-2 text-right">
+                        <form method="POST" class="inline">
+                          <input type="hidden" name="action" value="delete_variant" />
+                          <input type="hidden" name="variant_id" value={v.id} />
+                          <button type="submit" class="text-red-500 hover:text-red-700 p-1"><i class="fas fa-trash"></i></button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p class="text-sm text-gray-500 italic">Bu ürüne ait varyasyon bulunmuyor. Seçeneksiz satılacaktır.</p>
+          )}
         </div>
+
+        <!-- TOPTAN FİYATLAR -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
+          <h2 class="text-lg font-bold mb-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Kademeli / Toptan Fiyatlar</h2>
+          <p class="text-xs text-gray-500 mb-4">Müşterileriniz üründen X adetten fazla alırsa fiyatın otomatik olarak Y TL'ye inmesini sağlayabilirsiniz.</p>
+          
+          <div class="mb-6 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <form method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <input type="hidden" name="action" value="add_wholesale" />
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Şu adetten fazla alınırsa:</label>
+                <input type="number" name="w_min_qty" required min="2" placeholder="Örn: 10" class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-white" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Birim Fiyatı Şu Olsun (₺):</label>
+                <input type="number" step="0.01" name="w_price" required placeholder="Örn: 90.00" class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-white" />
+              </div>
+              <div>
+                <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white rounded px-3 py-2 text-sm font-medium transition">Kural Ekle</button>
+              </div>
+            </form>
+          </div>
+
+          {product.wholesalePrices && product.wholesalePrices.length > 0 ? (
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm text-left">
+                <thead class="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th class="px-4 py-2">Koşul</th>
+                    <th class="px-4 py-2">Yeni Birim Fiyatı</th>
+                    <th class="px-4 py-2 text-right">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+                  {product.wholesalePrices.map(w => (
+                    <tr>
+                      <td class="px-4 py-2 font-medium">{w.min_qty} Adet ve Üzeri Alımda</td>
+                      <td class="px-4 py-2 text-orange-600 font-bold">{w.price_per_unit} ₺ / Adet</td>
+                      <td class="px-4 py-2 text-right">
+                        <form method="POST" class="inline">
+                          <input type="hidden" name="action" value="delete_wholesale" />
+                          <input type="hidden" name="wholesale_id" value={w.id} />
+                          <button type="submit" class="text-red-500 hover:text-red-700 p-1"><i class="fas fa-trash"></i></button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p class="text-sm text-gray-500 italic">Toptan fiyat kuralı bulunmuyor.</p>
+          )}
+        </div>
+
       </div>
 
-      <!-- Sağ Kolon (Ayarlar) -->
+      <!-- Sağ Kolon (Genel Ayarlar Formuna Bağlı) -->
       <div class="space-y-6">
         
         <!-- Fiyatlandırma -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
-          <h2 class="text-base font-bold mb-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Fiyatlandırma</h2>
+          <h2 class="text-base font-bold mb-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Fiyatlandırma & Birim</h2>
           
           <div class="mb-4">
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Satış Fiyatı (₺) *</label>
-            <input type="number" step="0.01" name="price" value={product.price} required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 font-mono text-lg" />
+            <input type="number" step="0.01" form="productForm" name="price" value={product.price} required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 font-mono text-lg" />
           </div>
-          <div class="mb-2">
+          <div class="mb-4">
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">İndirimsiz Fiyat (₺)</label>
-            <input type="number" step="0.01" name="compare_at_price" value={product.compare_at_price || ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 focus:ring-2 focus:ring-orange-500 font-mono line-through" />
+            <input type="number" step="0.01" form="productForm" name="compare_at_price" value={product.compare_at_price || ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 focus:ring-2 focus:ring-orange-500 font-mono line-through" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Satış Birimi</label>
+              <input type="text" form="productForm" name="unit" value={product.unit || 'Adet'} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Min. Sipariş</label>
+              <input type="number" form="productForm" name="min_order_qty" value={product.min_order_qty || 1} min="1" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+            </div>
           </div>
         </div>
 
         <!-- Kategori ve Marka -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
           <h2 class="text-base font-bold mb-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Organizasyon</h2>
-          
           <div class="mb-4">
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Kategori</label>
-            <select name="category_id" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500">
+            <select form="productForm" name="category_id" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white">
               <option value="">Seçiniz</option>
               {categories.map(c => (
                 <option value={c.id} selected={product.category_id === c.id}>{c.parent_id ? '— ' : ''}{c.name}</option>
               ))}
             </select>
           </div>
-
           <div class="mb-2">
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Marka</label>
-            <select name="brand_id" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500">
+            <select form="productForm" name="brand_id" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white">
               <option value="">Seçiniz</option>
               {brands.map(b => (
                 <option value={b.id} selected={product.brand_id === b.id}>{b.name}</option>
@@ -209,33 +356,29 @@ const brands = await getBrands(dbBinding);
         <!-- Yayın Ayarları -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
           <h2 class="text-base font-bold mb-4 text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Yayın</h2>
-          
           <div class="mb-4">
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Özel URL (Slug)</label>
-            <input type="text" name="slug" value={product.slug} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+            <input type="text" form="productForm" name="slug" value={product.slug} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
           </div>
-
           <div class="mb-6">
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Durum</label>
-            <select name="status" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500">
+            <select form="productForm" name="status" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white">
               <option value="aktif" selected={product.status === 'aktif'}>Aktif (Yayında)</option>
               <option value="pasif" selected={product.status === 'pasif'}>Pasif (Gizli)</option>
               <option value="taslak" selected={product.status === 'taslak'}>Taslak</option>
             </select>
           </div>
-
-          <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-transform transform hover:-translate-y-0.5">
-            <i class="fas fa-save mr-2"></i> Değişiklikleri Kaydet
+          <button type="submit" form="productForm" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-transform transform hover:-translate-y-0.5">
+            <i class="fas fa-save mr-2"></i> Ürünü Kaydet
           </button>
         </div>
 
       </div>
-    </form>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js" is:inline></script>
   <script is:inline>
-    // Quill ayarları
     const Link = Quill.import('formats/link');
     class MyLink extends Link {
       static create(value) {
@@ -252,7 +395,6 @@ const brands = await getBrands(dbBinding);
       }
     }
     Quill.register(MyLink, true);
-
     const ColorStyle = Quill.import('attributors/style/color');
     const BackgroundStyle = Quill.import('attributors/style/background');
     Quill.register(ColorStyle, true);
@@ -272,7 +414,6 @@ const brands = await getBrands(dbBinding);
       }
     });
 
-    // Var olan içeriği yükle
     const descInput = document.getElementById('description');
     if (descInput && descInput.value) {
       quill.clipboard.dangerouslyPasteHTML(descInput.value);

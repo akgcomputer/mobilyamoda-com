@@ -109,8 +109,31 @@ CREATE TABLE IF NOT EXISTS products (
   rating REAL DEFAULT 0,
   review_count INTEGER DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'aktif', -- 'aktif', 'pasif', 'taslak'
+  unit TEXT DEFAULT 'Adet',
+  min_order_qty INTEGER DEFAULT 1,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL
+);
+
+-- Product Variants Table
+CREATE TABLE IF NOT EXISTS product_variants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sku TEXT,
+  price REAL,
+  stock INTEGER DEFAULT 0,
+  image_url TEXT,
+  createdAt TEXT NOT NULL
+);
+
+-- Wholesale Prices Table
+CREATE TABLE IF NOT EXISTS wholesale_prices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  min_qty INTEGER NOT NULL,
+  price_per_unit REAL NOT NULL,
+  createdAt TEXT NOT NULL
 );
 
 -- Users Table

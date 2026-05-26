@@ -1,0 +1,21 @@
+ALTER TABLE products ADD COLUMN unit TEXT DEFAULT 'Adet';
+ALTER TABLE products ADD COLUMN min_order_qty INTEGER DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS product_variants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sku TEXT,
+  price REAL,
+  stock INTEGER DEFAULT 0,
+  image_url TEXT,
+  createdAt TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS wholesale_prices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  min_qty INTEGER NOT NULL,
+  price_per_unit REAL NOT NULL,
+  createdAt TEXT NOT NULL
+);

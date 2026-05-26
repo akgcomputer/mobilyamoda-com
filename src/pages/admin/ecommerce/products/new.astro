@@ -34,6 +34,8 @@ if (Astro.request.method === 'POST') {
     const description = formData.get('description') as string;
     const price = parseFloat(formData.get('price') as string) || 0;
     const compare_at_price = formData.get('compare_at_price') ? parseFloat(formData.get('compare_at_price') as string) : null;
+    const unit = formData.get('unit') as string || 'Adet';
+    const min_order_qty = parseInt(formData.get('min_order_qty') as string) || 1;
     const image_url = formData.get('image_url') as string;
     const badge_top_left = formData.get('badge_top_left') as string;
     const badge_top_right = formData.get('badge_top_right') as string;
@@ -44,7 +46,7 @@ if (Astro.request.method === 'POST') {
     } else {
       await createProduct({
         category_id, brand_id, name, slug, excerpt, description,
-        price, compare_at_price, image_url, badge_top_left, badge_top_right,
+        price, compare_at_price, unit, min_order_qty, image_url, badge_top_left, badge_top_right,
         status
       }, dbBinding);
       return Astro.redirect('/admin/ecommerce/products?eklendi=1');
@@ -142,10 +144,20 @@ const brands = await getBrands(dbBinding);
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Satış Fiyatı (₺) *</label>
             <input type="number" step="0.01" name="price" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 font-mono text-lg" placeholder="0.00" />
           </div>
-          <div class="mb-2">
+          <div class="mb-4">
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">İndirimsiz Fiyat (₺)</label>
             <input type="number" step="0.01" name="compare_at_price" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 focus:ring-2 focus:ring-orange-500 font-mono line-through" placeholder="0.00" />
             <p class="text-xs text-gray-500 mt-1">Üstü çizili olarak gösterilir.</p>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Satış Birimi</label>
+              <input type="text" name="unit" value="Adet" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Örn: Adet, Koli, Çift" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Min. Sipariş</label>
+              <input type="number" name="min_order_qty" value="1" min="1" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" />
+            </div>
           </div>
         </div>
 
