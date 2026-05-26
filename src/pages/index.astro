@@ -356,6 +356,7 @@ const borderColors = [
   </style>
 
   <script>
+  document.addEventListener('astro:page-load', () => {
     const htmlElement = document.documentElement;
     
     // Format sayıları (client-side)
@@ -393,25 +394,29 @@ const borderColors = [
       clearTimeout(searchTimeout);
       
       if (query.length < 2) {
-        searchDropdown.classList.add('hidden');
-        searchDropdown.classList.remove('opacity-100');
+        if (searchDropdown) {
+          searchDropdown.classList.add('hidden');
+          searchDropdown.classList.remove('opacity-100');
+        }
         return;
       }
 
-      searchDropdown.classList.remove('hidden');
-      setTimeout(() => searchDropdown.classList.add('opacity-100'), 10);
-      searchResultsList.innerHTML = '';
-      searchLoading.classList.remove('hidden');
+      if (searchDropdown) {
+        searchDropdown.classList.remove('hidden');
+        setTimeout(() => searchDropdown.classList.add('opacity-100'), 10);
+      }
+      if (searchResultsList) searchResultsList.innerHTML = '';
+      if (searchLoading) searchLoading.classList.remove('hidden');
 
       searchTimeout = setTimeout(async () => {
         try {
           const res = await fetch('/api/search?q=' + encodeURIComponent(query));
           const data = await res.json();
           
-          searchLoading.classList.add('hidden');
+          if (searchLoading) searchLoading.classList.add('hidden');
           
           if (data.length === 0) {
-            searchResultsList.innerHTML = '<li class="p-4 text-gray-500 text-sm">Sonuç bulunamadı.</li>';
+            if (searchResultsList) searchResultsList.innerHTML = '<li class="p-4 text-gray-500 text-sm">Sonuç bulunamadı.</li>';
           } else {
             let html = '';
             data.forEach(item => {
@@ -430,21 +435,22 @@ const borderColors = [
                 </li>
               `;
             });
-            searchResultsList.innerHTML = html;
+            if (searchResultsList) searchResultsList.innerHTML = html;
           }
         } catch (err) {
-          searchLoading.classList.add('hidden');
-          searchResultsList.innerHTML = '<li class="p-4 text-red-500 text-sm">Arama yapılırken hata oluştu.</li>';
+          if (searchLoading) searchLoading.classList.add('hidden');
+          if (searchResultsList) searchResultsList.innerHTML = '<li class="p-4 text-red-500 text-sm">Arama yapılırken hata oluştu.</li>';
         }
       }, 300);
     });
 
     // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
-      if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+      if (searchInput && searchDropdown && !searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
         searchDropdown.classList.add('hidden');
         searchDropdown.classList.remove('opacity-100');
       }
     });
+  });
   </script>
 </BaseLayout>

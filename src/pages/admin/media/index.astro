@@ -1,59 +1,42 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 
-// Gerçek medya dosyalarını oku (uploads klasöründen)
+const mediaBinding = Astro.locals.runtime?.env?.MEDIA_BUCKET;
 let mediaFiles: any[] = [];
-
-if (typeof globalThis.process !== 'undefined' && !globalThis.navigator?.userAgent?.includes('Cloudflare')) {
-  try {
-    const fsName = ['node', 'fs'].join(':');
-    const pathName = ['node', 'path'].join(':');
-    const fs = await import(/* @vite-ignore */ fsName);
-    const path = await import(/* @vite-ignore */ pathName);
-    
-    const uploadsDir = path.resolve('./public/uploads');
-    if (fs.existsSync(uploadsDir)) {
-      const files = fs.readdirSync(uploadsDir);
-      
-      mediaFiles = files.map((fileName: string, index: number) => {
-        const stats = fs.statSync(path.join(uploadsDir, fileName));
-        return {
-          id: index + 1,
-          name: fileName,
-          url: `/uploads/${fileName}`,
-          size: (stats.size / 1024).toFixed(1) + ' KB',
-          date: stats.birthtime.toISOString().split('T')[0]
-        };
-      });
-      // En yeniler en üstte
-      mediaFiles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }
-  } catch(e) {
-    console.error('Medya dosyaları okunamadı:', e);
-  }
-}
-
 let mesaj = '';
 
 if (Astro.request.method === 'POST') {
   try {
     const formData = await Astro.request.formData();
     const fileName = formData.get('name') as string;
+    const action = formData.get('action') as string;
     
-    if (typeof globalThis.process !== 'undefined' && fileName) {
-      const fsName = ['node', 'fs'].join(':');
-      const pathName = ['node', 'path'].join(':');
-      const fs = await import(/* @vite-ignore */ fsName);
-      const path = await import(/* @vite-ignore */ pathName);
-      const filePath = path.resolve('./public/uploads', fileName);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        mediaFiles = mediaFiles.filter(m => m.name !== fileName);
-        mesaj = 'Dosya başarıyla silindi.';
-      }
+    if (action === 'delete' && fileName && mediaBinding) {
+      await mediaBinding.delete(fileName);
+      mesaj = 'Dosya başarıyla silindi.';
     }
   } catch (e) {
     console.error('Dosya silinirken hata:', e);
+    mesaj = 'Dosya silinirken hata oluştu.';
+  }
+}
+
+if (mediaBinding) {
+  try {
+    const listed = await mediaBinding.list();
+    mediaFiles = listed.objects.map((obj: any, index: number) => {
+      return {
+        id: index + 1,
+        name: obj.key,
+        url: `/api/media/${obj.key}`,
+        size: (obj.size / 1024).toFixed(1) + ' KB',
+        date: obj.uploaded ? new Date(obj.uploaded).toISOString().split('T')[0] : ''
+      };
+    });
+    // En yeniler en üstte
+    mediaFiles.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  } catch (e) {
+    console.error('Medya dosyaları okunamadı:', e);
   }
 }
 ---

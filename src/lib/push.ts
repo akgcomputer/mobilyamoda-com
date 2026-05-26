@@ -1,17 +1,22 @@
-import webpush from 'web-push';
 import { getPushSubscriptions } from './db';
 
 const publicVapidKey = 'BKOH_T9sAo-B0LbqG-gIoZ9-p8mLnYfAl5_DbS8aFlBOTEc1dyisvXhlbVTjqtYGuq31Q115eVkDzabsmFUHFBw';
 const privateVapidKey = 'VnuAEWj_ELB5TJdJgQpOaWwHLVdgTLykBzzICNmlr8g';
 
-// Dummy email address for VAPID
-webpush.setVapidDetails(
-  'mailto:iletisim@laflaf.net',
-  publicVapidKey,
-  privateVapidKey
-);
-
 export async function sendPushNotification(title: string, body: string, url: string, dbBinding?: any) {
+  let webpush;
+  try {
+    webpush = (await import('web-push')).default;
+    webpush.setVapidDetails(
+      'mailto:iletisim@laflaf.net',
+      publicVapidKey,
+      privateVapidKey
+    );
+  } catch (err) {
+    console.error('Web Push is not available in this environment:', err);
+    return 0;
+  }
+
   const subscriptions = await getPushSubscriptions(dbBinding);
   
   if (subscriptions.length === 0) return 0;

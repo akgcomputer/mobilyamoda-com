@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { savePushSubscription } from '../../../../lib/db';
+import { savePushSubscription } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {

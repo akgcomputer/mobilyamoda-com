@@ -1,47 +1,54 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { getComments, updateCommentStatus, deleteComment, getPosts } from '../../../lib/db';
 
-// Mock yorum verileri
-let yorumlar = [
-  { id: 1, yazar: 'Ahmet Yılmaz', icerik: 'Harika bir yazı olmuş, teşekkürler!', postBaslik: 'Teknoloji Trendleri 2026', postSlug: 'teknoloji-trendleri', tarih: '2026-05-20', durum: 'beklemede', begeni: 5 },
-  { id: 2, yazar: 'Mehmet Demir', icerik: 'Çok faydalı bilgiler, paylaşım için sağ olun.', postBaslik: 'Yapay Zeka Nedir?', postSlug: 'yapay-zeka', tarih: '2026-05-21', durum: 'onayli', begeni: 12 },
-  { id: 3, yazar: 'Ayşe Kaya', icerik: 'Katılmıyorum, bazı noktalar eksik kalmış.', postBaslik: 'Seyahat Rehberi', postSlug: 'seyahat-rehberi', tarih: '2026-05-22', durum: 'spam', begeni: 0 },
-  { id: 4, yazar: 'Zeynep Şahin', icerik: 'Ne zaman yeni içerik gelecek?', postBaslik: 'Sağlıklı Beslenme', postSlug: 'saglikli-beslenme', tarih: '2026-05-23', durum: 'beklemede', begeni: 2 },
-];
-
+const dbBinding = Astro.locals.runtime?.env?.DB;
 let mesaj = '';
-let seciliYorumlar = [];
 
 if (Astro.request.method === 'POST') {
   const formData = await Astro.request.formData();
   const islem = formData.get('islem');
-  const id = parseInt(formData.get('id'));
+  const id = parseInt(formData.get('id') as string);
   
   if (islem === 'onayla') {
-    const index = yorumlar.findIndex(y => y.id === id);
-    if (index !== -1) yorumlar[index].durum = 'onayli';
+    await updateCommentStatus(id, 'approved', dbBinding);
     mesaj = 'Yorum onaylandı';
   } else if (islem === 'spam') {
-    const index = yorumlar.findIndex(y => y.id === id);
-    if (index !== -1) yorumlar[index].durum = 'spam';
+    await updateCommentStatus(id, 'spam', dbBinding);
     mesaj = 'Yorum spam olarak işaretlendi';
   } else if (islem === 'sil') {
-    yorumlar = yorumlar.filter(y => y.id !== id);
+    await deleteComment(id, dbBinding);
     mesaj = 'Yorum silindi';
   } else if (islem === 'topluIslem') {
     const ids = formData.getAll('secili');
     const topluIslem = formData.get('topluIslem');
-    ids.forEach(idStr => {
-      const idx = yorumlar.findIndex(y => y.id === parseInt(idStr));
-      if (idx !== -1) {
-        if (topluIslem === 'onayla') yorumlar[idx].durum = 'onayli';
-        else if (topluIslem === 'spam') yorumlar[idx].durum = 'spam';
-        else if (topluIslem === 'sil') yorumlar = yorumlar.filter(y => y.id !== parseInt(idStr));
-      }
-    });
+    for (const idStr of ids) {
+      const parsedId = parseInt(idStr as string);
+      if (topluIslem === 'onayla') await updateCommentStatus(parsedId, 'approved', dbBinding);
+      else if (topluIslem === 'spam') await updateCommentStatus(parsedId, 'spam', dbBinding);
+      else if (topluIslem === 'sil') await deleteComment(parsedId, dbBinding);
+    }
     mesaj = 'Toplu işlem tamamlandı';
   }
 }
+
+// Fetch comments and posts
+const rawComments = await getComments(dbBinding);
+const allPosts = await getPosts(dbBinding);
+
+const yorumlar = rawComments.map(c => {
+  const post = allPosts.find(p => p.id === c.post_id);
+  return {
+    id: c.id,
+    yazar: c.author_name,
+    icerik: c.content,
+    postBaslik: post ? post.title : 'Bilinmeyen Yazı',
+    postSlug: post ? `${post.category?.slug || 'genel'}/${post.slug}` : '',
+    tarih: new Date(c.createdAt).toLocaleDateString('tr-TR'),
+    durum: c.status === 'approved' ? 'onayli' : c.status === 'pending' ? 'beklemede' : 'spam',
+    begeni: 0
+  };
+});
 ---
 
 <BaseLayout title="Yorumlar" isAdmin={true}>

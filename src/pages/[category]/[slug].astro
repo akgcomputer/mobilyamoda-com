@@ -257,54 +257,56 @@ const currentUrl = Astro.url.href;
 </BaseLayout>
 
 <script>
-  // Beğeni Butonu
-  const likeBtn = document.getElementById('likeBtn');
-  const btnLikeCount = document.getElementById('btnLikeCount');
-  const likeCountText = document.getElementById('likeCountText');
-  const postId = likeBtn?.dataset.id;
+  document.addEventListener('astro:page-load', () => {
+    // Beğeni Butonu
+    const likeBtn = document.getElementById('likeBtn');
+    const btnLikeCount = document.getElementById('btnLikeCount');
+    const likeCountText = document.getElementById('likeCountText');
+    const postId = likeBtn?.dataset.id;
 
-  if (postId && localStorage.getItem('liked_' + postId)) {
-    if (likeBtn) {
+    if (postId && localStorage.getItem('liked_' + postId)) {
+      if (likeBtn) {
+        likeBtn.classList.remove('from-orange-500', 'to-red-500', 'hover:shadow-lg', 'hover:scale-105');
+        likeBtn.classList.add('bg-green-600', 'scale-100');
+        likeBtn.setAttribute('disabled', 'true');
+        const span = likeBtn.querySelector('span:nth-child(2)');
+        if (span) span.textContent = 'Beğenildi!';
+      }
+    }
+
+    likeBtn?.addEventListener('click', async () => {
+      if (!postId || localStorage.getItem('liked_' + postId)) return;
+      
+      if (btnLikeCount) btnLikeCount.textContent = (parseInt(btnLikeCount.textContent || '0') + 1).toString();
+      if (likeCountText) likeCountText.textContent = (parseInt(likeCountText.textContent || '0') + 1).toString();
+      
       likeBtn.classList.remove('from-orange-500', 'to-red-500', 'hover:shadow-lg', 'hover:scale-105');
       likeBtn.classList.add('bg-green-600', 'scale-100');
       likeBtn.setAttribute('disabled', 'true');
       const span = likeBtn.querySelector('span:nth-child(2)');
       if (span) span.textContent = 'Beğenildi!';
-    }
-  }
+      
+      localStorage.setItem('liked_' + postId, 'true');
+      
+      try {
+        await fetch('/api/like', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ postId })
+        });
+      } catch(e) {
+        console.error('Beğeni kaydedilemedi:', e);
+      }
+    });
 
-  likeBtn?.addEventListener('click', async () => {
-    if (!postId || localStorage.getItem('liked_' + postId)) return;
+    // Yorum Formu
+    const commentForm = document.getElementById('commentForm');
+    const commentSuccess = document.getElementById('commentSuccess');
     
-    if (btnLikeCount) btnLikeCount.textContent = (parseInt(btnLikeCount.textContent || '0') + 1).toString();
-    if (likeCountText) likeCountText.textContent = (parseInt(likeCountText.textContent || '0') + 1).toString();
-    
-    likeBtn.classList.remove('from-orange-500', 'to-red-500', 'hover:shadow-lg', 'hover:scale-105');
-    likeBtn.classList.add('bg-green-600', 'scale-100');
-    likeBtn.setAttribute('disabled', 'true');
-    const span = likeBtn.querySelector('span:nth-child(2)');
-    if (span) span.textContent = 'Beğenildi!';
-    
-    localStorage.setItem('liked_' + postId, 'true');
-    
-    try {
-      await fetch('/api/like', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId })
-      });
-    } catch(e) {
-      console.error('Beğeni kaydedilemedi:', e);
-    }
-  });
-
-  // Yorum Formu
-  const commentForm = document.getElementById('commentForm');
-  const commentSuccess = document.getElementById('commentSuccess');
-  
-  commentForm?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    commentForm.classList.add('hidden');
-    commentSuccess?.classList.remove('hidden');
+    commentForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      commentForm.classList.add('hidden');
+      commentSuccess?.classList.remove('hidden');
+    });
   });
 </script>

@@ -84,7 +84,7 @@ const menuItems = settings.menu_items ? JSON.parse(settings.menu_items) : [
 </div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('astro:page-load', () => {
     // Dark/Light Mode Toggle
     const themeToggle = document.getElementById('themeToggle');
     const themeIcon = document.getElementById('themeIcon');

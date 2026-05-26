@@ -73,6 +73,7 @@ const query = Astro.url.searchParams.get('q') || '';
   </style>
 
   <script>
+  document.addEventListener('astro:page-load', () => {
     const borderColors = [
       'border-red-200 dark:border-red-800',
       'border-orange-200 dark:border-orange-800',
@@ -104,23 +105,23 @@ const query = Astro.url.searchParams.get('q') || '';
 
     async function doSearch(q) {
       if (!q) {
-        resultsContainer.innerHTML = '';
-        searchEmpty.classList.remove('hidden');
+        if (resultsContainer) resultsContainer.innerHTML = '';
+        if (searchEmpty) searchEmpty.classList.remove('hidden');
         return;
       }
       
-      resultsContainer.innerHTML = '';
-      searchEmpty.classList.add('hidden');
-      searchLoading.classList.remove('hidden');
+      if (resultsContainer) resultsContainer.innerHTML = '';
+      if (searchEmpty) searchEmpty.classList.add('hidden');
+      if (searchLoading) searchLoading.classList.remove('hidden');
       
       try {
         const res = await fetch('/api/search?q=' + encodeURIComponent(q));
         const data = await res.json();
         
-        searchLoading.classList.add('hidden');
+        if (searchLoading) searchLoading.classList.add('hidden');
         
         if (data.length === 0) {
-          searchEmpty.classList.remove('hidden');
+          if (searchEmpty) searchEmpty.classList.remove('hidden');
           return;
         }
         
@@ -155,29 +156,32 @@ const query = Astro.url.searchParams.get('q') || '';
           `;
         });
         
-        resultsContainer.innerHTML = html;
+        if (resultsContainer) resultsContainer.innerHTML = html;
         
       } catch (e) {
-        searchLoading.classList.add('hidden');
-        searchEmpty.classList.remove('hidden');
-        searchEmpty.querySelector('h3').textContent = 'Bir hata oluştu';
+        if (searchLoading) searchLoading.classList.add('hidden');
+        if (searchEmpty) {
+          searchEmpty.classList.remove('hidden');
+          const h3 = searchEmpty.querySelector('h3');
+          if (h3) h3.textContent = 'Bir hata oluştu';
+        }
       }
     }
 
-    const initQuery = resultsContainer.getAttribute('data-query');
+    const initQuery = resultsContainer?.getAttribute('data-query');
     if (initQuery) {
       doSearch(initQuery);
     }
 
-    searchBtn.addEventListener('click', () => {
-      const q = searchInput.value.trim();
+    searchBtn?.addEventListener('click', () => {
+      const q = searchInput?.value.trim();
       if (q) {
         window.history.pushState({}, '', '/arama?q=' + encodeURIComponent(q));
         doSearch(q);
       }
     });
 
-    searchInput.addEventListener('keydown', (e) => {
+    searchInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const q = searchInput.value.trim();
         if (q) {
@@ -186,5 +190,6 @@ const query = Astro.url.searchParams.get('q') || '';
         }
       }
     });
+  });
   </script>
 </BaseLayout>

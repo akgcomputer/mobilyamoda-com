@@ -8,4 +8,9 @@ export default defineConfig({
     mode: 'advanced'
   }),
   integrations: [tailwind()],
+  vite: {
+    ssr: {
+      external: ['node:fs', 'node:path', 'web-push']
+    }
+  }
 });

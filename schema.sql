@@ -60,6 +60,26 @@ CREATE TABLE IF NOT EXISTS ads (
   createdAt TEXT NOT NULL
 );
 
+-- Pages Table (Sabit Sayfalar)
+CREATE TABLE IF NOT EXISTS pages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  section1 TEXT,
+  slider_images TEXT,
+  hero_image TEXT,
+  hero_slogan TEXT,
+  hero_button_text TEXT,
+  hero_button_link TEXT,
+  section3 TEXT,
+  gallery_images TEXT,
+  references_data TEXT,
+  section6 TEXT,
+  metaTitle TEXT,
+  metaDescription TEXT,
+  createdAt TEXT NOT NULL
+);
+
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
