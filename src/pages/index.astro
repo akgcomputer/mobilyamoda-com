@@ -3,7 +3,7 @@
 // Public Frontend - Koyu tema, masonry grid, sonsuz kaydırma
 
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getPosts, getCategories, getProducts, getBrands } from '../lib/db';
+import { getPosts, getCategories, getProducts, getBrands, getSettings } from '../lib/db';
 import StoryCategories from '../components/ecommerce/StoryCategories.astro';
 import ProductCard from '../components/ecommerce/ProductCard.astro';
 
@@ -25,6 +25,12 @@ const dbPosts = await getPosts(dbBinding);
 const dbCategories = await getCategories(dbBinding);
 const dbProducts = await getProducts(dbBinding);
 const dbBrands = await getBrands(dbBinding);
+const dbSettings = await getSettings(dbBinding);
+const siteMode = dbSettings.site_mode || 'blog';
+
+const showBlog = ['blog', 'mixed1', 'mixed2a', 'mixed2b'].includes(siteMode);
+const showEcommerce = ['ecommerce', 'mixed1', 'mixed2b', 'mixed2c'].includes(siteMode);
+const showCorporate = ['corporate', 'mixed1', 'mixed2a', 'mixed2c'].includes(siteMode);
 
 // Gerçek içerikler
 const initialContents = dbPosts.map(p => ({
@@ -131,21 +137,39 @@ const borderColors = [
 
 <BaseLayout title="Laflaf - En Yeni İçerikler">
   
-  <StoryCategories />
-
-  {dbProducts.length > 0 && (
-    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Yeni Ürünler</h2>
-        <a href="/urunler" class="text-orange-600 text-sm font-semibold hover:underline">Tümünü Gör</a>
-      </div>
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {dbProducts.slice(0, 5).map(product => (
-          <ProductCard product={product} brands={dbBrands} />
-        ))}
-      </div>
+  {showCorporate && (
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center border-b border-gray-200 dark:border-gray-800">
+      <h1 class="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl mb-6">
+        <span class="block text-orange-600">Kurumsal Altyapı</span>
+        <span class="block text-gray-900 dark:text-white">Çok Yakında</span>
+      </h1>
+      <p class="max-w-2xl mx-auto text-base text-gray-500 sm:text-lg md:text-xl md:max-w-3xl mb-8">
+        Bu alan, Kurumsal Sayfa Tasarımcısı modülü tamamlandığında aktif olacaktır. Özel bloklarınızı buraya sürükleyip bırakabileceksiniz.
+      </p>
     </div>
   )}
+
+  {showEcommerce && (
+    <>
+      <StoryCategories />
+
+      {dbProducts.length > 0 && (
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Yeni Ürünler</h2>
+            <a href="/urunler" class="text-orange-600 text-sm font-semibold hover:underline">Tümünü Gör</a>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {dbProducts.slice(0, 5).map(product => (
+              <ProductCard product={product} brands={dbBrands} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )}
+
+  {showBlog && (
 
   <!-- Ana İçerik Konteyneri -->
   <div class="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-5">
@@ -291,6 +315,7 @@ const borderColors = [
       )}
     </div>
   </div>
+  )}
 
   <style is:global>
     /* Masonry Grid */
