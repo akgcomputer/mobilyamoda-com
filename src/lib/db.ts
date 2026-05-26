@@ -359,6 +359,29 @@ export async function getProductById(id: number, db?: any): Promise<Product | nu
   return null;
 }
 
+export async function getProductBySlug(slug: string, db?: any): Promise<Product | null> {
+  if (db) {
+    const result = await db.prepare("SELECT * FROM products WHERE slug = ? AND status = 'aktif'").bind(slug).first();
+    if (result) {
+      const { results: variants } = await db.prepare("SELECT * FROM product_variants WHERE product_id = ? ORDER BY id ASC").bind(result.id).all();
+      const { results: wholesalePrices } = await db.prepare("SELECT * FROM wholesale_prices WHERE product_id = ? ORDER BY min_qty ASC").bind(result.id).all();
+      result.variants = variants;
+      result.wholesalePrices = wholesalePrices;
+    }
+    return result as Product | null;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.products) {
+    const p = local.data.products.find((p: any) => p.slug === slug && p.status === 'aktif');
+    if (p) {
+      p.variants = (local.data.product_variants || []).filter((v: any) => v.product_id === p.id).sort((a: any, b: any) => a.id - b.id);
+      p.wholesalePrices = (local.data.wholesale_prices || []).filter((w: any) => w.product_id === p.id).sort((a: any, b: any) => a.min_qty - b.min_qty);
+      return p;
+    }
+  }
+  return null;
+}
+
 export async function createProduct(data: any, db?: any): Promise<Product | null> {
   const now = new Date().toISOString();
   if (db) {
