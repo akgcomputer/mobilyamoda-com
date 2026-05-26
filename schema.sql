@@ -146,6 +146,19 @@ CREATE TABLE IF NOT EXISTS users (
   createdAt TEXT NOT NULL
 );
 
+-- E-commerce Sliders Table
+CREATE TABLE IF NOT EXISTS ecommerce_sliders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  image_url TEXT NOT NULL,
+  title TEXT,
+  subtitle TEXT,
+  button_text TEXT,
+  link_url TEXT,
+  status TEXT NOT NULL DEFAULT 'aktif', -- 'aktif', 'pasif'
+  sort_order INTEGER DEFAULT 0,
+  createdAt TEXT NOT NULL
+);
+
 -- Insert Initial Seed Data for Categories
 INSERT OR IGNORE INTO categories (id, name, slug, parent_id, icon) VALUES 
 (1, 'Yaşam', 'yasam', NULL, 'fa-leaf'),

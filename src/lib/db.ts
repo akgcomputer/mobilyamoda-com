@@ -83,10 +83,10 @@ export interface ProductVariant {
   id: number;
   product_id: number;
   name: string;
-  sku: string | null;
-  price: number | null;
+  sku?: string;
+  price?: number;
   stock: number;
-  image_url: string | null;
+  image_url?: string;
   createdAt: string;
 }
 
@@ -95,6 +95,18 @@ export interface WholesalePrice {
   product_id: number;
   min_qty: number;
   price_per_unit: number;
+  createdAt: string;
+}
+
+export interface EcommerceSlider {
+  id: number;
+  image_url: string;
+  title?: string;
+  subtitle?: string;
+  button_text?: string;
+  link_url?: string;
+  status: string;
+  sort_order: number;
   createdAt: string;
 }
 
@@ -1329,6 +1341,107 @@ export async function deletePage(id: number, db?: any): Promise<boolean> {
     local.data.pages = local.data.pages.filter((p: any) => p.id !== id);
     await saveLocalDb(local);
     return local.data.pages.length < before;
+  }
+  return false;
+}
+// ==========================
+// ECOMMERCE SLIDERS
+// ==========================
+
+export async function getSliders(db?: any): Promise<EcommerceSlider[]> {
+  if (db) {
+    const { results } = await db.prepare("SELECT * FROM ecommerce_sliders ORDER BY sort_order ASC, id DESC").all();
+    return results as EcommerceSlider[];
+  }
+  const local = await getLocalDb();
+  if (local && local.data.ecommerce_sliders) {
+    return local.data.ecommerce_sliders.sort((a: any, b: any) => {
+      if (a.sort_order === b.sort_order) return b.id - a.id;
+      return a.sort_order - b.sort_order;
+    });
+  }
+  return [];
+}
+
+export async function getSliderById(id: number, db?: any): Promise<EcommerceSlider | null> {
+  if (db) {
+    const result = await db.prepare("SELECT * FROM ecommerce_sliders WHERE id = ?").bind(id).first();
+    return result as EcommerceSlider | null;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.ecommerce_sliders) {
+    return local.data.ecommerce_sliders.find((s: any) => s.id === id) || null;
+  }
+  return null;
+}
+
+export async function createSlider(data: any, db?: any): Promise<EcommerceSlider | null> {
+  const now = new Date().toISOString();
+  if (db) {
+    const result = await db.prepare(
+      "INSERT INTO ecommerce_sliders (image_url, title, subtitle, button_text, link_url, status, sort_order, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
+    ).bind(
+      data.image_url,
+      data.title || null,
+      data.subtitle || null,
+      data.button_text || null,
+      data.link_url || null,
+      data.status || 'aktif',
+      data.sort_order || 0,
+      now
+    ).first();
+    return result as EcommerceSlider;
+  }
+  const local = await getLocalDb();
+  if (local) {
+    if (!local.data.ecommerce_sliders) local.data.ecommerce_sliders = [];
+    const newId = local.data.ecommerce_sliders.length > 0 ? Math.max(...local.data.ecommerce_sliders.map((s:any)=>s.id)) + 1 : 1;
+    const newSlider = { id: newId, ...data, createdAt: now };
+    local.data.ecommerce_sliders.push(newSlider);
+    await saveLocalDb(local.data);
+    return newSlider as EcommerceSlider;
+  }
+  return null;
+}
+
+export async function updateSlider(id: number, data: any, db?: any): Promise<EcommerceSlider | null> {
+  if (db) {
+    const result = await db.prepare(
+      "UPDATE ecommerce_sliders SET image_url = ?, title = ?, subtitle = ?, button_text = ?, link_url = ?, status = ?, sort_order = ? WHERE id = ? RETURNING *"
+    ).bind(
+      data.image_url,
+      data.title || null,
+      data.subtitle || null,
+      data.button_text || null,
+      data.link_url || null,
+      data.status || 'aktif',
+      data.sort_order || 0,
+      id
+    ).first();
+    return result as EcommerceSlider;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.ecommerce_sliders) {
+    const idx = local.data.ecommerce_sliders.findIndex((s:any) => s.id === id);
+    if (idx !== -1) {
+      local.data.ecommerce_sliders[idx] = { ...local.data.ecommerce_sliders[idx], ...data };
+      await saveLocalDb(local.data);
+      return local.data.ecommerce_sliders[idx];
+    }
+  }
+  return null;
+}
+
+export async function deleteSlider(id: number, db?: any): Promise<boolean> {
+  if (db) {
+    await db.prepare("DELETE FROM ecommerce_sliders WHERE id = ?").bind(id).run();
+    return true;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.ecommerce_sliders) {
+    local.data.ecommerce_sliders = local.data.ecommerce_sliders.filter((s:any) => s.id !== id);
+    await saveLocalDb(local.data);
+    return true;
   }
   return false;
 }

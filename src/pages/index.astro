@@ -4,6 +4,7 @@
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getPosts, getCategories, getProducts, getBrands, getSettings } from '../lib/db';
+import HeroSlider from '../components/ecommerce/HeroSlider.astro';
 import StoryCategories from '../components/ecommerce/StoryCategories.astro';
 import ProductCard from '../components/ecommerce/ProductCard.astro';
 
@@ -151,6 +152,7 @@ const borderColors = [
 
   {showEcommerce && (
     <>
+      <HeroSlider />
       <StoryCategories />
 
       {dbProducts.length > 0 && (
