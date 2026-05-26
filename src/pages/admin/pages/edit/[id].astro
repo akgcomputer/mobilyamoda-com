@@ -2,6 +2,7 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import { getPages, updatePage } from '../../../../lib/db';
 import { uploadFile } from '../../../../lib/storage';
+import MediaPicker from '../../../../components/admin/MediaPicker.astro';
 
 const { id } = Astro.params;
 const dbBinding = Astro.locals.runtime?.env?.DB;
@@ -184,7 +185,10 @@ try { currentRefUrls = JSON.parse(page.references_data || '[]').join(', '); } ca
           <div class="space-y-2 md:col-span-2">
             <label class="block text-sm font-medium">Arkaplan Görseli</label>
             <input type="file" name="hero_image_file" accept="image/*" class="w-full text-sm" />
-            <input type="text" name="hero_image_url" value={page.hero_image} class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="URL girin" />
+            <div class="flex gap-2">
+              <input type="text" id="hero_image_url" name="hero_image_url" value={page.hero_image} class="flex-1 px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600" placeholder="URL girin" />
+              <MediaPicker inputId="hero_image_url" />
+            </div>
           </div>
           <div>
             <label class="block text-sm font-medium">Slogan / Başlık</label>

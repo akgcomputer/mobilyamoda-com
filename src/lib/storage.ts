@@ -1,9 +1,23 @@
+export function slugifyFileName(fileName: string): string {
+  const parts = fileName.split('.');
+  const ext = parts.pop() || '';
+  const name = parts.join('.');
+  
+  const slug = name
+    .toLowerCase()
+    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+    .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '');
+    
+  return `${slug}-${Math.floor(Math.random() * 1000)}.${ext}`;
+}
+
 export async function uploadFile(file: File, r2Binding?: any, prefix: string = 'upload'): Promise<string | null> {
   if (r2Binding) {
     // Cloudflare R2 Upload
     try {
-      const ext = file.name.split('.').pop() || 'png';
-      const fileName = `${prefix}-${Date.now()}-${Math.floor(Math.random()*1000)}.${ext}`;
+      const fileName = `${prefix}-${slugifyFileName(file.name)}`;
       
       const buffer = await file.arrayBuffer();
       await r2Binding.put(fileName, buffer, {
@@ -30,8 +44,7 @@ export async function uploadFile(file: File, r2Binding?: any, prefix: string = '
         }
         
         const buffer = Buffer.from(await file.arrayBuffer());
-        const ext = path.extname(file.name) || '.png';
-        const fileName = `${prefix}-${Date.now()}-${Math.floor(Math.random()*1000)}${ext}`;
+        const fileName = `${prefix}-${slugifyFileName(file.name)}`;
         
         fs.writeFileSync(path.join(uploadsDir, fileName), buffer);
         return `/uploads/${fileName}`;

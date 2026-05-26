@@ -3,6 +3,7 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { getCategories, createPost } from '../../../lib/db';
 import { sendPushNotification } from '../../../lib/push';
 import { uploadFile } from '../../../lib/storage';
+import MediaPicker from '../../../components/admin/MediaPicker.astro';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 const mediaBinding = Astro.locals.runtime?.env?.MEDIA_BUCKET;
@@ -217,8 +218,9 @@ const categories = await getCategories(dbBinding);
               <img id="featuredPreview" class="hidden mt-4 max-h-32 mx-auto rounded shadow" />
               <input type="file" id="featuredInput" name="featured_image" accept="image/*" class="hidden" />
             </div>
-            <div>
-              <input type="url" name="featured_image_url" placeholder="veya görsel URL'si girin" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
+            <div class="flex gap-2">
+              <input type="url" id="featured_image_url" name="featured_image_url" placeholder="veya görsel URL'si girin" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
+              <MediaPicker inputId="featured_image_url" />
             </div>
           </div>
         </div>
