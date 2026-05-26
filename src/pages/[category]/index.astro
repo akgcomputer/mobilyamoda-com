@@ -3,7 +3,8 @@
 // URL: /kadin, /yasam, /teknoloji vb.
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getCategories, getPosts, getPageBySlug } from '../../lib/db';
+import { getCategories, getPosts, getPageBySlug, getProducts, getBrands } from '../../lib/db';
+import ProductCard from '../../components/ecommerce/ProductCard.astro';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 
@@ -44,17 +45,25 @@ function formatNumber(num: number): string {
 
 // DB'den içerikleri al (Sadece kategori ise)
 let categoryContents: any[] = [];
+let categoryProducts: any[] = [];
+let allBrands: any[] = [];
 const allTags = new Set<string>();
 let randomSubTags: string[] = [];
 
 if (category) {
-  const allPosts = await getPosts(dbBinding);
-  categoryContents = allPosts.filter(p => p.category_id === category.id);
+  if (category.type === 'product') {
+    const allProducts = await getProducts(dbBinding);
+    categoryProducts = allProducts.filter(p => p.category_id === category.id && p.status === 'aktif');
+    allBrands = await getBrands(dbBinding);
+  } else {
+    const allPosts = await getPosts(dbBinding);
+    categoryContents = allPosts.filter(p => p.category_id === category.id);
 
-  categoryContents.forEach(p => {
-    if (p.tags) p.tags.split(',').forEach((t: string) => allTags.add(t.trim()));
-  });
-  randomSubTags = Array.from(allTags).sort(() => Math.random() - 0.5).slice(0, 10);
+    categoryContents.forEach(p => {
+      if (p.tags) p.tags.split(',').forEach((t: string) => allTags.add(t.trim()));
+    });
+    randomSubTags = Array.from(allTags).sort(() => Math.random() - 0.5).slice(0, 10);
+  }
 }
 
 const borderColors = [
@@ -135,17 +144,53 @@ const borderColors = [
         </div>
       )}
 
-      {/* Masonry Grid Galeri - SADECE bu kategorinin içerikleri */}
-      {categoryContents.length === 0 ? (
-        <div class="text-center py-16">
-          <i class="fas fa-inbox text-5xl text-gray-400 mb-4"></i>
-          <p class="text-gray-500 dark:text-gray-400">Bu kategoride henüz içerik bulunmuyor.</p>
-          <a href="/" class="inline-block mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full transition">
-            Ana Sayfaya Dön
-          </a>
+      {/* E-Ticaret Ürün Listesi */}
+      {category.type === 'product' ? (
+        <div class="mt-4">
+          <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-800">
+            <h2 class="text-xl font-bold text-gray-800 dark:text-white">
+              {category.name} <span class="text-sm font-normal text-gray-500">({categoryProducts.length} Ürün)</span>
+            </h2>
+            {/* Boş Filtre Alanı */}
+            <div class="flex gap-2">
+              <button class="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <i class="fas fa-filter mr-2"></i> Filtrele
+              </button>
+              <button class="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <i class="fas fa-sort mr-2"></i> Sırala
+              </button>
+            </div>
+          </div>
+          
+          {categoryProducts.length === 0 ? (
+            <div class="text-center py-16 bg-gray-50 dark:bg-gray-800/30 rounded-2xl">
+              <i class="fas fa-box-open text-5xl text-gray-300 dark:text-gray-600 mb-4"></i>
+              <p class="text-gray-500 dark:text-gray-400">Bu kategoride henüz ürün bulunmuyor.</p>
+              <a href="/" class="inline-block mt-4 px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-full transition">
+                Ana Sayfaya Dön
+              </a>
+            </div>
+          ) : (
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+              {categoryProducts.map((product) => (
+                <ProductCard product={product} category={category} brands={allBrands} />
+              ))}
+            </div>
+          )}
         </div>
       ) : (
-        <div id="masonryGrid" class="masonry-grid">
+        <>
+          {/* Masonry Grid Galeri - SADECE bu kategorinin içerikleri (Blog) */}
+          {categoryContents.length === 0 ? (
+            <div class="text-center py-16">
+              <i class="fas fa-inbox text-5xl text-gray-400 mb-4"></i>
+              <p class="text-gray-500 dark:text-gray-400">Bu kategoride henüz içerik bulunmuyor.</p>
+              <a href="/" class="inline-block mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full transition">
+                Ana Sayfaya Dön
+              </a>
+            </div>
+          ) : (
+            <div id="masonryGrid" class="masonry-grid">
           {categoryContents.map(item => {
             const randomBorder = borderColors[Math.floor(Math.random() * borderColors.length)];
             return (
@@ -199,6 +244,8 @@ const borderColors = [
             </div>
           )})}
         </div>
+      )}
+      </>
       )}
     </div>
   </div>
