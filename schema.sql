@@ -159,6 +159,39 @@ CREATE TABLE IF NOT EXISTS ecommerce_sliders (
   createdAt TEXT NOT NULL
 );
 
+-- Orders Table
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Null ise ziyaretçi
+  customer_name TEXT NOT NULL,
+  customer_email TEXT NOT NULL,
+  customer_phone TEXT,
+  shipping_address TEXT NOT NULL,
+  billing_address TEXT,
+  subtotal REAL NOT NULL DEFAULT 0,
+  shipping_fee REAL NOT NULL DEFAULT 0,
+  tax REAL NOT NULL DEFAULT 0,
+  total_amount REAL NOT NULL DEFAULT 0,
+  payment_method TEXT NOT NULL, -- 'havale', 'kapida', 'kredi_karti', 'banka_kredisi'
+  status TEXT NOT NULL DEFAULT 'bekliyor', -- 'bekliyor', 'onaylandi', 'kargolandi', 'tamamlandi', 'iptal'
+  notes TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+
+-- Order Items Table
+CREATE TABLE IF NOT EXISTS order_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+  product_name TEXT NOT NULL,
+  variant_name TEXT,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  unit_price REAL NOT NULL,
+  total_price REAL NOT NULL
+);
+
 -- Insert Initial Seed Data for Categories
 INSERT OR IGNORE INTO categories (id, name, slug, parent_id, icon) VALUES 
 (1, 'Yaşam', 'yasam', NULL, 'fa-leaf'),

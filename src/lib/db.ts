@@ -1445,3 +1445,124 @@ export async function deleteSlider(id: number, db?: any): Promise<boolean> {
   }
   return false;
 }
+
+// ORDERS
+// ==========================
+
+export interface Order {
+  id: number;
+  user_id: number | null;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
+  shipping_address: string;
+  billing_address: string | null;
+  subtotal: number;
+  shipping_fee: number;
+  tax: number;
+  total_amount: number;
+  payment_method: string;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: OrderItem[];
+}
+
+export interface OrderItem {
+  id: number;
+  order_id: number;
+  product_id: number | null;
+  variant_id: number | null;
+  product_name: string;
+  variant_name: string | null;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export async function createOrder(orderData: any, itemsData: any[], db?: any): Promise<Order | null> {
+  const now = new Date().toISOString();
+  if (db) {
+    const order = await db.prepare(`
+      INSERT INTO orders (
+        user_id, customer_name, customer_email, customer_phone, 
+        shipping_address, billing_address, subtotal, shipping_fee, tax, total_amount, 
+        payment_method, status, notes, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *
+    `).bind(
+      orderData.user_id || null, orderData.customer_name, orderData.customer_email, orderData.customer_phone || null,
+      orderData.shipping_address, orderData.billing_address || null, orderData.subtotal || 0, orderData.shipping_fee || 0,
+      orderData.tax || 0, orderData.total_amount || 0, orderData.payment_method, orderData.status || 'bekliyor',
+      orderData.notes || null, now, now
+    ).first();
+
+    if (order && itemsData && itemsData.length > 0) {
+      const stmts = itemsData.map((item: any) => {
+        return db.prepare(`
+          INSERT INTO order_items (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          order.id, item.product_id || null, item.variant_id || null, item.product_name, item.variant_name || null,
+          item.quantity || 1, item.unit_price || 0, item.total_price || 0
+        );
+      });
+      if (stmts.length > 0) {
+        await db.batch(stmts);
+      }
+    }
+    return order as Order;
+  }
+  
+  const local = await getLocalDb();
+  if (local) {
+    if (!local.data.orders) local.data.orders = [];
+    if (!local.data.order_items) local.data.order_items = [];
+    
+    const newOrderId = local.data.orders.length > 0 ? Math.max(...local.data.orders.map((o:any)=>o.id)) + 1 : 1;
+    const newOrder = { id: newOrderId, ...orderData, status: orderData.status || 'bekliyor', createdAt: now, updatedAt: now };
+    local.data.orders.push(newOrder);
+
+    let nextItemId = local.data.order_items.length > 0 ? Math.max(...local.data.order_items.map((i:any)=>i.id)) + 1 : 1;
+    for (const item of itemsData) {
+      local.data.order_items.push({ id: nextItemId++, order_id: newOrderId, ...item });
+    }
+    
+    await saveLocalDb(local);
+    return newOrder as Order;
+  }
+  return null;
+}
+
+export async function getOrders(db?: any): Promise<Order[]> {
+  if (db) {
+    const { results } = await db.prepare("SELECT * FROM orders ORDER BY id DESC").all();
+    return results as Order[];
+  }
+  const local = await getLocalDb();
+  if (local && local.data.orders) {
+    return local.data.orders.sort((a: any, b: any) => b.id - a.id);
+  }
+  return [];
+}
+
+export async function getOrderById(id: number, db?: any): Promise<Order | null> {
+  if (db) {
+    const order = await db.prepare("SELECT * FROM orders WHERE id = ?").bind(id).first();
+    if (order) {
+      const { results } = await db.prepare("SELECT * FROM order_items WHERE order_id = ?").bind(id).all();
+      order.items = results as OrderItem[];
+      return order as Order;
+    }
+    return null;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.orders) {
+    const order = local.data.orders.find((o: any) => o.id === id);
+    if (order) {
+      order.items = (local.data.order_items || []).filter((i: any) => i.order_id === id);
+      return order;
+    }
+  }
+  return null;
+}
