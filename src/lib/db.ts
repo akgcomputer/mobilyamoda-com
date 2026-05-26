@@ -1563,6 +1563,52 @@ export async function getOrderById(id: number, db?: any): Promise<Order | null> 
       order.items = (local.data.order_items || []).filter((i: any) => i.order_id === id);
       return order;
     }
-  }
   return null;
+}
+
+export async function updateOrderStatus(id: number, status: string, notes?: string, db?: any): Promise<boolean> {
+  const now = new Date().toISOString();
+  if (db) {
+    if (notes !== undefined) {
+      const { success } = await db.prepare("UPDATE orders SET status = ?, notes = ?, updatedAt = ? WHERE id = ?").bind(status, notes, now, id).run();
+      return success;
+    } else {
+      const { success } = await db.prepare("UPDATE orders SET status = ?, updatedAt = ? WHERE id = ?").bind(status, now, id).run();
+      return success;
+    }
+  }
+  const local = await getLocalDb();
+  if (local && local.data.orders) {
+    const idx = local.data.orders.findIndex((o: any) => o.id === id);
+    if (idx !== -1) {
+      local.data.orders[idx].status = status;
+      local.data.orders[idx].updatedAt = now;
+      if (notes !== undefined) {
+        local.data.orders[idx].notes = notes;
+      }
+      await saveLocalDb(local);
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function deleteOrder(id: number, db?: any): Promise<boolean> {
+  if (db) {
+    const { success } = await db.prepare("DELETE FROM orders WHERE id = ?").bind(id).run();
+    return success;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.orders) {
+    const before = local.data.orders.length;
+    local.data.orders = local.data.orders.filter((o: any) => o.id !== id);
+    if (local.data.order_items) {
+      local.data.order_items = local.data.order_items.filter((i: any) => i.order_id !== id);
+    }
+    if (local.data.orders.length !== before) {
+      await saveLocalDb(local);
+      return true;
+    }
+  }
+  return false;
 }
