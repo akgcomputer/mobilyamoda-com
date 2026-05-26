@@ -23,7 +23,7 @@ if (isAdmin) {
   }
   if (userRole === 'editor' || userRole === 'yazar') {
     const path = Astro.url.pathname.replace(/\/$/, '');
-    if (path !== '/admin' && !path.startsWith('/admin/posts')) {
+    if (path !== '/admin' && !path.startsWith('/admin/posts') && !path.startsWith('/admin/security')) {
       return Astro.redirect('/admin');
     }
   }
@@ -51,7 +51,7 @@ const canSeeReklamlar = userRole === 'admin';
 const canSeeKullanicilar = userRole === 'admin';
 const canSeeAyarlar = userRole === 'admin';
 const canSeeBildirimler = userRole === 'admin';
-const canSeeGuvenlik = userRole === 'admin';
+const canSeeGuvenlik = true; // Accessible by admin, editor, yazar
 const canSeeMedya = userRole === 'admin';
 ---
 
