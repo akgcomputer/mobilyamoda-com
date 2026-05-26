@@ -73,7 +73,6 @@ const query = Astro.url.searchParams.get('q') || '';
   </style>
 
   <script>
-  document.addEventListener('astro:page-load', () => {
     const borderColors = [
       'border-red-200 dark:border-red-800',
       'border-orange-200 dark:border-orange-800',
@@ -190,6 +189,5 @@ const query = Astro.url.searchParams.get('q') || '';
         }
       }
     });
-  });
   </script>
 </BaseLayout>

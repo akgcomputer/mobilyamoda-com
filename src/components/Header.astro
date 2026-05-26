@@ -84,8 +84,7 @@ const menuItems = settings.menu_items ? JSON.parse(settings.menu_items) : [
 </div>
 
 <script>
-  document.addEventListener('astro:page-load', () => {
-    // Dark/Light Mode Toggle
+  // Dark/Light Mode Toggle
     const themeToggle = document.getElementById('themeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const htmlElement = document.documentElement;
@@ -171,5 +170,4 @@ const menuItems = settings.menu_items ? JSON.parse(settings.menu_items) : [
 
     // Window event listener for opening from other components if needed
     window.addEventListener('openSideMenu', openMenu);
-  });
 </script>

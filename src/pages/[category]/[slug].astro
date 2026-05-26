@@ -257,7 +257,6 @@ const currentUrl = Astro.url.href;
 </BaseLayout>
 
 <script>
-  document.addEventListener('astro:page-load', () => {
     // Beğeni Butonu
     const likeBtn = document.getElementById('likeBtn');
     const btnLikeCount = document.getElementById('btnLikeCount');
@@ -308,5 +307,4 @@ const currentUrl = Astro.url.href;
       commentForm.classList.add('hidden');
       commentSuccess?.classList.remove('hidden');
     });
-  });
 </script>
