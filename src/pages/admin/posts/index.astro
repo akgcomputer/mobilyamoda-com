@@ -79,6 +79,7 @@ const allPosts = dbPosts.map(p => ({
   status: p.status,
   isSponsored: !!p.isSponsored,
   category: p.category ? p.category.name : 'Genel',
+  author: p.authorName || 'Bilinmiyor',
   tags: p.tags ? p.tags.split(',').map((t: string) => t.trim()) : [],
   viewCount: p.views || 0,
   likeCount: p.likes || 0,
@@ -220,6 +221,7 @@ const statusLabels = {
             <tr>
               <th class="w-10 px-4 py-3"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">İçerik</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Yazar</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Durum</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Kategori</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">İstatistik</th>
@@ -332,6 +334,7 @@ const statusLabels = {
               </div>
             </div>
           </td>
+          <td class="px-4 py-4"><span class="text-sm font-medium text-gray-700 dark:text-gray-300">${post.author}</span></td>
           <td class="px-4 py-4">${getStatusBadge(post.status, post.isSponsored)}</td>
           <td class="px-4 py-4"><span class="text-sm">${post.category}</span></td>
           <td class="px-4 py-4">

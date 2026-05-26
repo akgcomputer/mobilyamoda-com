@@ -17,6 +17,10 @@ const sessionData = Astro.cookies.has('user_session') ? Astro.cookies.get('user_
 const userRole = sessionData?.role || 'misafir';
 const userName = sessionData?.name || 'Misafir';
 
+if (isAdmin && userRole === 'abone') {
+  return Astro.redirect('/');
+}
+
 const siteTitle = settings.site_title || 'Laflaf';
 const finalTitle = title ? `${title} - ${siteTitle}` : siteTitle;
 const finalDescription = description || settings.site_description || 'Meraklı İçerikleri Keşfet';
@@ -32,6 +36,7 @@ const cookieText = settings.cookie_text || 'Bu site size daha iyi bir deneyim su
 
 
 // Menü görünürlük kontrolleri
+const canSeeSayfalar = userRole === 'admin' || userRole === 'editor';
 const canSeeKategoriler = userRole === 'admin';
 const canSeeYorumlar = userRole === 'admin' || userRole === 'editor';
 const canSeeReklamlar = userRole === 'admin';
@@ -85,10 +90,12 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path></svg>
             <span>İçerikler</span>
           </a>
-          <a href="/admin/pages" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 2v6h6M16 13H8M16 17H8M10 9H8"></path></svg>
-            <span>Sabit Sayfalar</span>
-          </a>
+          {canSeeSayfalar && (
+            <a href="/admin/pages" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 2v6h6M16 13H8M16 17H8M10 9H8"></path></svg>
+              <span>Sabit Sayfalar</span>
+            </a>
+          )}
           {canSeeKategoriler && (
             <a href="/admin/categories" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"></path></svg>
@@ -166,7 +173,7 @@ const canSeeMedya = userRole === 'admin' || userRole === 'editor';
           <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
             <a href="/admin" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">📊 Dashboard</a>
             <a href="/admin/posts" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">📄 İçerikler</a>
-            <a href="/admin/pages" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">📝 Sabit Sayfalar</a>
+            {canSeeSayfalar && <a href="/admin/pages" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">📝 Sabit Sayfalar</a>}
             {canSeeKategoriler && <a href="/admin/categories" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">📁 Kategoriler</a>}
             {canSeeYorumlar && <a href="/admin/comments" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">💬 Yorumlar</a>}
             {canSeeReklamlar && <a href="/admin/ads" class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition">📢 Reklam Alanları</a>}

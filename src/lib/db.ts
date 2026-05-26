@@ -322,9 +322,10 @@ export async function getPosts(db?: any, authorId?: number): Promise<any[]> {
 export async function getAllPosts(db?: any, authorId?: number): Promise<any[]> {
   if (db) {
     let query = `
-      SELECT p.*, c.name as categoryName, c.slug as categorySlug 
+      SELECT p.*, c.name as categoryName, c.slug as categorySlug, u.name as authorName
       FROM posts p 
       LEFT JOIN categories c ON p.category_id = c.id 
+      LEFT JOIN users u ON p.author_id = u.id
     `;
     const binds = [];
     if (authorId) {
@@ -339,7 +340,8 @@ export async function getAllPosts(db?: any, authorId?: number): Promise<any[]> {
       isSponsored: !!p.isSponsored,
       views: Math.round(p.views || 0),
       likes: Math.round(p.likes || 0),
-      category: p.category_id ? { id: p.category_id, name: p.categoryName, slug: p.categorySlug } : null
+      category: p.category_id ? { id: p.category_id, name: p.categoryName, slug: p.categorySlug } : null,
+      authorName: p.authorName || 'Bilinmiyor'
     }));
   }
   
