@@ -92,34 +92,41 @@ const cards = [
 
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js" is:inline></script>
   <script is:inline>
-    document.addEventListener('DOMContentLoaded', () => {
-      const initEditor = () => {
-        if (!document.getElementById('editor-container') || document.querySelector('.ql-toolbar')) return;
-        
-        window.quill = new Quill('#editor-container', {
-          theme: 'snow',
-          placeholder: 'İade ve kargo koşullarınızı buraya yazabilirsiniz...',
-          modules: {
-            toolbar: [
-              ['bold', 'italic', 'underline', 'strike'],
-              ['blockquote'],
-              [{ 'header': 1 }, { 'header': 2 }],
-              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-              [{ 'color': [] }, { 'background': [] }],
-              [{ 'align': [] }],
-              ['link', 'clean']
-            ]
-          }
-        });
-        
-        const existingContent = document.getElementById('returnShippingInput').value;
-        if (existingContent) {
-          window.quill.root.innerHTML = existingContent;
+    function initReturnShippingEditor() {
+      if (!document.getElementById('editor-container') || document.querySelector('.ql-toolbar')) return;
+      if (typeof Quill === 'undefined') {
+        setTimeout(initReturnShippingEditor, 100);
+        return;
+      }
+      
+      window.quill = new Quill('#editor-container', {
+        theme: 'snow',
+        placeholder: 'İade ve kargo koşullarınızı buraya yazabilirsiniz...',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline', 'strike'],
+            ['blockquote'],
+            [{ 'header': 1 }, { 'header': 2 }],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'align': [] }],
+            ['link', 'clean']
+          ]
         }
-      };
+      });
+      
+      const existingContent = document.getElementById('returnShippingInput').value;
+      if (existingContent) {
+        window.quill.root.innerHTML = existingContent;
+      }
+    }
 
-      initEditor();
-      document.addEventListener('astro:page-load', initEditor);
-    });
+    document.addEventListener('astro:page-load', initReturnShippingEditor);
+    
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(initReturnShippingEditor, 100);
+    } else {
+      document.addEventListener('DOMContentLoaded', initReturnShippingEditor);
+    }
   </script>
 </BaseLayout>

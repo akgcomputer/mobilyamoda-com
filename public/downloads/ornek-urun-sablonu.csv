@@ -1,0 +1,2 @@
+Ürün Adı,URL (Slug),Kategori ID,Marka ID,Satış Fiyatı,Eski Fiyat,Stok Kodu (SKU),Barkod,Stok Miktarı,Durum (aktif/pasif),Kısa Açıklama,Detaylı Açıklama,Stoksuz Sat (0/1),Sol Üst Rozet,Sağ Üst Rozet
+Örnek Ürün,ornek-urun,1,1,299.90,399.90,SKU-1001,123456789,50,aktif,Kısa bilgi...,"<p>Detaylı HTML içeriği</p>",0,Yeni,Kampanya
