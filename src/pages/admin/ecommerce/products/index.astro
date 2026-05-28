@@ -28,10 +28,11 @@ if (Astro.request.method === 'POST') {
         if (rows.length === 0) {
           mesaj = 'Hata: Yüklenen dosya boş veya okunamadı.';
         } else {
-          // Fetch existing categories and brands for mapping
+          // Fetch existing categories, brands and products for mapping
           let allCategories = await getCategories(dbBinding, 'product');
           let allCategoriesForSlugCheck = await getCategories(dbBinding, null);
           let allBrands = await getBrands(dbBinding);
+          let allProducts = await getProducts(dbBinding);
           
           let importCount = 0;
           
@@ -172,7 +173,7 @@ if (Astro.request.method === 'POST') {
             let slug = row["URL (Slug)"]?.toString().trim() || slugify(name);
             if (!slug) slug = `urun-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             
-            const existingProduct = products.find(p => p.slug === slug);
+            const existingProduct = allProducts.find(p => p.slug === slug);
             let productResult = null;
 
             const productData = {
@@ -242,6 +243,8 @@ if (Astro.request.method === 'POST') {
                   }, dbBinding);
                 }
               }
+              // Refresh products list to keep it up to date for subsequent rows
+              allProducts = await getProducts(dbBinding);
             }
           }
           mesaj = `${importCount} adet ürün ve ilişkili varyasyon/toptan satış baremleri başarıyla içe aktarıldı.`;
