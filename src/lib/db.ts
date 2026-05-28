@@ -617,6 +617,20 @@ export async function deleteProductVariant(id: number, db?: any): Promise<boolea
   return false;
 }
 
+export async function clearProductVariants(productId: number, db?: any): Promise<boolean> {
+  if (db) {
+    const { success } = await db.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(productId).run();
+    return success;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.product_variants) {
+    local.data.product_variants = local.data.product_variants.filter((v: any) => v.product_id !== productId);
+    await saveLocalDb(local);
+    return true;
+  }
+  return false;
+}
+
 // --- WHOLESALE PRICES ---
 export async function createWholesalePrice(data: any, db?: any): Promise<WholesalePrice | null> {
   const now = new Date().toISOString();
@@ -680,6 +694,20 @@ export async function deleteWholesalePrice(id: number, db?: any): Promise<boolea
       await saveLocalDb(local);
       return true;
     }
+  }
+  return false;
+}
+
+export async function clearProductWholesalePrices(productId: number, db?: any): Promise<boolean> {
+  if (db) {
+    const { success } = await db.prepare("DELETE FROM wholesale_prices WHERE product_id = ?").bind(productId).run();
+    return success;
+  }
+  const local = await getLocalDb();
+  if (local && local.data.wholesale_prices) {
+    local.data.wholesale_prices = local.data.wholesale_prices.filter((w: any) => w.product_id !== productId);
+    await saveLocalDb(local);
+    return true;
   }
   return false;
 }

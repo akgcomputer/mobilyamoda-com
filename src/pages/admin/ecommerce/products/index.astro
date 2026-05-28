@@ -2,7 +2,7 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import { 
   getProducts, deleteProduct, duplicateProduct, getCategories, getBrands, getAllReviews, getAllQA, getBadges, updateProduct,
-  createProduct, createProductVariant, createWholesalePrice, createCategory, createBrand
+  createProduct, createProductVariant, createWholesalePrice, createCategory, createBrand, clearProductVariants, clearProductWholesalePrices
 } from '../../../../lib/db';
 import * as XLSX from 'xlsx';
 
@@ -17,7 +17,7 @@ if (Astro.request.method === 'POST') {
     if (action === 'import_products') {
       const file = formData.get('file') as File;
       if (!file || file.size === 0) {
-        mesaj = '🛑 Hata: Lütfen geçerli bir Excel dosyası yükleyin.';
+        mesaj = 'Hata: Lütfen geçerli bir Excel dosyası yükleyin.';
       } else {
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: 'array' });
@@ -26,10 +26,11 @@ if (Astro.request.method === 'POST') {
         const rows = XLSX.utils.sheet_to_json(sheet) as any[];
         
         if (rows.length === 0) {
-          mesaj = '🛑 Hata: Yüklenen dosya boş veya okunamadı.';
+          mesaj = 'Hata: Yüklenen dosya boş veya okunamadı.';
         } else {
           // Fetch existing categories and brands for mapping
           let allCategories = await getCategories(dbBinding, 'product');
+          let allCategoriesForSlugCheck = await getCategories(dbBinding, null);
           let allBrands = await getBrands(dbBinding);
           
           let importCount = 0;
@@ -49,6 +50,30 @@ if (Astro.request.method === 'POST') {
               .trim();
           };
 
+          // Safe float/money parser
+          const parseMoney = (val: any): number => {
+            if (val === undefined || val === null || val === '') return 0;
+            if (typeof val === 'number') return val;
+            let str = val.toString().trim().replace(/[^\d.,-]/g, '');
+            // Handle Turkish currency format (e.g., 299,90 or 1.299,90)
+            if (str.includes(',') && (!str.includes('.') || str.indexOf('.') < str.indexOf(','))) {
+              str = str.replace(/\./g, '').replace(/,/g, '.');
+            } else {
+              // Handle standard English format (e.g., 299.90 or 1,299.90)
+              str = str.replace(/,/g, '');
+            }
+            const parsed = parseFloat(str);
+            return isNaN(parsed) ? 0 : parsed;
+          };
+
+          // Safe integer parser
+          const parseIntSafe = (val: any, fallback = 0): number => {
+            if (val === undefined || val === null || val === '') return fallback;
+            if (typeof val === 'number') return Math.floor(val);
+            const parsed = parseInt(val.toString().replace(/[^0-9-]/g, ''));
+            return isNaN(parsed) ? fallback : parsed;
+          };
+
           for (const row of rows) {
             const name = row["Ürün Adı"]?.toString().trim();
             if (!name) continue;
@@ -61,16 +86,24 @@ if (Astro.request.method === 'POST') {
               if (!isNaN(numericId)) {
                 category_id = numericId;
               } else {
-                let cat = allCategories.find(c => c.name.toLowerCase() === categoryInput.toLowerCase());
+                let cat = allCategories.find(c => c && c.name && c.name.toString().toLowerCase() === categoryInput.toLowerCase());
                 if (!cat) {
+                  let catSlug = slugify(categoryInput);
+                  if (allCategoriesForSlugCheck.some(c => c && c.slug === catSlug)) {
+                    catSlug = `${catSlug}-urun`;
+                  }
+                  if (allCategoriesForSlugCheck.some(c => c && c.slug === catSlug)) {
+                    catSlug = `${catSlug}-${Date.now()}-${Math.floor(Math.random() * 100)}`;
+                  }
                   const newCat = await createCategory({
                     name: categoryInput,
-                    slug: slugify(categoryInput),
+                    slug: catSlug || `cat-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
                     type: 'product'
                   }, dbBinding);
                   if (newCat) {
                     category_id = newCat.id;
                     allCategories = await getCategories(dbBinding, 'product');
+                    allCategoriesForSlugCheck = await getCategories(dbBinding, null);
                   }
                 } else {
                   category_id = cat.id;
@@ -86,11 +119,15 @@ if (Astro.request.method === 'POST') {
               if (!isNaN(numericId)) {
                 brand_id = numericId;
               } else {
-                let brand = allBrands.find(b => b.name.toLowerCase() === brandInput.toLowerCase());
+                let brand = allBrands.find(b => b && b.name && b.name.toString().toLowerCase() === brandInput.toLowerCase());
                 if (!brand) {
+                  let brandSlug = slugify(brandInput);
+                  if (allBrands.some(b => b && b.slug === brandSlug)) {
+                    brandSlug = `${brandSlug}-${Date.now()}-${Math.floor(Math.random() * 100)}`;
+                  }
                   const newBrand = await createBrand({
                     name: brandInput,
-                    slug: slugify(brandInput)
+                    slug: brandSlug || `brand-${Date.now()}-${Math.floor(Math.random() * 1000)}`
                   }, dbBinding);
                   if (newBrand) {
                     brand_id = newBrand.id;
@@ -129,11 +166,16 @@ if (Astro.request.method === 'POST') {
             const badgeTL = row["Sol Üst Rozet"]?.toString().trim();
             const badgeTR = row["Sağ Üst Rozet"]?.toString().trim();
             
-            const price = parseFloat(row["Satış Fiyatı"]) || 0;
-            const compare_at_price = row["Eski Fiyat"] ? parseFloat(row["Eski Fiyat"]) : null;
-            const slug = row["URL (Slug)"]?.toString().trim() || slugify(name);
+            const price = parseMoney(row["Satış Fiyatı"]);
+            const compare_at_price = row["Eski Fiyat"] ? parseMoney(row["Eski Fiyat"]) : null;
             
-            const newProduct = await createProduct({
+            let slug = row["URL (Slug)"]?.toString().trim() || slugify(name);
+            if (!slug) slug = `urun-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            
+            const existingProduct = products.find(p => p.slug === slug);
+            let productResult = null;
+
+            const productData = {
               category_id,
               brand_id,
               name,
@@ -144,7 +186,7 @@ if (Astro.request.method === 'POST') {
               compare_at_price,
               currency: '₺',
               unit: row["Satış Birimi"]?.toString().trim() || 'Adet',
-              min_order_qty: parseInt(row["Min. Sipariş Miktarı"]) || 1,
+              min_order_qty: parseIntSafe(row["Min. Sipariş Miktarı"], 1),
               image_url,
               badge_top_left: badgeTL || null,
               badge_top_right: badgeTR || null,
@@ -155,24 +197,32 @@ if (Astro.request.method === 'POST') {
               features: Object.keys(features).length > 0 ? features : null,
               gallery_images: gallery_images.length > 0 ? gallery_images : null,
               tags: row["Etiketler"]?.toString().trim() || null,
-              stock: parseInt(row["Stok Miktarı"]) || 0,
+              stock: parseIntSafe(row["Stok Miktarı"], 0),
               video_url: row["Video URL"]?.toString().trim() || null,
-              allow_backorder: parseInt(row["Stoksuz Sat (0/1)"]) === 1 ? 1 : 0
-            }, dbBinding);
+              allow_backorder: parseIntSafe(row["Stoksuz Sat (0/1)"], 0) === 1 ? 1 : 0
+            };
 
-            if (newProduct) {
+            if (existingProduct) {
+              await clearProductVariants(existingProduct.id, dbBinding);
+              await clearProductWholesalePrices(existingProduct.id, dbBinding);
+              productResult = await updateProduct(existingProduct.id, productData, dbBinding);
+            } else {
+              productResult = await createProduct(productData, dbBinding);
+            }
+
+            if (productResult) {
               importCount++;
               
               // 6. Create Variants (5 groups)
               for (let i = 1; i <= 5; i++) {
                 const vName = row[`Varyasyon Adı ${i}`]?.toString().trim();
-                const vStock = parseInt(row[`Varyasyon Stok ${i}`]) || 0;
-                const vPrice = parseFloat(row[`Varyasyon Fiyat ${i}`]) || 0;
+                const vStock = parseIntSafe(row[`Varyasyon Stok ${i}`], 0);
+                const vPrice = parseMoney(row[`Varyasyon Fiyat ${i}`]);
                 if (vName) {
                   await createProductVariant({
-                    product_id: newProduct.id,
+                    product_id: productResult.id,
                     name: vName,
-                    sku: slugify(vName),
+                    sku: slugify(vName) || `var-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
                     price: vPrice,
                     stock: vStock,
                     image_url: null
@@ -182,11 +232,11 @@ if (Astro.request.method === 'POST') {
 
               // 7. Create Wholesale Prices (3 groups)
               for (let i = 1; i <= 3; i++) {
-                const wQty = parseInt(row[`Toptan Min. Miktar ${i}`]);
-                const wDiscount = parseFloat(row[`Toptan İndirim Oranı % ${i}`]);
+                const wQty = parseIntSafe(row[`Toptan Min. Miktar ${i}`], 0);
+                const wDiscount = parseMoney(row[`Toptan İndirim Oranı % ${i}`]);
                 if (wQty > 0 && wDiscount > 0) {
                   await createWholesalePrice({
-                    product_id: newProduct.id,
+                    product_id: productResult.id,
                     min_qty: wQty,
                     discount_percentage: wDiscount
                   }, dbBinding);
@@ -194,7 +244,7 @@ if (Astro.request.method === 'POST') {
               }
             }
           }
-          mesaj = `🎉 ${importCount} adet ürün ve ilişkili varyasyon/toptan satış baremleri başarıyla içe aktarıldı.`;
+          mesaj = `${importCount} adet ürün ve ilişkili varyasyon/toptan satış baremleri başarıyla içe aktarıldı.`;
         }
       }
     } else {
@@ -218,7 +268,7 @@ if (Astro.request.method === 'POST') {
     }
   } catch (err) {
     console.error('Action error:', err);
-    mesaj = 'İşlem sırasında bir hata oluştu.';
+    mesaj = `Hata: İşlem sırasında bir hata oluştu: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
 
@@ -267,9 +317,9 @@ function getBadgeNames(badgesJson: string | null) {
     </div>
 
     {mesaj && (
-      <div class="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 p-4 rounded-xl border border-green-200 dark:border-green-800 mb-6 flex justify-between items-center">
-        <span>✅ {mesaj}</span>
-        <button onclick="this.parentElement.remove()" class="text-green-700 dark:text-green-300">✕</button>
+      <div class={`p-4 rounded-xl border mb-6 flex justify-between items-center ${mesaj.includes('Hata') || mesaj.includes('hata') ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'}`}>
+        <span>{mesaj.includes('Hata') || mesaj.includes('hata') ? '🛑' : '✅'} {mesaj}</span>
+        <button onclick="this.parentElement.remove()" class={mesaj.includes('Hata') || mesaj.includes('hata') ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}>✕</button>
       </div>
     )}
 
