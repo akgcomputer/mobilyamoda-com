@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
-import { getProducts, deleteProduct, getCategories, getBrands } from '../../../../lib/db';
+import { getProducts, deleteProduct, duplicateProduct, getCategories, getBrands, getAllReviews, getAllQA, getBadges, updateProduct } from '../../../../lib/db';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 
@@ -8,27 +8,53 @@ let mesaj = '';
 if (Astro.request.method === 'POST') {
   try {
     const formData = await Astro.request.formData();
+    const action = formData.get('action') as string;
     const id = parseInt(formData.get('id') as string);
     if (id) {
-      await deleteProduct(id, dbBinding);
-      mesaj = 'Ürün başarıyla silindi.';
+      if (action === 'delete') {
+        await deleteProduct(id, dbBinding);
+        mesaj = 'Ürün başarıyla silindi.';
+      } else if (action === 'duplicate') {
+        await duplicateProduct(id, dbBinding);
+        mesaj = 'Ürün başarıyla kopyalandı.';
+      } else if (action === 'toggle_backorder') {
+        const product = await getProducts(dbBinding).then(res => res.find(p => p.id === id));
+        if (product) {
+          const newStatus = product.allow_backorder === 1 ? 0 : 1;
+          await updateProduct(id, { allow_backorder: newStatus }, dbBinding);
+          mesaj = 'Stoksuz sat durumu güncellendi.';
+        }
+      }
     }
   } catch (err) {
-    console.error('Delete product error:', err);
-    mesaj = 'Silme işlemi sırasında bir hata oluştu.';
+    console.error('Action error:', err);
+    mesaj = 'İşlem sırasında bir hata oluştu.';
   }
 }
 
 const products = await getProducts(dbBinding);
 const categories = await getCategories(dbBinding, 'product');
 const brands = await getBrands(dbBinding);
+const allReviews = await getAllReviews(dbBinding);
+const allQA = await getAllQA(dbBinding);
+const allBadges = await getBadges(dbBinding);
 
-// Helper functions for names
+// Helper functions
 function getCategoryName(id: number) {
   return categories.find(c => c.id === id)?.name || '-';
 }
 function getBrandName(id: number) {
   return brands.find(b => b.id === id)?.name || '-';
+}
+function getBadgeNames(badgesJson: string | null) {
+  if (!badgesJson) return [];
+  try {
+    const parsed = JSON.parse(badgesJson);
+    return parsed.map((p: any) => {
+      const b = allBadges.find(x => x.id === p.badge_id);
+      return b ? b.name : null;
+    }).filter(Boolean);
+  } catch(e) { return []; }
 }
 ---
 
@@ -62,62 +88,104 @@ function getBrandName(id: number) {
         <table class="w-full">
           <thead class="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             <tr>
-              <th class="w-16 px-4 py-3 text-left">Görsel</th>
-              <th class="px-6 py-4 text-left">Ürün Adı</th>
-              <th class="px-6 py-4 text-left">Fiyat</th>
-              <th class="px-6 py-4 text-left hidden md:table-cell">Kategori / Marka</th>
-              <th class="px-6 py-4 text-left hidden lg:table-cell">Rozetler</th>
-              <th class="px-6 py-4 text-left">Durum</th>
-              <th class="px-6 py-4 text-center">İşlem</th>
+              <th class="px-3 py-3 text-left">Görsel</th>
+              <th class="px-3 py-4 text-left">Ürün Adı</th>
+              <th class="px-3 py-4 text-left">Fiyat</th>
+              <th class="px-3 py-4 text-left hidden md:table-cell">Kategori/Marka</th>
+              <th class="px-3 py-4 text-left">Stok / Varyant</th>
+              <th class="px-3 py-4 text-center">Stoksuz Sat</th>
+              <th class="px-3 py-4 text-left hidden lg:table-cell">Rozetler</th>
+              <th class="px-3 py-4 text-left">Puan/Soru/Beğeni</th>
+              <th class="px-3 py-4 text-left">Durum</th>
+              <th class="px-3 py-4 text-right">İşlem</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-200">
-            {products.map(product => (
+          <tbody class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-200 text-sm">
+            {products.map(product => {
+              const pReviews = allReviews.filter(r => r.product_id === product.id && r.status === 'approved');
+              const thumbsUp = pReviews.filter(r => r.rating >= 2).length;
+              const thumbsDown = pReviews.filter(r => r.rating === 1).length;
+              const pQA = allQA.filter(q => q.product_id === product.id && q.status === 'answered');
+              const bNames = getBadgeNames(product.badges);
+              
+              return (
               <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-                <td class="px-4 py-4 text-sm font-semibold text-gray-500 dark:text-gray-400">
+                <td class="px-3 py-4 text-sm font-semibold text-gray-500 dark:text-gray-400">
                   {product.image_url ? <img src={product.image_url} class="w-10 h-14 object-cover rounded shadow-sm" /> : <div class="w-10 h-14 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center"><i class="fas fa-image text-gray-400"></i></div>}
                 </td>
-                <td class="px-6 py-4">
+                <td class="px-3 py-4">
                   <div class="font-medium text-gray-900 dark:text-white line-clamp-1">{product.name}</div>
                   <div class="text-xs text-gray-500 mt-0.5">/{product.slug}</div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="px-3 py-4 whitespace-nowrap">
                   <div class="font-bold text-gray-900 dark:text-white">{product.price.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</div>
-                  {product.compare_at_price && product.compare_at_price > product.price && (
-                    <div class="text-xs text-gray-500 line-through">{product.compare_at_price.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</div>
-                  )}
                 </td>
-                <td class="px-6 py-4 hidden md:table-cell text-sm text-gray-500 dark:text-gray-400">
-                  <div>{getCategoryName(product.category_id || 0)}</div>
+                <td class="px-3 py-4 hidden md:table-cell text-sm text-gray-500 dark:text-gray-400">
+                  <div class="line-clamp-1">{getCategoryName(product.category_id || 0)}</div>
                   <div class="text-xs mt-1 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded inline-block">{getBrandName(product.brand_id || 0)}</div>
                 </td>
-                <td class="px-6 py-4 hidden lg:table-cell text-xs text-gray-500">
-                  {product.badge_top_left && <div class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded mb-1 w-max dark:bg-blue-900/40 dark:text-blue-300">Sol: {product.badge_top_left}</div>}
-                  {product.badge_top_right && <div class="bg-red-100 text-red-800 px-2 py-0.5 rounded w-max dark:bg-red-900/40 dark:text-red-300">Sağ: {product.badge_top_right}</div>}
+                <td class="px-3 py-4">
+                  {product.variants && product.variants.length > 0 ? (
+                    <div class="text-xs">
+                      {product.variants.map(v => (
+                        <div class="mb-0.5"><span class="text-gray-500">{v.name}:</span> <span class="font-semibold">{v.stock}</span></div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div class="font-semibold">{product.stock || 0} Adet</div>
+                  )}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="px-3 py-4 text-center">
+                  <form method="POST" class="inline">
+                    <input type="hidden" name="action" value="toggle_backorder" />
+                    <input type="hidden" name="id" value={product.id} />
+                    <button type="submit" class={`px-3 py-1 rounded-full text-xs font-bold transition ${product.allow_backorder === 1 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+                      {product.allow_backorder === 1 ? 'Açık' : 'Kapalı'}
+                    </button>
+                  </form>
+                </td>
+                <td class="px-3 py-4 hidden lg:table-cell text-xs text-gray-500">
+                  <div class="flex flex-wrap gap-1 w-24">
+                    {bNames.map((n: string) => <span class="bg-blue-50 text-blue-600 border border-blue-100 px-1 rounded dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300">{n}</span>)}
+                  </div>
+                </td>
+                <td class="px-3 py-4 text-xs whitespace-nowrap">
+                  <div class="text-yellow-500">{product.rating} ⭐</div>
+                  <div class="mt-1">{thumbsUp} 👍 | {thumbsDown} 👎</div>
+                  <div class="mt-1">💬 {pQA.length} | ❤️ {product.likes || 0}</div>
+                </td>
+                <td class="px-3 py-4 whitespace-nowrap">
                   <span class={`px-2.5 py-1 text-xs font-medium rounded-full ${product.status === 'aktif' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
                     {product.status === 'aktif' ? 'Aktif' : 'Pasif'}
                   </span>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                  <div class="flex items-center justify-center gap-2">
-                    <a href={`/urunler/detay/${product.slug}`} target="_blank" class="text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition" title="Görüntüle">
+                <td class="px-3 py-4 text-right">
+                  <div class="flex items-center justify-end gap-1">
+                    <a href={`/urunler/${product.slug}`} target="_blank" title="Görüntüle" class="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded transition">
                       <i class="fas fa-external-link-alt"></i>
                     </a>
-                    <a href={`/admin/ecommerce/products/${product.id}`} class="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 p-2 rounded-lg transition" title="Düzenle">
+                    <form method="POST" class="inline" onsubmit="return confirm('Bu ürünü kopyalamak istiyor musunuz?');">
+                      <input type="hidden" name="action" value="duplicate" />
+                      <input type="hidden" name="id" value={product.id} />
+                      <button type="submit" title="Kopyala/Çoğalt" class="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/50 rounded transition">
+                        <i class="fas fa-copy"></i>
+                      </button>
+                    </form>
+                    <a href={`/admin/ecommerce/products/${product.id}`} title="Düzenle" class="p-1.5 text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-gray-700 rounded transition">
                       <i class="fas fa-edit"></i>
                     </a>
-                    <form method="POST" class="inline" onsubmit="return confirm('Bu ürünü silmek istediğinize emin misiniz?')">
+                    <form method="POST" class="inline" onsubmit="return confirm('Bu ürünü silmek istediğinize emin misiniz?');">
+                      <input type="hidden" name="action" value="delete" />
                       <input type="hidden" name="id" value={product.id} />
-                      <button type="submit" class="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 p-2 rounded-lg transition" title="Sil">
-                        <i class="fas fa-trash-alt"></i>
+                      <button type="submit" title="Sil" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded transition">
+                        <i class="fas fa-trash"></i>
                       </button>
                     </form>
                   </div>
                 </td>
               </tr>
-            ))}
+              )}
+            )}
             
             {products.length === 0 && (
               <tr>

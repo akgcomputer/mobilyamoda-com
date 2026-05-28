@@ -11,11 +11,33 @@ let userName = 'Misafir';
 let errorMessage = '';
 let successMessage = '';
 
+let userData: any = null;
+let userOrders: any[] = [];
+let userCommentCount = 0;
+
 if (isLoggedIn) {
   const sessionData = Astro.cookies.get('user_session')?.json();
   if (sessionData) {
-    userRole = sessionData.role;
+    userRole = sessionData.role === 'abone' ? 'Müşteri / Abone' : sessionData.role;
     userName = sessionData.name;
+    const users = await getUsers(dbBinding);
+    userData = users.find(u => u.id === sessionData.id);
+    
+    // Siparişleri Çek
+    try {
+      if (dbBinding) {
+        const stmt = await dbBinding.prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY createdAt DESC').bind(sessionData.id).all();
+        if (stmt.results) userOrders = stmt.results;
+
+        // Yorum Sayısını Çek
+        if (userData && userData.email) {
+          const cStmt = await dbBinding.prepare('SELECT COUNT(*) as c FROM comments WHERE author_email = ?').bind(userData.email).first();
+          userCommentCount = cStmt ? (cStmt.c as number) : 0;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }
 }
 
@@ -87,6 +109,22 @@ if (Astro.request.method === 'POST') {
     }
   }
 
+  if (action === 'update_profile') {
+    const sessionData = Astro.cookies.get('user_session')?.json();
+    if (sessionData) {
+      const phone = formData.get('phone') as string;
+      const address = formData.get('address') as string;
+      try {
+        await dbBinding.prepare('UPDATE users SET phone = ?, address = ? WHERE id = ?').bind(phone, address, sessionData.id).run();
+        successMessage = 'Profil bilgileriniz başarıyla güncellendi.';
+        const users = await getUsers(dbBinding);
+        userData = users.find(u => u.id === sessionData.id);
+      } catch (e) {
+        errorMessage = 'Profil güncellenirken bir hata oluştu.';
+      }
+    }
+  }
+
   if (action === 'logout') {
     Astro.cookies.delete('user_session', { path: '/' });
     return Astro.redirect('/profil');
@@ -112,33 +150,68 @@ if (Astro.request.method === 'POST') {
                   {userRole}
                 </span>
                 <span class="text-sm text-gray-500 flex items-center gap-1">
-                  <i class="far fa-comment-dots"></i> 14 İçeriğe Yorum Yaptınız
+                  <i class="far fa-comment-dots"></i> {userCommentCount} İçeriğe Yorum Yaptınız
                 </span>
               </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-            <!-- Bildirim Ayarları -->
+            <!-- Adres ve İletişim Bilgileri (Müşteri) -->
             <div>
               <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
-                <i class="fas fa-bell text-orange-500"></i> Bildirim Tercihleri
+                <i class="fas fa-map-marker-alt text-orange-500"></i> İletişim & Adres Bilgilerim
               </h2>
-              <form class="space-y-4">
-                <label class="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition">
-                  <input type="checkbox" checked class="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
-                  <span>Yeni yorum bildirimleri</span>
-                </label>
-                <label class="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition">
-                  <input type="checkbox" checked class="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
-                  <span>Yeni kullanıcı kaydı bildirimleri</span>
-                </label>
-                <label class="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition">
-                  <input type="checkbox" checked class="w-5 h-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
-                  <span>Sponsorluk süresi dolum bildirimleri</span>
-                </label>
-                <button type="button" class="mt-4 px-6 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition">Ayarları Kaydet</button>
+              <form method="POST" class="space-y-4">
+                <input type="hidden" name="action" value="update_profile" />
+                <div>
+                  <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Telefon Numarası</label>
+                  <input type="tel" name="phone" value={userData?.phone || ''} class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none transition" placeholder="05XX XXX XX XX" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Teslimat / Fatura Adresi</label>
+                  <textarea name="address" rows="3" class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none transition" placeholder="Açık adresiniz...">{userData?.address || ''}</textarea>
+                </div>
+                <button type="submit" class="w-full px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition font-bold shadow-md">Bilgilerimi Kaydet</button>
               </form>
+            </div>
+
+            <!-- Siparişlerim -->
+            <div class="md:col-span-2 mt-6 border-t dark:border-gray-700 pt-10">
+              <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <i class="fas fa-shopping-bag text-orange-500"></i> Son Siparişlerim
+              </h2>
+              {userOrders.length > 0 ? (
+                <div class="space-y-4">
+                  {userOrders.map(order => (
+                    <div class="border dark:border-gray-700 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <div>
+                        <div class="font-bold text-lg text-purple-600 dark:text-purple-400">Sipariş #{order.id}</div>
+                        <div class="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString('tr-TR')}</div>
+                      </div>
+                      <div class="flex-1 md:text-center">
+                        <span class={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                          order.status === 'onaylandi' ? 'bg-blue-100 text-blue-700' :
+                          order.status === 'kargolandi' ? 'bg-indigo-100 text-indigo-700' :
+                          order.status === 'tamamlandi' ? 'bg-green-100 text-green-700' :
+                          order.status === 'iptal' ? 'bg-red-100 text-red-700' :
+                          'bg-orange-100 text-orange-700'
+                        }`}>
+                          {order.status === 'bekliyor' ? 'Bekliyor' : order.status}
+                        </span>
+                      </div>
+                      <div class="font-bold text-xl">
+                        {order.total_amount.toLocaleString('tr-TR', {style:'currency', currency:'TRY'})}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div class="text-center py-12 bg-gray-50 dark:bg-gray-900/50 rounded-xl border dark:border-gray-700 border-dashed">
+                  <i class="fas fa-box-open text-4xl text-gray-400 mb-3"></i>
+                  <p class="text-gray-500">Henüz siparişiniz bulunmamaktadır.</p>
+                  <a href="/urunler" class="inline-block mt-4 text-orange-600 font-bold hover:underline">Alışverişe Başla</a>
+                </div>
+              )}
             </div>
 
             <!-- Aksiyonlar -->
@@ -158,6 +231,20 @@ if (Astro.request.method === 'POST') {
                     <i class="fas fa-sign-out-alt text-xl"></i> Çıkış Yap
                   </button>
                 </form>
+
+                <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <div class="flex items-center gap-3">
+                    <i class="fas fa-bell text-orange-500 text-xl"></i>
+                    <div>
+                      <div class="font-bold text-gray-800 dark:text-gray-200">Web Bildirimleri</div>
+                      <div class="text-xs text-gray-500">Önemli duyurulardan ve fırsatlardan haberdar olun</div>
+                    </div>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" value="" class="sr-only peer" checked>
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -182,7 +269,7 @@ if (Astro.request.method === 'POST') {
           )}
 
           <!-- KAYIT FORMU -->
-          <div id="registerSection">
+          <div id="registerSection" class="hidden">
             <div class="text-center mb-8">
               <h1 class="text-3xl font-bold mb-2">Aramıza Katıl</h1>
               <p class="text-gray-500 dark:text-gray-400 mb-4">İçeriklere yorum yapmak ve bildirim almak için hemen üye olun.</p>
@@ -235,7 +322,7 @@ if (Astro.request.method === 'POST') {
                 <div class="flex flex-wrap gap-6">
                   <label class="flex items-center gap-2 cursor-pointer">
                     <input type="radio" name="role" value="Abone" checked class="text-purple-600 focus:ring-purple-500">
-                    <span class="text-sm">Abone (Sadece Okur/Yorum Yapar)</span>
+                    <span class="text-sm">Müşteri / Abone (Alışveriş & Yorum)</span>
                   </label>
                   <label class="flex items-center gap-2 cursor-pointer">
                     <input type="radio" name="role" value="Yazar" class="text-purple-600 focus:ring-purple-500">
@@ -255,7 +342,7 @@ if (Astro.request.method === 'POST') {
           </div>
 
           <!-- GİRİŞ FORMU -->
-          <div id="loginSection" class="hidden">
+          <div id="loginSection">
             <div class="text-center mb-10">
               <h1 class="text-3xl font-bold mb-2">Giriş Yap</h1>
               <p class="text-gray-500 dark:text-gray-400 mb-4">Hesabınıza giriş yaparak devam edin.</p>

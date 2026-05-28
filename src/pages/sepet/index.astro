@@ -1,353 +1,259 @@
 ---
+// src/pages/sepet/index.astro
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getProducts } from '../../lib/db';
-
-const dbBinding = Astro.locals.runtime?.env?.DB;
-const allProducts = await getProducts(dbBinding);
-
-// Sadece aktif ürünleri al
-const activeProducts = allProducts.filter(p => p.status === 'aktif');
-
-// Client-side için ürün referans verilerini (Toptan fiyatlar ve Varyasyon fiyatları için) hazırla
-const productRefs = activeProducts.map(p => ({
-  id: p.id,
-  price: p.price,
-  min_order_qty: p.min_order_qty || 1,
-  variants: p.variants || [],
-  wholesalePrices: p.wholesalePrices || []
-}));
-const productRefsJson = JSON.stringify(productRefs);
 ---
 
 <BaseLayout title="Sepetim | Laflaf E-Ticaret">
-  <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 min-h-[60vh]">
-    
-    <div class="flex items-center gap-3 mb-8 pb-4 border-b border-gray-200 dark:border-gray-800">
-      <i class="fas fa-shopping-cart text-3xl text-gray-800 dark:text-gray-200"></i>
-      <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Alışveriş Sepetim</h1>
+  <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
+    <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white">Alışveriş Sepetim</h1>
+      <p class="text-gray-500 dark:text-gray-400 mt-1">Siparişinizi tamamlamadan önce sepetinizi inceleyin.</p>
     </div>
 
-    <!-- Yükleniyor Durumu -->
-    <div id="cartLoading" class="flex flex-col items-center justify-center py-20 text-gray-500">
-      <i class="fas fa-circle-notch fa-spin text-4xl text-orange-500 mb-4"></i>
-      <p>Sepetiniz yükleniyor...</p>
+    <div id="emptyCartMessage" class="hidden text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+      <i class="fas fa-shopping-cart text-6xl text-gray-300 dark:text-gray-600 mb-6 block"></i>
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sepetiniz Boş</h2>
+      <p class="text-gray-500 mb-6">Şu an sepetinizde hiç ürün bulunmuyor.</p>
+      <a href="/urunler" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5">Alışverişe Başla</a>
     </div>
 
-    <!-- Boş Sepet -->
-    <div id="emptyCartMessage" class="hidden flex-col items-center justify-center py-16 px-4 bg-gray-50 dark:bg-gray-800/30 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
-      <div class="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
-        <i class="fas fa-shopping-basket text-4xl text-gray-400 dark:text-gray-500"></i>
-      </div>
-      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sepetiniz şu an boş.</h2>
-      <p class="text-gray-500 dark:text-gray-400 mb-8 text-center max-w-md">E-ticaret mağazamızdaki harika ürünleri inceleyip hemen alışverişe başlayabilirsiniz.</p>
-      <a href="/urunler" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition transform hover:-translate-y-1">
-        Alışverişe Başla
-      </a>
-    </div>
-
-    <!-- Sepet İçeriği -->
-    <div id="cartContent" class="hidden flex-col lg:flex-row gap-8">
+    <div id="cartContent" class="hidden flex flex-col lg:flex-row gap-8">
       
-      <!-- Sol: Ürün Listesi -->
+      <!-- Sol: Sepet Ürünleri -->
       <div class="lg:w-2/3">
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          
-          <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex justify-between items-center">
-            <h3 class="font-bold text-gray-700 dark:text-gray-300">Sepetteki Ürünler (<span id="cartItemCount">0</span>)</h3>
-            <button id="clearCartBtn" class="text-sm text-red-500 hover:text-red-700 flex items-center gap-1 transition">
-              <i class="fas fa-trash-alt"></i> Sepeti Boşalt
-            </button>
-          </div>
-          
-          <ul id="cartItemList" class="divide-y divide-gray-200 dark:divide-gray-700">
-            <!-- JS ile doldurulacak -->
+          <ul id="cartItemsList" class="divide-y divide-gray-200 dark:divide-gray-700">
+            <!-- JS tarafından doldurulacak -->
           </ul>
-          
         </div>
       </div>
 
       <!-- Sağ: Sipariş Özeti -->
       <div class="lg:w-1/3">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sticky top-24">
-          <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">Sipariş Özeti</h3>
+        <div class="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 sticky top-24">
+          <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">Sipariş Özeti</h2>
           
-          <div class="space-y-4 text-sm mb-6">
-            <div class="flex justify-between items-center text-gray-600 dark:text-gray-400">
+          <div class="space-y-4 mb-6 text-gray-600 dark:text-gray-300">
+            <div class="flex justify-between">
               <span>Ara Toplam</span>
-              <span id="subTotalAmount" class="font-medium text-gray-900 dark:text-white">0,00 ₺</span>
+              <span id="subtotalDisplay" class="font-medium text-gray-900 dark:text-white">0,00 ₺</span>
             </div>
-            
-            <!-- İleride eklenebilecek kargo vb. için yer -->
-            <div class="flex justify-between items-center text-gray-500 text-xs">
+            <div class="flex justify-between">
               <span>Kargo Ücreti</span>
-              <span>Sonraki adımda hesaplanacak</span>
+              <span id="shippingDisplay" class="font-medium text-gray-900 dark:text-white">Ücretsiz</span>
+            </div>
+          </div>
+          <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+            <div class="flex gap-2 mb-2">
+              <input type="text" id="couponInput" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="İndirim Kodu">
+              <button type="button" id="applyCouponBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition dark:bg-gray-600 dark:hover:bg-gray-500">Uygula</button>
+            </div>
+            <div id="couponMessage" class="text-xs hidden mb-4"></div>
+            
+            <div id="discountRow" class="flex justify-between hidden text-green-600 font-medium text-sm mt-4">
+              <span>İndirim (<span id="couponCodeDisplay"></span>)</span>
+              <span id="discountDisplay">-0,00 ₺</span>
             </div>
           </div>
           
           <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-8">
             <div class="flex justify-between items-center">
-              <span class="text-lg font-bold text-gray-900 dark:text-white">Genel Toplam</span>
-              <span id="totalAmount" class="text-2xl font-extrabold text-orange-600">0,00 ₺</span>
+              <span class="text-lg font-bold text-gray-900 dark:text-white">Toplam</span>
+              <span id="totalDisplay" class="text-2xl font-extrabold text-orange-600">0,00 ₺</span>
             </div>
-            <p class="text-xs text-gray-500 text-right mt-1">Vergiler Dahildir</p>
           </div>
           
-          <a href="/checkout" class="w-full block text-center bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-orange-500/30 transition transform hover:-translate-y-1">
-            Alışverişi Tamamla <i class="fas fa-arrow-right ml-2"></i>
+          <a href="/checkout" class="block w-full bg-orange-600 hover:bg-orange-700 text-white text-center font-bold py-4 px-6 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5 text-lg">
+            Siparişi Tamamla <i class="fas fa-arrow-right ml-2"></i>
           </a>
           
-          <div class="mt-6 flex items-center justify-center gap-2 text-gray-400 text-xl">
-            <i class="fab fa-cc-visa"></i>
-            <i class="fab fa-cc-mastercard"></i>
-            <i class="fab fa-cc-amex"></i>
+          <div class="mt-4 flex items-center justify-center gap-4 text-gray-400">
+            <i class="fab fa-cc-visa text-2xl"></i>
+            <i class="fab fa-cc-mastercard text-2xl"></i>
+            <i class="fas fa-truck text-xl"></i>
           </div>
-          <p class="text-center text-xs text-gray-400 mt-2"><i class="fas fa-lock"></i> 256-bit Güvenli Ödeme</p>
         </div>
       </div>
-      
+
     </div>
   </div>
 
-  <script is:inline define:vars={{ productsData: productRefsJson }}>
-    document.addEventListener('DOMContentLoaded', () => {
-      const dbProducts = JSON.parse(productsData);
-      
-      const cartLoading = document.getElementById('cartLoading');
-      const emptyCartMessage = document.getElementById('emptyCartMessage');
-      const cartContent = document.getElementById('cartContent');
-      const cartItemList = document.getElementById('cartItemList');
-      const cartItemCount = document.getElementById('cartItemCount');
-      const subTotalAmount = document.getElementById('subTotalAmount');
-      const totalAmount = document.getElementById('totalAmount');
-      const clearCartBtn = document.getElementById('clearCartBtn');
-      
-      const formatMoney = (amount) => {
-        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
-      };
+  <script is:inline>
+    const formatMoney = (amount) => {
+      return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
+    };
 
-      const getCart = () => {
-        try {
-          return JSON.parse(localStorage.getItem('laflaf_cart') || '[]');
-        } catch(e) { return []; }
-      };
+    let cart = [];
+    try {
+      cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]');
+    } catch(e) {}
 
-      const saveCart = (cart) => {
-        localStorage.setItem('laflaf_cart', JSON.stringify(cart));
-        window.dispatchEvent(new Event('cart_updated'));
-      };
+    const emptyCartMessage = document.getElementById('emptyCartMessage');
+    const cartContent = document.getElementById('cartContent');
+    const cartItemsList = document.getElementById('cartItemsList');
+    const subtotalDisplay = document.getElementById('subtotalDisplay');
+    const totalDisplay = document.getElementById('totalDisplay');
 
-      // Recalculate price dynamically based on DB rules
-      const calculateItemPrice = (cartItem, dbProd) => {
-        if (!dbProd) return cartItem.price; // fallback
-        
-        let price = dbProd.price;
-        
-        // 1. Toptan kuralları
-        if (dbProd.wholesalePrices && dbProd.wholesalePrices.length > 0) {
-          const sortedWP = [...dbProd.wholesalePrices].sort((a,b) => b.min_qty - a.min_qty);
-          for(let wp of sortedWP) {
-            if (cartItem.qty >= wp.min_qty) {
-              price = wp.price_per_unit;
-              break;
-            }
-          }
-        }
-        
-        // 2. Varyasyon override
-        if (cartItem.variant_id) {
-          const v = dbProd.variants.find(v => v.id === cartItem.variant_id);
-          if (v && v.price) {
-            price = v.price; // Varyasyonların toptan fiyattan üstün olduğunu varsayıyoruz (basitlik için).
-          }
-        }
-        
-        return price;
-      };
-
-      const renderCart = () => {
-        const cart = getCart();
-        
-        cartLoading.classList.add('hidden');
-        
-        if (cart.length === 0) {
-          cartContent.classList.add('hidden');
-          emptyCartMessage.classList.remove('hidden');
-          emptyCartMessage.classList.add('flex');
-          return;
-        }
-        
-        emptyCartMessage.classList.add('hidden');
-        emptyCartMessage.classList.remove('flex');
-        cartContent.classList.remove('hidden');
-        cartContent.classList.add('flex');
-        
-        let html = '';
-        let subTotal = 0;
-        let totalItems = 0;
-        
-        cart.forEach((item, index) => {
-          // DB'deki güncel kuralları çek
-          const dbProd = dbProducts.find(p => p.id === item.product_id);
-          
-          // Miktarı minimumun altına düşürme
-          let minQty = dbProd ? dbProd.min_order_qty : 1;
-          if (item.qty < minQty) item.qty = minQty;
-          
-          // Stok kontrolü varyasyon
-          let maxStock = 9999;
-          if (dbProd && item.variant_id) {
-            const v = dbProd.variants.find(v => v.id === item.variant_id);
-            if (v) maxStock = v.stock;
-          }
-          if (item.qty > maxStock) item.qty = maxStock;
-          
-          // Gerçek fiyatı hesapla
-          item.price = calculateItemPrice(item, dbProd);
-          
-          const itemTotal = item.price * item.qty;
-          subTotal += itemTotal;
-          totalItems += item.qty;
-          
-          const imageHtml = item.image 
-            ? `<img src="${item.image}" alt="${item.name}" class="w-full h-full object-cover" />` 
-            : `<div class="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-400"><i class="fas fa-image text-2xl"></i></div>`;
-          
-          const variantHtml = item.variant_name 
-            ? `<div class="text-xs text-gray-500 mt-1 bg-gray-100 dark:bg-gray-700 inline-block px-2 py-0.5 rounded">Seçim: ${item.variant_name}</div>` 
-            : '';
-            
-          html += `
-            <li class="p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
-              <div class="flex flex-col sm:flex-row items-center gap-6">
-                <!-- Ürün Görseli -->
-                <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0 relative bg-white">
-                  ${imageHtml}
-                </div>
-                
-                <!-- Ürün Bilgileri -->
-                <div class="flex-1 w-full flex flex-col justify-between">
-                  <div class="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 class="text-lg font-bold text-gray-900 dark:text-white line-clamp-2">${item.name}</h4>
-                      ${variantHtml}
-                    </div>
-                    <!-- Çöp Kutusu -->
-                    <button class="remove-item text-gray-400 hover:text-red-500 transition p-2" data-id="${item.id}" title="Sepetten Çıkar">
-                      <i class="fas fa-trash-alt text-lg"></i>
-                    </button>
-                  </div>
-                  
-                  <div class="flex flex-wrap justify-between items-end mt-4 gap-4">
-                    <!-- Fiyat -->
-                    <div class="text-gray-500 text-sm">
-                      Birim Fiyatı: <strong class="text-gray-900 dark:text-white">${formatMoney(item.price)}</strong>
-                    </div>
-                    
-                    <!-- Adet Kontrolü -->
-                    <div class="flex items-center gap-4">
-                      <div class="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
-                        <button class="qty-btn qty-minus w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700" data-id="${item.id}">
-                          <i class="fas fa-minus text-xs"></i>
-                        </button>
-                        <input type="text" class="w-12 h-8 sm:h-10 text-center text-sm font-bold border-0 bg-transparent focus:ring-0 p-0 pointer-events-none dark:text-white" value="${item.qty}" readonly />
-                        <button class="qty-btn qty-plus w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700" data-id="${item.id}">
-                          <i class="fas fa-plus text-xs"></i>
-                        </button>
-                      </div>
-                      
-                      <!-- Toplam Fiyat -->
-                      <div class="text-lg sm:text-xl font-extrabold text-orange-600 w-24 text-right">
-                        ${formatMoney(itemTotal)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </li>
-          `;
-        });
-        
-        // Update DOM
-        cartItemList.innerHTML = html;
-        cartItemCount.textContent = totalItems.toString();
-        subTotalAmount.textContent = formatMoney(subTotal);
-        totalAmount.textContent = formatMoney(subTotal); // Vergiler dahil varsayımı
-        
-        // Adet azaltma/arttırma eventleri bağla
-        bindEvents();
-      };
-      
-      const bindEvents = () => {
-        document.querySelectorAll('.remove-item').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            const id = e.currentTarget.getAttribute('data-id');
-            let cart = getCart();
-            cart = cart.filter(item => item.id !== id);
-            saveCart(cart);
-            renderCart();
-          });
-        });
-        
-        document.querySelectorAll('.qty-minus').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            const id = e.currentTarget.getAttribute('data-id');
-            let cart = getCart();
-            const item = cart.find(i => i.id === id);
-            if (item) {
-              const dbProd = dbProducts.find(p => p.id === item.product_id);
-              const minQty = dbProd ? dbProd.min_order_qty : 1;
-              if (item.qty > minQty) {
-                item.qty--;
-                saveCart(cart);
-                renderCart();
-              }
-            }
-          });
-        });
-
-        document.querySelectorAll('.qty-plus').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            const id = e.currentTarget.getAttribute('data-id');
-            let cart = getCart();
-            const item = cart.find(i => i.id === id);
-            if (item) {
-              const dbProd = dbProducts.find(p => p.id === item.product_id);
-              let maxStock = 9999;
-              if (dbProd && item.variant_id) {
-                const v = dbProd.variants.find(v => v.id === item.variant_id);
-                if (v) maxStock = v.stock;
-              }
-              
-              if (item.qty < maxStock) {
-                item.qty++;
-                saveCart(cart);
-                renderCart();
-              } else {
-                alert('Maksimum stok sınırına ulaştınız.');
-              }
-            }
-          });
-        });
-      };
-      
-      if (clearCartBtn) {
-        clearCartBtn.addEventListener('click', () => {
-          if (confirm('Sepetinizdeki tüm ürünleri silmek istediğinize emin misiniz?')) {
-            saveCart([]);
-            renderCart();
-          }
-        });
+    function renderCart() {
+      if (cart.length === 0) {
+        emptyCartMessage.classList.remove('hidden');
+        cartContent.classList.add('hidden');
+        cartContent.classList.remove('flex');
+        return;
       }
 
-      // İlk yükleme
-      setTimeout(renderCart, 200); // Küçük bir gecikme UI loading hissiyatı için
+      emptyCartMessage.classList.add('hidden');
+      cartContent.classList.remove('hidden');
+      cartContent.classList.add('flex');
+
+      cartItemsList.innerHTML = '';
+      let subtotal = 0;
+
+      cart.forEach((item, index) => {
+        const itemTotal = item.price * item.qty;
+        subtotal += itemTotal;
+
+        const li = document.createElement('li');
+        li.className = 'p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition';
+        
+        // Product Image
+        const imgHtml = item.image 
+          ? `<img src="${item.image}" class="w-24 h-24 object-cover rounded-lg shadow-sm" alt="${item.name}" />`
+          : `<div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400"><i class="fas fa-image text-2xl"></i></div>`;
+
+        // Variant Info
+        const variantHtml = item.variant_name ? `<div class="text-sm text-gray-500 mt-1">Seçenek: <span class="font-medium text-gray-700 dark:text-gray-300">${item.variant_name}</span></div>` : '';
+
+        li.innerHTML = `
+          ${imgHtml}
+          <div class="flex-1">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white line-clamp-2">${item.name}</h3>
+            ${variantHtml}
+            <div class="text-orange-600 font-bold mt-2">${formatMoney(item.price)} <span class="text-xs text-gray-400 font-normal">/ ${item.unit}</span></div>
+          </div>
+          <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+            <div class="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+              <button type="button" class="qty-btn minus w-8 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition" data-index="${index}"><i class="fas fa-minus text-xs"></i></button>
+              <input type="number" value="${item.qty}" min="1" readonly class="w-12 h-10 text-center font-bold border-0 bg-transparent focus:ring-0 p-0 text-sm dark:text-white" />
+              <button type="button" class="qty-btn plus w-8 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition" data-index="${index}"><i class="fas fa-plus text-xs"></i></button>
+            </div>
+            <div class="text-right sm:w-28">
+              <div class="font-extrabold text-gray-900 dark:text-white">${formatMoney(itemTotal)}</div>
+            </div>
+            <button class="remove-btn text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition" data-index="${index}" title="Kaldır">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `;
+        cartItemsList.appendChild(li);
+      });
+
+      subtotalDisplay.textContent = formatMoney(subtotal);
       
-      // Başka sayfadan güncellenirse
-      window.addEventListener('storage', (e) => {
-        if (e.key === 'laflaf_cart') {
+      let discountAmount = 0;
+      let appliedCoupon = null;
+      try { appliedCoupon = JSON.parse(localStorage.getItem('laflaf_coupon')); } catch(e){}
+
+      if (appliedCoupon) {
+        if (appliedCoupon.type === 'percentage') {
+          discountAmount = subtotal * (appliedCoupon.value / 100);
+        } else {
+          discountAmount = appliedCoupon.value;
+        }
+        if (discountAmount > subtotal) discountAmount = subtotal;
+        
+        document.getElementById('discountRow').classList.remove('hidden');
+        document.getElementById('couponCodeDisplay').textContent = appliedCoupon.code;
+        document.getElementById('discountDisplay').textContent = '-' + formatMoney(discountAmount);
+      } else {
+        document.getElementById('discountRow').classList.add('hidden');
+      }
+
+      const total = subtotal - discountAmount;
+      totalDisplay.textContent = formatMoney(total > 0 ? total : 0);
+      
+      // Update badge if any
+      window.dispatchEvent(new Event('cart_updated'));
+    }
+
+    // Event Delegation for Qty and Remove Buttons
+    cartItemsList.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+
+      const index = parseInt(btn.getAttribute('data-index'));
+      
+      if (btn.classList.contains('remove-btn')) {
+        cart.splice(index, 1);
+        localStorage.setItem('laflaf_cart', JSON.stringify(cart));
+        renderCart();
+      } 
+      else if (btn.classList.contains('qty-btn')) {
+        if (btn.classList.contains('minus') && cart[index].qty > 1) {
+          cart[index].qty--;
+        } else if (btn.classList.contains('plus')) {
+          cart[index].qty++;
+        }
+        localStorage.setItem('laflaf_cart', JSON.stringify(cart));
+        renderCart();
+      }
+    });
+
+    // Coupon Logic
+    const applyCouponBtn = document.getElementById('applyCouponBtn');
+    const couponInput = document.getElementById('couponInput');
+    const couponMessage = document.getElementById('couponMessage');
+
+    applyCouponBtn.addEventListener('click', async () => {
+      const code = couponInput.value.trim();
+      if (!code) return;
+
+      applyCouponBtn.disabled = true;
+      applyCouponBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      couponMessage.classList.add('hidden');
+
+      let subtotal = 0;
+      cart.forEach(item => subtotal += (item.price * item.qty));
+
+      try {
+        const res = await fetch('/api/validate-coupon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, cart_amount: subtotal })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          localStorage.setItem('laflaf_coupon', JSON.stringify(data.coupon));
+          couponMessage.textContent = 'Kupon başarıyla uygulandı!';
+          couponMessage.className = 'text-xs mb-4 text-green-600 block font-bold';
+          renderCart();
+        } else {
+          localStorage.removeItem('laflaf_coupon');
+          couponMessage.textContent = data.error || 'Hata oluştu.';
+          couponMessage.className = 'text-xs mb-4 text-red-600 block font-bold';
           renderCart();
         }
-      });
+      } catch (e) {
+        couponMessage.textContent = 'Bağlantı hatası.';
+        couponMessage.className = 'text-xs mb-4 text-red-600 block font-bold';
+      }
+
+      applyCouponBtn.disabled = false;
+      applyCouponBtn.innerHTML = 'Uygula';
     });
+
+    // If coupon exists, show message
+    try { 
+      const existing = JSON.parse(localStorage.getItem('laflaf_coupon'));
+      if(existing) {
+        couponInput.value = existing.code;
+        couponMessage.textContent = 'Kupon devrede.';
+        couponMessage.className = 'text-xs mb-4 text-green-600 block font-bold';
+      }
+    } catch(e){}
+
+    // Initial render
+    renderCart();
   </script>
 </BaseLayout>

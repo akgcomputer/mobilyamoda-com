@@ -1,0 +1,190 @@
+---
+// src/pages/profil/index.astro
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Profilim | Laflaf E-Ticaret">
+  <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
+    <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white">Profilim (Ziyaretçi)</h1>
+      <p class="text-gray-500 dark:text-gray-400 mt-1">Bu cihazdan verdiğiniz siparişleri ve favorilediğiniz ürünleri takip edebilirsiniz.</p>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-8">
+      
+      <!-- Sol: Profil Menüsü -->
+      <div class="md:w-1/4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div class="p-6 border-b border-gray-200 dark:border-gray-700 text-center">
+            <div class="w-20 h-20 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto flex items-center justify-center text-3xl text-gray-400 mb-3">
+              <i class="fas fa-user"></i>
+            </div>
+            <h2 class="font-bold text-gray-900 dark:text-white text-lg">Ziyaretçi</h2>
+            <p class="text-xs text-gray-500">Tarayıcı kayıtları aktif</p>
+          </div>
+          <div class="flex flex-col">
+            <button class="profile-tab-btn active px-6 py-4 text-left font-medium text-orange-600 bg-orange-50 border-l-4 border-orange-500 hover:bg-orange-50 dark:bg-gray-700 dark:border-orange-500 transition flex items-center gap-3" data-target="orders">
+              <i class="fas fa-box"></i> Siparişlerim
+            </button>
+            <button class="profile-tab-btn px-6 py-4 text-left font-medium text-gray-600 border-l-4 border-transparent hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700 transition flex items-center gap-3" data-target="favs">
+              <i class="fas fa-heart"></i> Favorilerim
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sağ: İçerik -->
+      <div class="md:w-3/4">
+        <div id="loadingState" class="py-20 text-center text-gray-500">
+          <i class="fas fa-spinner fa-spin text-4xl mb-4 text-orange-500"></i>
+          <p>Verileriniz yükleniyor...</p>
+        </div>
+
+        <!-- Siparişler -->
+        <div id="content-orders" class="profile-tab-content hidden">
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Sipariş Takibi</h2>
+          <div id="ordersList" class="space-y-6"></div>
+        </div>
+
+        <!-- Favoriler -->
+        <div id="content-favs" class="profile-tab-content hidden">
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Favori Ürünlerim</h2>
+          <div id="favsList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script is:inline>
+    // Tab Logic
+    const tabBtns = document.querySelectorAll('.profile-tab-btn');
+    const tabContents = document.querySelectorAll('.profile-tab-content');
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        tabBtns.forEach(b => {
+          b.classList.remove('active', 'text-orange-600', 'bg-orange-50', 'border-orange-500', 'dark:bg-gray-700');
+          b.classList.add('text-gray-600', 'border-transparent', 'dark:text-gray-300');
+        });
+        tabContents.forEach(c => c.classList.add('hidden'));
+
+        const target = e.currentTarget;
+        target.classList.remove('text-gray-600', 'border-transparent', 'dark:text-gray-300');
+        target.classList.add('active', 'text-orange-600', 'bg-orange-50', 'border-orange-500', 'dark:bg-gray-700');
+        
+        const targetId = target.getAttribute('data-target');
+        document.getElementById('content-' + targetId).classList.remove('hidden');
+      });
+    });
+
+    const formatMoney = (amount) => {
+      return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
+    };
+
+    const getStatusBadge = (status) => {
+      switch (status) {
+        case 'bekliyor': return '<span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-2.5 py-1 rounded border border-yellow-200">Onay Bekliyor</span>';
+        case 'onaylandi': return '<span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded border border-blue-200">Onaylandı, Hazırlanıyor</span>';
+        case 'kargolandi': return '<span class="bg-indigo-100 text-indigo-800 text-xs font-bold px-2.5 py-1 rounded border border-indigo-200">Kargolandı</span>';
+        case 'tamamlandi': return '<span class="bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded border border-green-200">Tamamlandı</span>';
+        case 'iptal': return '<span class="bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded border border-red-200">İptal Edildi</span>';
+        default: return `<span class="bg-gray-100 text-gray-800 text-xs font-bold px-2.5 py-1 rounded border border-gray-200">${status}</span>`;
+      }
+    };
+
+    async function loadData() {
+      let orderIds = [];
+      let favIds = [];
+      try { orderIds = JSON.parse(localStorage.getItem('laflaf_my_orders') || '[]'); } catch(e){}
+      try { favIds = JSON.parse(localStorage.getItem('laflaf_favs') || '[]'); } catch(e){}
+
+      try {
+        const res = await fetch('/api/my-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderIds, favIds })
+        });
+        const data = await res.json();
+
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('content-orders').classList.remove('hidden'); // default tab
+
+        // Render Orders
+        const ordersList = document.getElementById('ordersList');
+        if (data.orders.length === 0) {
+          ordersList.innerHTML = `
+            <div class="text-center py-10 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+              <i class="fas fa-box-open text-4xl text-gray-300 mb-4 block"></i>
+              <p class="text-gray-500">Henüz siparişiniz bulunmuyor.</p>
+              <a href="/urunler" class="inline-block mt-4 text-orange-600 font-bold hover:underline">Alışverişe Başla</a>
+            </div>
+          `;
+        } else {
+          ordersList.innerHTML = data.orders.map(order => `
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div class="bg-gray-50 dark:bg-gray-700/50 p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <div class="text-xs text-gray-500 mb-1">Sipariş No: <strong class="text-gray-900 dark:text-white">#LAF${order.id}</strong></div>
+                  <div class="text-xs text-gray-500">Tarih: <strong class="text-gray-900 dark:text-white">${new Date(order.createdAt).toLocaleDateString('tr-TR')}</strong></div>
+                </div>
+                <div class="flex items-center gap-4">
+                  <div class="text-right">
+                    <div class="text-xs text-gray-500 mb-1">Toplam Tutar</div>
+                    <div class="font-extrabold text-orange-600">${formatMoney(order.total_amount)}</div>
+                  </div>
+                  <div>${getStatusBadge(order.status)}</div>
+                </div>
+              </div>
+              <div class="p-4 divide-y divide-gray-100 dark:divide-gray-700">
+                ${order.items.map(item => `
+                  <div class="py-3 flex justify-between items-center text-sm">
+                    <div>
+                      <div class="font-bold text-gray-900 dark:text-white">${item.product_name}</div>
+                      ${item.variant_name ? `<div class="text-xs text-gray-500">${item.variant_name}</div>` : ''}
+                      <div class="text-xs text-gray-500 mt-1">${item.quantity} Adet</div>
+                    </div>
+                    <div class="font-medium">${formatMoney(item.total_price)}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Render Favs
+        const favsList = document.getElementById('favsList');
+        if (data.favs.length === 0) {
+          favsList.innerHTML = `
+            <div class="col-span-full text-center py-10 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+              <i class="far fa-heart text-4xl text-gray-300 mb-4 block"></i>
+              <p class="text-gray-500">Favori listeniz şu an boş.</p>
+            </div>
+          `;
+        } else {
+          favsList.innerHTML = data.favs.map(product => `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col group relative hover:shadow-lg transition-all">
+              <a href="/urunler/detay/${product.id}" class="block aspect-[4/3] bg-gray-100 dark:bg-gray-900 overflow-hidden relative">
+                ${product.image_url ? 
+                  `<img src="${product.image_url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />` : 
+                  `<div class="w-full h-full flex items-center justify-center text-gray-400"><i class="fas fa-image text-4xl"></i></div>`
+                }
+              </a>
+              <div class="p-4 flex flex-col flex-grow">
+                <a href="/urunler/detay/${product.id}" class="font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 hover:text-orange-600 transition">${product.name}</a>
+                <div class="mt-auto flex justify-between items-end">
+                  <span class="text-lg font-extrabold text-orange-600">${formatMoney(product.price)}</span>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        }
+
+      } catch (e) {
+        document.getElementById('loadingState').innerHTML = '<p class="text-red-500">Veriler yüklenirken hata oluştu.</p>';
+      }
+    }
+
+    loadData();
+  </script>
+</BaseLayout>

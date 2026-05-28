@@ -1,69 +1,42 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCategories } from '../lib/db';
+import CategoryList from '../components/CategoryList.astro';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 const categories = await getCategories(dbBinding);
 
-// Kategorileri her açılışta rastgele sırala
-const randomCategories = categories.sort(() => Math.random() - 0.5);
-
-const vibrantColors = [
-  { bg: 'bg-sky-400 hover:bg-sky-500', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-blue-300 hover:bg-blue-400', text: 'text-gray-900', iconBg: 'bg-black/10' },
-  { bg: 'bg-indigo-400 hover:bg-indigo-500', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-cyan-300 hover:bg-cyan-400', text: 'text-gray-900', iconBg: 'bg-black/10' },
-  { bg: 'bg-teal-300 hover:bg-teal-400', text: 'text-gray-900', iconBg: 'bg-black/10' },
-  { bg: 'bg-indigo-300 hover:bg-indigo-400', text: 'text-gray-900', iconBg: 'bg-black/10' },
-  { bg: 'bg-orange-500 hover:bg-orange-600', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-blue-500 hover:bg-blue-600', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-yellow-400 hover:bg-yellow-500', text: 'text-gray-900', iconBg: 'bg-black/10' },
-  { bg: 'bg-blue-600 hover:bg-blue-700', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-purple-400 hover:bg-purple-500', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-fuchsia-300 hover:bg-fuchsia-400', text: 'text-gray-900', iconBg: 'bg-black/10' },
-  { bg: 'bg-yellow-600 hover:bg-yellow-700', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-lime-400 hover:bg-lime-500', text: 'text-gray-900', iconBg: 'bg-black/10' },
-  { bg: 'bg-green-500 hover:bg-green-600', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-pink-500 hover:bg-pink-600', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-fuchsia-600 hover:bg-fuchsia-700', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-purple-600 hover:bg-purple-700', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-teal-500 hover:bg-teal-600', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-amber-800 hover:bg-amber-900', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-amber-600 hover:bg-amber-700', text: 'text-white', iconBg: 'bg-white/20' },
-  { bg: 'bg-amber-100 hover:bg-amber-200', text: 'text-gray-900', iconBg: 'bg-black/5' },
-  { bg: 'bg-stone-100 hover:bg-stone-200', text: 'text-gray-900', iconBg: 'bg-black/5' }
-];
+// Sadece ana kategoriler
+const rootCategories = categories.filter((c: any) => !c.parent_id);
 ---
 
-<BaseLayout title="Tüm Kategoriler | Laflaf" description="Laflaf'taki tüm içerik kategorilerini keşfedin.">
-  <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-12 min-h-screen">
-    <div class="text-center mb-16">
-      <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white mb-4 tracking-tight">Kategorileri Keşfet</h1>
-      <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">İlginizi çeken konularda en güncel ve dikkat çekici içeriklere kategorilerimiz üzerinden ulaşın.</p>
+<BaseLayout title="Tüm Kategoriler | Laflaf" description="Laflaf'taki tüm içerik ve ürün kategorilerini keşfedin.">
+  <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-12 min-h-screen">
+    <div class="mb-12 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">Tüm Kategoriler</h1>
+      <p class="text-gray-500 dark:text-gray-400">Aradığınızı bulmak için kategori ağacımızı inceleyin.</p>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
-      {randomCategories.map(cat => {
-        const randomColor = vibrantColors[Math.floor(Math.random() * vibrantColors.length)];
-        return (
-          <a 
-            href={`/${cat.slug}`} 
-            class={`${randomColor.bg} ${randomColor.text} rounded-3xl p-5 md:p-6 flex flex-col items-center justify-center text-center shadow-lg transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl group aspect-square`}
-          >
-            <div class={`w-14 h-14 md:w-16 md:h-16 ${randomColor.iconBg} rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300`}>
-              <i class={`fas ${cat.icon || 'fa-folder-open'} text-2xl md:text-3xl`}></i>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {rootCategories.map(root => (
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 hover:shadow-md transition">
+          <a href={`/${root.slug}`} class="flex items-center gap-4 mb-4 group">
+            <div class="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+              <i class={`fas ${root.icon || 'fa-folder'}`}></i>
             </div>
-            <h2 class="text-sm md:text-base font-bold tracking-wide line-clamp-2 px-1">{cat.name}</h2>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white group-hover:text-orange-600 transition">{root.name}</h2>
           </a>
-        )
-      })}
+          
+          <CategoryList parentId={root.id} categories={categories} />
+        </div>
+      ))}
+      
+      {rootCategories.length === 0 && (
+        <div class="col-span-full py-16 text-center text-gray-500">
+          <i class="fas fa-folder-open text-4xl mb-4"></i>
+          <p>Henüz kategori eklenmemiş.</p>
+        </div>
+      )}
     </div>
-
-    {randomCategories.length === 0 && (
-      <div class="text-center py-16 text-gray-500">
-        <i class="fas fa-folder-open text-4xl mb-4"></i>
-        <p>Henüz kategori eklenmemiş.</p>
-      </div>
-    )}
   </div>
 </BaseLayout>

@@ -52,9 +52,12 @@ let randomSubTags: string[] = [];
 
 if (category) {
   if (category.type === 'product') {
-    const allProducts = await getProducts(dbBinding);
+    const [allProducts, brandsData] = await Promise.all([
+      getProducts(dbBinding),
+      getBrands(dbBinding)
+    ]);
     categoryProducts = allProducts.filter(p => p.category_id === category.id && p.status === 'aktif');
-    allBrands = await getBrands(dbBinding);
+    allBrands = brandsData;
   } else {
     const allPosts = await getPosts(dbBinding);
     categoryContents = allPosts.filter(p => p.category_id === category.id);
@@ -388,6 +391,8 @@ const borderColors = [
     }
     
     .grid-item {
+      display: inline-block;
+      width: 100%;
       break-inside: avoid;
       margin-bottom: 1.25rem;
     }
@@ -450,8 +455,7 @@ const borderColors = [
   </style>
 
   <script>
-    const htmlElement = document.documentElement;
-    
+    document.addEventListener('astro:page-load', () => {
     // Arama input
     const searchInput = document.getElementById('searchInput');
     const searchDropdown = document.getElementById('searchDropdown');
@@ -529,10 +533,11 @@ const borderColors = [
 
     // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
-      if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+      if (searchInput && searchDropdown && !searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
         searchDropdown.classList.add('hidden');
         searchDropdown.classList.remove('opacity-100');
       }
+    });
     });
   </script>
 </BaseLayout>

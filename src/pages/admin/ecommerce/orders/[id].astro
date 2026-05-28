@@ -1,158 +1,143 @@
 ---
+// src/pages/admin/ecommerce/orders/[id].astro
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import { getOrderById, updateOrderStatus } from '../../../../lib/db';
 
-if (!Astro.locals.user || Astro.locals.user.role !== 'admin') {
-  return Astro.redirect('/login');
-}
-
 const { id } = Astro.params;
-const db = Astro.locals.runtime?.env?.DB;
+const dbBinding = Astro.locals.runtime?.env?.DB;
 
-let errorMessage = '';
-let successMessage = '';
+let basari = '';
+let hata = '';
 
-// Handle Status Update
 if (Astro.request.method === 'POST') {
   try {
     const formData = await Astro.request.formData();
-    const status = formData.get('status')?.toString();
-    const notes = formData.get('notes')?.toString();
+    const action = formData.get('action') as string;
     
-    if (status) {
-      const success = await updateOrderStatus(Number(id), status, notes, db);
-      if (success) {
-        successMessage = 'Sipariş durumu başarıyla güncellendi.';
-      } else {
-        errorMessage = 'Sipariş güncellenirken bir hata oluştu.';
+    if (action === 'update_status') {
+      const status = formData.get('status') as string;
+      const notes = formData.get('notes') as string;
+      if (status) {
+        await updateOrderStatus(parseInt(id as string), status, notes, dbBinding);
+        basari = 'Sipariş durumu güncellendi.';
       }
     }
-  } catch(e:any) {
-    errorMessage = 'Hata: ' + e.message;
+  } catch(e: any) {
+    hata = e.message || 'Hata oluştu.';
   }
 }
 
-const order = await getOrderById(Number(id), db);
+const order = await getOrderById(parseInt(id as string), dbBinding);
 
 if (!order) {
   return Astro.redirect('/admin/ecommerce/orders');
 }
 
-const formatMoney = (amount: number) => {
-  return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
-};
-
-const formatDate = (dateStr: string) => {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('tr-TR') + ' ' + d.toLocaleTimeString('tr-TR');
-};
-
-const getStatusBadge = (status: string) => {
-  switch(status) {
-    case 'bekliyor': return '<span class="bg-yellow-100 text-yellow-800 text-sm font-bold px-3 py-1 rounded-full">Bekliyor</span>';
-    case 'onaylandi': return '<span class="bg-blue-100 text-blue-800 text-sm font-bold px-3 py-1 rounded-full">Onaylandı</span>';
-    case 'kargolandi': return '<span class="bg-purple-100 text-purple-800 text-sm font-bold px-3 py-1 rounded-full">Kargolandı</span>';
-    case 'tamamlandi': return '<span class="bg-green-100 text-green-800 text-sm font-bold px-3 py-1 rounded-full">Tamamlandı</span>';
-    case 'iptal': return '<span class="bg-red-100 text-red-800 text-sm font-bold px-3 py-1 rounded-full">İptal Edildi</span>';
-    default: return `<span class="bg-gray-100 text-gray-800 text-sm font-bold px-3 py-1 rounded-full">${status}</span>`;
+const getPaymentMethod = (method: string) => {
+  switch (method) {
+    case 'havale': return 'Havale/EFT';
+    case 'kapida': return 'Kapıda Ödeme';
+    case 'kredi_karti': return 'Kredi Kartı';
+    case 'banka_kredisi': return 'Banka Kredisi';
+    default: return method;
   }
 };
 ---
 
-<BaseLayout title={`Sipariş #${order.id} | Admin Paneli`}>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    
-    <div class="flex items-center gap-4 mb-8">
-      <a href="/admin/ecommerce/orders" class="w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-xl flex items-center justify-center hover:bg-gray-50 transition">
+<BaseLayout title={`Sipariş Detayı #${order.id} | Laflaf Admin`}>
+  <div class="mb-6 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <a href="/admin/ecommerce/orders" class="text-gray-500 hover:text-gray-900 dark:hover:text-white">
         <i class="fas fa-arrow-left"></i>
       </a>
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-          Sipariş #{order.id}
-          <Fragment set:html={getStatusBadge(order.status)} />
-        </h1>
-        <p class="text-sm text-gray-500 mt-1">{formatDate(order.createdAt)} tarihinde verildi.</p>
-      </div>
+      <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Sipariş #LAF{order.id}</h1>
+      {order.user_id ? (
+        <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded border border-blue-200">Kayıtlı Kullanıcı</span>
+      ) : (
+        <span class="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded border border-gray-200">Ziyaretçi Siparişi</span>
+      )}
     </div>
+    <div class="text-sm text-gray-500">
+      <i class="far fa-clock mr-1"></i> {new Date(order.createdAt).toLocaleString('tr-TR')}
+    </div>
+  </div>
 
-    {successMessage && (
-      <div class="mb-6 p-4 bg-green-100 text-green-800 rounded-xl font-medium flex items-center gap-2">
-        <i class="fas fa-check-circle"></i> {successMessage}
-      </div>
-    )}
-    {errorMessage && (
-      <div class="mb-6 p-4 bg-red-100 text-red-800 rounded-xl font-medium flex items-center gap-2">
-        <i class="fas fa-exclamation-circle"></i> {errorMessage}
-      </div>
-    )}
+  {basari && (
+    <div class="p-4 mb-6 text-sm text-green-800 rounded-lg bg-green-50 dark:bg-gray-800 dark:text-green-400 border border-green-200" role="alert">
+      {basari}
+    </div>
+  )}
+  {hata && (
+    <div class="p-4 mb-6 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400 border border-red-200" role="alert">
+      {hata}
+    </div>
+  )}
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Sol Kolon: Sipariş Kalemleri ve Durum -->
+    <div class="lg:col-span-2 space-y-6">
       
-      <!-- Sol: Sipariş Detayları & Ürünler -->
-      <div class="lg:col-span-2 space-y-8">
+      <!-- Sipariş Kalemleri -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">Sipariş Edilen Ürünler</h2>
         
-        <!-- Ürünler Tablosu -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-            <h2 class="font-bold text-gray-900 dark:text-white text-lg">Sipariş Edilen Ürünler</h2>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
-              <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700/50 dark:text-gray-300">
-                <tr>
-                  <th class="px-6 py-3">Ürün</th>
-                  <th class="px-6 py-3 text-center">Birim Fiyat</th>
-                  <th class="px-6 py-3 text-center">Adet</th>
-                  <th class="px-6 py-3 text-right">Toplam</th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.items && order.items.map(item => (
-                  <tr class="border-b dark:border-gray-700 last:border-0">
-                    <td class="px-6 py-4">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead class="text-xs text-gray-500 uppercase border-b border-gray-200 dark:border-gray-700">
+              <tr>
+                <th class="pb-3">Ürün</th>
+                <th class="pb-3">Fiyat</th>
+                <th class="pb-3">Adet</th>
+                <th class="pb-3 text-right">Toplam</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+              {order.items && order.items.length > 0 ? (
+                order.items.map(item => (
+                  <tr>
+                    <td class="py-4">
                       <div class="font-medium text-gray-900 dark:text-white">{item.product_name}</div>
                       {item.variant_name && <div class="text-xs text-gray-500">{item.variant_name}</div>}
+                      <a href={`/urunler/detay/${item.product_id}`} target="_blank" class="text-[10px] text-blue-500 hover:underline">Sitede Gör</a>
                     </td>
-                    <td class="px-6 py-4 text-center">{formatMoney(item.unit_price)}</td>
-                    <td class="px-6 py-4 text-center font-bold">{item.quantity}</td>
-                    <td class="px-6 py-4 text-right font-medium text-gray-900 dark:text-white">{formatMoney(item.total_price)}</td>
+                    <td class="py-4">{item.unit_price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+                    <td class="py-4">{item.quantity}</td>
+                    <td class="py-4 text-right font-medium">{item.total_price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div class="p-6 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
-            <div class="flex justify-end">
-              <div class="w-full sm:w-1/2 space-y-3">
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-500">Ara Toplam:</span>
-                  <span class="font-medium dark:text-white">{formatMoney(order.subtotal)}</span>
-                </div>
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-500">Kargo Ücreti:</span>
-                  <span class="font-medium text-green-600">{order.shipping_fee === 0 ? 'Ücretsiz' : formatMoney(order.shipping_fee)}</span>
-                </div>
-                <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-                  <span class="text-gray-900 dark:text-white">Genel Toplam:</span>
-                  <span class="text-orange-600">{formatMoney(order.total_amount)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+                ))
+              ) : (
+                <tr><td colspan="4" class="py-4 text-center text-gray-500">Ürün bulunamadı.</td></tr>
+              )}
+            </tbody>
+            <tfoot class="border-t border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white">
+              <tr>
+                <td colspan="3" class="pt-4 text-right">Ara Toplam:</td>
+                <td class="pt-4 text-right">{order.subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+              </tr>
+              <tr>
+                <td colspan="3" class="pt-2 text-right">Kargo:</td>
+                <td class="pt-2 text-right">{order.shipping_fee > 0 ? order.shipping_fee.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' ₺' : 'Ücretsiz'}</td>
+              </tr>
+              <tr>
+                <td colspan="3" class="pt-2 pb-2 text-right font-bold text-lg">Genel Toplam:</td>
+                <td class="pt-2 pb-2 text-right font-bold text-lg text-orange-600">{order.total_amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-
       </div>
 
-      <!-- Sağ: Müşteri & Durum Güncelleme -->
-      <div class="space-y-8">
+      <!-- Durum Güncelleme -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">Sipariş İşlemleri</h2>
         
-        <!-- Durum Güncelleme -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 class="font-bold text-gray-900 dark:text-white mb-4">Sipariş Durumu</h2>
-          <form method="POST" class="space-y-4">
+        <form method="POST" class="space-y-4">
+          <input type="hidden" name="action" value="update_status" />
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Durum</label>
-              <select name="status" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500">
+              <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Sipariş Durumu</label>
+              <select name="status" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                 <option value="bekliyor" selected={order.status === 'bekliyor'}>Bekliyor</option>
                 <option value="onaylandi" selected={order.status === 'onaylandi'}>Onaylandı</option>
                 <option value="kargolandi" selected={order.status === 'kargolandi'}>Kargolandı</option>
@@ -160,57 +145,65 @@ const getStatusBadge = (status: string) => {
                 <option value="iptal" selected={order.status === 'iptal'}>İptal Edildi</option>
               </select>
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Yönetici Notu (Opsiyonel)</label>
-              <textarea name="notes" rows="2" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500">{order.notes || ''}</textarea>
-            </div>
-            <button type="submit" class="w-full bg-gray-900 hover:bg-gray-800 dark:bg-orange-600 dark:hover:bg-orange-700 text-white font-bold py-2.5 px-4 rounded-xl transition">
-              Durumu Güncelle
-            </button>
-          </form>
-        </div>
+          </div>
+          
+          <div>
+            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Yönetici Notu (Müşteri Görmez)</label>
+            <textarea name="notes" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="Siparişle ilgili notlar...">{order.notes}</textarea>
+          </div>
+          
+          <button type="submit" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none">
+            Durumu Güncelle
+          </button>
+        </form>
+      </div>
 
-        <!-- Müşteri Bilgileri -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 class="font-bold text-gray-900 dark:text-white mb-4">Müşteri Bilgileri</h2>
-          <div class="space-y-4">
-            <div>
-              <div class="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Müşteri Adı</div>
-              <div class="font-medium text-gray-900 dark:text-white">{order.customer_name}</div>
-            </div>
-            <div>
-              <div class="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">İletişim</div>
-              <div class="text-sm text-gray-900 dark:text-white">
-                <a href={`mailto:${order.customer_email}`} class="hover:text-orange-500"><i class="fas fa-envelope w-5"></i> {order.customer_email}</a><br>
-                <a href={`tel:${order.customer_phone}`} class="hover:text-orange-500 mt-1 inline-block"><i class="fas fa-phone w-5"></i> {order.customer_phone}</a>
-              </div>
-            </div>
-            <div>
-              <div class="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Ödeme Yöntemi</div>
-              <div class="font-medium text-gray-900 dark:text-white capitalize bg-gray-100 dark:bg-gray-700 inline-block px-3 py-1 rounded-lg">
-                {order.payment_method.replace('_', ' ')}
-              </div>
-            </div>
+    </div>
+
+    <!-- Sağ Kolon: Müşteri ve Ödeme -->
+    <div class="space-y-6">
+      
+      <!-- Müşteri Bilgileri -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">Müşteri Bilgileri</h2>
+        <div class="space-y-3 text-sm">
+          <div>
+            <span class="block text-gray-500 text-xs">Ad Soyad</span>
+            <span class="font-medium text-gray-900 dark:text-white">{order.customer_name}</span>
+          </div>
+          <div>
+            <span class="block text-gray-500 text-xs">E-Posta</span>
+            <a href={`mailto:${order.customer_email}`} class="font-medium text-blue-600 hover:underline">{order.customer_email}</a>
+          </div>
+          <div>
+            <span class="block text-gray-500 text-xs">Telefon</span>
+            <span class="font-medium text-gray-900 dark:text-white">{order.customer_phone || '-'}</span>
           </div>
         </div>
+      </div>
 
-        <!-- Adresler -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 class="font-bold text-gray-900 dark:text-white mb-4">Adres Bilgileri</h2>
-          <div class="space-y-4">
-            <div>
-              <div class="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Teslimat Adresi</div>
-              <p class="text-sm text-gray-900 dark:text-white whitespace-pre-line bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-700">{order.shipping_address}</p>
-            </div>
-            {order.billing_address && order.billing_address !== order.shipping_address && (
-              <div>
-                <div class="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Fatura Adresi</div>
-                <p class="text-sm text-gray-900 dark:text-white whitespace-pre-line bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-700">{order.billing_address}</p>
-              </div>
+      <!-- Teslimat Adresi -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">Teslimat Adresi</h2>
+        <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{order.shipping_address}</p>
+      </div>
+
+      <!-- Ödeme Yöntemi -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">Ödeme Bilgisi</h2>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500">
+            {order.payment_method === 'havale' ? <i class="fas fa-university"></i> : 
+             order.payment_method === 'kapida' ? <i class="fas fa-box"></i> : 
+             <i class="fas fa-credit-card"></i>}
+          </div>
+          <div>
+            <div class="font-bold text-gray-900 dark:text-white">{getPaymentMethod(order.payment_method)}</div>
+            {order.payment_method === 'havale' && order.status === 'bekliyor' && (
+              <div class="text-xs text-orange-600 mt-1">Ödeme onayı bekleniyor</div>
             )}
           </div>
         </div>
-
       </div>
 
     </div>

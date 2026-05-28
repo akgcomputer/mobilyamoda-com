@@ -2,6 +2,7 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../../../../lib/db';
 import MediaPicker from '../../../../components/admin/MediaPicker.astro';
+import CategoryRow from '../../../../components/admin/CategoryRow.astro';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 
@@ -99,8 +100,8 @@ function altKategoriler(parent_id: number) {
         </div>
         <select name="ust_id" class="px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500">
           <option value="null">Üst kategori (YOK)</option>
-          {anaKategoriler.map(kat => (
-            <option value={kat.id}>{kat.name}</option>
+          {kategoriler.map(kat => (
+            <option value={kat.id}>{kat.parent_id ? '— ' : ''}{kat.name}</option>
           ))}
         </select>
         <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-lg transition font-medium shadow-md">Kaydet</button>
@@ -121,67 +122,7 @@ function altKategoriler(parent_id: number) {
         </thead>
         <tbody class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-200">
           {anaKategoriler.map(ust => (
-            <>
-              <!-- Üst kategori satırı -->
-              <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-                <td class="px-4 py-4"><input type="checkbox" class="category-checkbox w-4 h-4 rounded border-gray-300" data-id={ust.id}></td>
-                <td class="px-4 py-4 text-sm font-semibold text-gray-500 dark:text-gray-400">
-                  {ust.image_url ? <img src={ust.image_url} class="w-8 h-8 rounded object-cover" /> : <div class="w-8 h-8 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center"><i class="fas fa-image text-gray-400"></i></div>}
-                </td>
-                <td class="px-6 py-3.5 font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"></span>
-                  {ust.name}
-                </td>
-                <td class="px-6 py-3.5 text-gray-400 text-sm">Üst Kategori</td>
-                <td class="px-6 py-3.5 text-center">
-                  <div class="flex items-center justify-center gap-3">
-                    <button 
-                      class="edit-category-btn text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-lg transition" 
-                      data-id={ust.id} 
-                      data-ad={ust.name}
-                      title="Düzenle"
-                    >
-                      ✏️
-                    </button>
-                    <form method="POST" class="inline" onsubmit="return confirm('Sil? Alt kategorileri varsa üst kategorisi yok olarak güncellenecektir!')">
-                      <input type="hidden" name="islem" value="sil" />
-                      <input type="hidden" name="id" value={ust.id} />
-                      <button type="submit" class="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition" title="Sil">🗑️</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-              {altKategoriler(ust.id).map(alt => (
-                <tr class="bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-700/80 transition">
-                  <td class="px-4 py-3"><input type="checkbox" class="category-checkbox w-4 h-4 rounded border-gray-300" data-id={alt.id}></td>
-                  <td class="px-4 py-3 text-sm font-medium text-gray-500 dark:text-gray-400">
-                    {alt.image_url ? <img src={alt.image_url} class="w-6 h-6 rounded object-cover" /> : <div class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600"></div>}
-                  </td>
-                  <td class="px-6 py-3 pl-12 text-sm text-gray-800 dark:text-gray-300 font-medium">
-                    ↳ {alt.name}
-                  </td>
-                  <td class="px-6 py-3 text-sm text-gray-500 dark:text-gray-400">{ust.name}</td>
-                  <td class="px-6 py-3 text-center">
-                    <div class="flex items-center justify-center gap-3">
-                      <button 
-                        class="edit-category-btn text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-lg transition" 
-                        data-id={alt.id} 
-                        data-ad={alt.name}
-                        data-img={alt.image_url || ''}
-                        title="Düzenle"
-                      >
-                        ✏️
-                      </button>
-                      <form method="POST" class="inline" onsubmit="return confirm('Sil?')">
-                        <input type="hidden" name="islem" value="sil" />
-                        <input type="hidden" name="id" value={alt.id} />
-                        <button type="submit" class="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition" title="Sil">🗑️</button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </>
+            <CategoryRow category={ust} categories={kategoriler} depth={0} />
           ))}
         </tbody>
       </table>

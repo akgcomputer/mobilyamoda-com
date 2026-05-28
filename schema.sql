@@ -108,9 +108,21 @@ CREATE TABLE IF NOT EXISTS products (
   badge_top_right TEXT,
   rating REAL DEFAULT 0,
   review_count INTEGER DEFAULT 0,
+  currency TEXT DEFAULT '₺',
   status TEXT NOT NULL DEFAULT 'aktif', -- 'aktif', 'pasif', 'taslak'
   unit TEXT DEFAULT 'Adet',
   min_order_qty INTEGER DEFAULT 1,
+  badges TEXT, -- JSON array of badge names e.g. ["Kargo Bedava", "Süper Fiyat"]
+  shipping_time TEXT, -- e.g. "Tahmini Kargoya Teslim: 2 gün içinde kargoda"
+  seller_name TEXT, -- e.g. "DepodanDirekt"
+  payment_options TEXT, -- JSON array of allowed payment methods
+  gallery_images TEXT, -- JSON array of additional image URLs
+  features TEXT, -- JSON array of key-value objects for attributes
+  tags TEXT, -- Comma-separated list of tags
+  stock INTEGER DEFAULT 10,
+  video_url TEXT,
+  allow_backorder BOOLEAN DEFAULT 0,
+  likes INTEGER DEFAULT 0,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL
 );
@@ -127,12 +139,36 @@ CREATE TABLE IF NOT EXISTS product_variants (
   createdAt TEXT NOT NULL
 );
 
--- Wholesale Prices Table
+-- Wholesale Prices Table (Now supports percentage discounts)
 CREATE TABLE IF NOT EXISTS wholesale_prices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
   min_qty INTEGER NOT NULL,
-  price_per_unit REAL NOT NULL,
+  discount_percentage REAL NOT NULL, -- e.g. 20 for 20% off
+  createdAt TEXT NOT NULL
+);
+
+-- Product Reviews Table
+CREATE TABLE IF NOT EXISTS product_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  user_name TEXT NOT NULL,
+  rating INTEGER NOT NULL, -- 1 to 5
+  comment TEXT,
+  likes INTEGER DEFAULT 0,
+  dislikes INTEGER DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'approved'
+  createdAt TEXT NOT NULL
+);
+
+-- Product Q&A Table
+CREATE TABLE IF NOT EXISTS product_qa (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  user_name TEXT NOT NULL,
+  question TEXT NOT NULL,
+  answer TEXT,
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'answered'
   createdAt TEXT NOT NULL
 );
 
@@ -142,7 +178,9 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL UNIQUE,
   password TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
-  role TEXT NOT NULL DEFAULT 'editor', -- 'admin', 'editor'
+  role TEXT NOT NULL DEFAULT 'editor', -- 'admin', 'editor', 'abone'
+  phone TEXT,
+  address TEXT,
   createdAt TEXT NOT NULL
 );
 
@@ -171,6 +209,8 @@ CREATE TABLE IF NOT EXISTS orders (
   subtotal REAL NOT NULL DEFAULT 0,
   shipping_fee REAL NOT NULL DEFAULT 0,
   tax REAL NOT NULL DEFAULT 0,
+  discount_amount REAL NOT NULL DEFAULT 0, -- Sepete uygulanan indirim tutarı
+  coupon_code TEXT, -- Kullanılan kupon kodu
   total_amount REAL NOT NULL DEFAULT 0,
   payment_method TEXT NOT NULL, -- 'havale', 'kapida', 'kredi_karti', 'banka_kredisi'
   status TEXT NOT NULL DEFAULT 'bekliyor', -- 'bekliyor', 'onaylandi', 'kargolandi', 'tamamlandi', 'iptal'
@@ -192,6 +232,21 @@ CREATE TABLE IF NOT EXISTS order_items (
   total_price REAL NOT NULL
 );
 
+-- Coupons Table
+CREATE TABLE IF NOT EXISTS coupons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  discount_type TEXT NOT NULL, -- 'percentage', 'fixed'
+  discount_value REAL NOT NULL,
+  min_cart_amount REAL DEFAULT 0,
+  max_uses INTEGER DEFAULT NULL,
+  used_count INTEGER DEFAULT 0,
+  valid_from TEXT,
+  valid_until TEXT,
+  status TEXT NOT NULL DEFAULT 'aktif', -- 'aktif', 'pasif'
+  createdAt TEXT NOT NULL
+);
+
 -- Insert Initial Seed Data for Categories
 INSERT OR IGNORE INTO categories (id, name, slug, parent_id, icon) VALUES 
 (1, 'Yaşam', 'yasam', NULL, 'fa-leaf'),
@@ -211,3 +266,13 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
 ('site_description', 'Meraklı İçerikleri Keşfet'),
 ('site_email', 'info@laflaf.net'),
 ('site_lang', 'tr');
+
+CREATE TABLE IF NOT EXISTS badges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  bg_color TEXT,
+  text_color TEXT,
+  createdAt DATETIME
+);
