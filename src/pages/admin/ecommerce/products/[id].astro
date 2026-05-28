@@ -557,18 +557,19 @@ const isImg = (content: string) => content && (content.startsWith('http') || con
     </div>
   </div>
 
+  <!-- Quill CSS & JS -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" is:inline />
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js" is:inline></script>
+
   <script>
   document.addEventListener('astro:page-load', () => {
     // 1. Quill Initialization
     const initQuill = () => {
+      const editorEl = document.getElementById('editor-container');
+      if (!editorEl) return;
+
       if (typeof window.Quill === 'undefined') {
-        if (!document.getElementById('quill-script')) {
-          const script = document.createElement('script');
-          script.id = 'quill-script';
-          script.src = "https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js";
-          document.head.appendChild(script);
-        }
-        setTimeout(initQuill, 100);
+        setTimeout(initQuill, 50);
         return;
       }
       
@@ -583,8 +584,7 @@ const isImg = (content: string) => content && (content.startsWith('http') || con
       }
       window.Quill.register(MyLink, true);
 
-      const editorEl = document.getElementById('editor-container');
-      if (editorEl && !editorEl.classList.contains('ql-container')) {
+      if (!editorEl.classList.contains('ql-container')) {
         window.quillInstance = new window.Quill('#editor-container', {
           theme: 'snow',
           modules: {
