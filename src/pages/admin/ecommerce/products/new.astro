@@ -271,7 +271,7 @@ const brands = await getBrands(dbBinding);
             <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Diğer Görseller (Çoklu Seçim)</label>
             <div class="flex flex-col gap-2">
               <input type="text" id="gallery_urls" name="gallery_urls" class="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700" placeholder="Galeri URL'leri (Virgülle ayrılmış)" readonly />
-              <div><MediaPicker inputId="gallery_urls" multi={true} /></div>
+              <div><MediaPicker inputId="gallery_urls" multiple={true} /></div>
             </div>
           </div>
         </div>
@@ -478,10 +478,7 @@ const brands = await getBrands(dbBinding);
         }
       }
 
-      const toolbarExists = editorEl.previousElementSibling?.classList.contains('ql-toolbar') || 
-                            editorEl.parentElement?.querySelector('.ql-toolbar');
-
-      if (!toolbarExists) {
+      if (!editorEl.classList.contains('ql-container')) {
         window.quillInstance = new window.Quill('#editor-container', {
           theme: 'snow',
           modules: {
@@ -502,8 +499,10 @@ const brands = await getBrands(dbBinding);
       if (form && !form.dataset.bound) {
         form.dataset.bound = 'true';
         form.addEventListener('submit', function() {
-          if (window.quillInstance) {
-            let html = window.quillInstance.root.innerHTML;
+          const editorEl = document.getElementById('editor-container');
+          const quill = editorEl ? (window.Quill?.find?.(editorEl) || window.quillInstance) : null;
+          if (quill) {
+            let html = quill.root.innerHTML;
             html = html.replace(/href="([^"]+)"/g, function(match, url) {
               if (url && !url.startsWith('http') && !url.startsWith('/') && !url.startsWith('mailto:')) {
                  return 'href="https://' + url + '"';
