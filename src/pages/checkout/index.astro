@@ -1,11 +1,60 @@
 ---
 // src/pages/checkout/index.astro
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { createOrder, getCouponByCode } from '../../lib/db';
+import { createOrder, getCouponByCode, getSettings, getUsers } from '../../lib/db';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 let basari = '';
 let hata = '';
+
+// Load Payment settings
+const settings = await getSettings(dbBinding);
+const havaleActive = settings.payment_havale_active === '1';
+const havaleIbanName = settings.payment_havale_iban_name || 'Laflaf Teknoloji A.Ş.';
+const havaleIbanNo = settings.payment_havale_iban_no || 'TR00 0000 0000 0000 0000 0000 00';
+
+const kapidaNakitActive = settings.payment_kapida_nakit_active === '1';
+const kapidaPosActive = settings.payment_kapida_pos_active === '1';
+
+const krediKartiActive = settings.payment_kredi_karti_active === '1';
+const krediKrediActive = settings.payment_kredi_kredi_active === '1';
+
+// Build active payment methods list for Astro frontmatter
+const paymentMethods = [];
+if (havaleActive) {
+  paymentMethods.push({ id: 'havale', title: 'Havale / EFT', icon: 'fa-university' });
+}
+if (kapidaNakitActive) {
+  paymentMethods.push({ id: 'kapida_nakit', title: 'Kapıda Ödeme (Nakit)', icon: 'fa-money-bill-wave' });
+}
+if (kapidaPosActive) {
+  paymentMethods.push({ id: 'kapida_pos', title: 'Kapıda Ödeme (POS)', icon: 'fa-credit-card' });
+}
+if (krediKartiActive) {
+  paymentMethods.push({ id: 'kredi_karti', title: 'Kredi Kartı', icon: 'fa-credit-card' });
+}
+if (krediKrediActive) {
+  paymentMethods.push({ id: 'banka_kredisi', title: 'Alışveriş Kredisi', icon: 'fa-hand-holding-usd' });
+}
+
+// Fallback to havale if nothing is enabled
+if (paymentMethods.length === 0) {
+  paymentMethods.push({ id: 'havale', title: 'Havale / EFT', icon: 'fa-university' });
+}
+
+// Authentication Check: Fetch active user details
+const isLoggedIn = Astro.cookies.has('user_session');
+let activeUser: any = null;
+
+if (isLoggedIn) {
+  const sessionData = Astro.cookies.get('user_session')?.json();
+  if (sessionData && sessionData.id) {
+    const users = await getUsers(dbBinding);
+    activeUser = users.find(u => u.id === sessionData.id) || null;
+  }
+}
+
+let newOrder: any = null;
 
 if (Astro.request.method === 'POST') {
   try {
@@ -20,15 +69,27 @@ if (Astro.request.method === 'POST') {
     if (!Array.isArray(cartData) || cartData.length === 0) {
       throw new Error("Sepetiniz boş.");
     }
-
+    
     const customer_name = formData.get('customer_name') as string;
     const customer_email = formData.get('customer_email') as string;
     const customer_phone = formData.get('customer_phone') as string;
     const shipping_address = formData.get('shipping_address') as string;
-    const payment_method = formData.get('payment_method') as string; // havale, kapida, kredi_karti, banka_kredisi
+    const payment_method = formData.get('payment_method') as string; // havale, kapida_nakit, kapida_pos, kredi_karti, banka_kredisi
     
-    if (!customer_name || !customer_email || !shipping_address || !payment_method) {
+    if (!customer_name || !customer_email || !customer_phone || !shipping_address || !payment_method) {
       throw new Error("Lütfen zorunlu alanları doldurun.");
+    }
+
+    // Validation for Credit Card details if Kredi Kartı chosen
+    if (payment_method === 'kredi_karti') {
+      const ccName = formData.get('cc_name') as string;
+      const ccNumber = formData.get('cc_number') as string;
+      const ccExpire = formData.get('cc_expire') as string;
+      const ccCvv = formData.get('cc_cvv') as string;
+      
+      if (!ccName || !ccNumber || !ccExpire || !ccCvv) {
+        throw new Error("Lütfen kredi kartı bilgilerinizi eksiksiz giriniz.");
+      }
     }
 
     let subtotal = 0;
@@ -66,12 +127,12 @@ if (Astro.request.method === 'POST') {
     const total_amount = subtotal - discount_amount;
 
     const orderData = {
-      user_id: null, // Şimdilik hep ziyaretçi siparişi olarak varsayıyoruz
+      user_id: activeUser ? activeUser.id : null, // Save registered user ID if authenticated
       customer_name,
       customer_email,
       customer_phone,
       shipping_address,
-      billing_address: shipping_address, // MVP için aynı
+      billing_address: shipping_address,
       subtotal,
       shipping_fee: 0,
       tax: 0,
@@ -83,7 +144,7 @@ if (Astro.request.method === 'POST') {
       notes: null
     };
 
-    const newOrder = await createOrder(orderData, orderItems, dbBinding);
+    newOrder = await createOrder(orderData, orderItems, dbBinding);
     
     if (newOrder) {
       basari = `Siparişiniz #LAF${newOrder.id} numarası ile başarıyla alınmıştır. Bizi tercih ettiğiniz için teşekkür ederiz!`;
@@ -102,24 +163,37 @@ if (Astro.request.method === 'POST') {
   <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
     
     {basari ? (
-      <div class="max-w-2xl mx-auto text-center py-20">
-        <div class="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
-          <i class="fas fa-check"></i>
+      <div class="max-w-2xl mx-auto text-center py-20 bg-white dark:bg-gray-800 rounded-3xl p-8 border border-gray-150 dark:border-gray-700 shadow-md">
+        <div class="w-24 h-24 bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-sm">
+          <i class="fas fa-check animate-bounce"></i>
         </div>
-        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-4">Siparişiniz Alındı!</h1>
-        <p class="text-lg text-gray-600 dark:text-gray-400 mb-8">{basari}</p>
-        <div class="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700 mb-8 text-left">
-          <h3 class="font-bold text-gray-900 dark:text-white mb-2">Sonraki Adımlar</h3>
-          <ul class="list-disc list-inside text-gray-600 dark:text-gray-400 space-y-2">
-            <li>Sipariş detaylarınız e-posta adresinize gönderilecektir.</li>
-            <li>Siparişiniz onaylandığında ve kargoya verildiğinde sizi bilgilendireceğiz.</li>
-            <li>Havale/EFT seçtiyseniz lütfen ödemenizi açıklama kısmına sipariş numaranızı yazarak gerçekleştirin.</li>
+        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-4 font-outfit">Siparişiniz Alındı!</h1>
+        <p class="text-lg text-gray-600 dark:text-gray-400 mb-8 leading-relaxed">{basari}</p>
+        <div class="p-6 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-200 dark:border-gray-700 mb-8 text-left">
+          <h3 class="font-bold text-gray-900 dark:text-white mb-3 text-sm uppercase tracking-wider flex items-center gap-2">
+            <i class="fas fa-tasks text-orange-500"></i> Sonraki Adımlar
+          </h3>
+          <ul class="list-none text-gray-600 dark:text-gray-400 space-y-2.5 text-sm">
+            <li class="flex items-start gap-2.5">
+              <i class="fas fa-envelope text-orange-500 mt-1"></i>
+              <span>Sipariş detaylarınız e-posta adresinize gönderilmiştir.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <i class="fas fa-truck text-orange-500 mt-1"></i>
+              <span>Siparişiniz onaylandığında ve kargoya verildiğinde sizi bilgilendireceğiz.</span>
+            </li>
+            {newOrder && newOrder.payment_method === 'havale' && (
+              <li class="flex flex-col gap-1 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/50 rounded-xl mt-3 text-xs">
+                <span class="font-bold text-blue-800 dark:text-blue-400"><i class="fas fa-info-circle mr-1"></i> Önemli Havale Bilgisi:</span>
+                <span>Ödemenizi <strong>{havaleIbanNo}</strong> numaralı IBAN hesabımıza <strong>{havaleIbanName}</strong> adına açıklama kısmına <strong>#LAF{newOrder.id}</strong> sipariş kodunuzu ekleyerek gönderiniz.</span>
+              </li>
+            )}
           </ul>
         </div>
-        <a href="/" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5">Alışverişe Dön</a>
+        <a href="/" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5">Alışverişe Dön</a>
         
         <!-- LocalStorage temizleme ve sipariş kaydetme scripti -->
-        <script is:inline define:vars={{ newOrderId: newOrder.id }}>
+        <script is:inline define:vars={{ newOrderId: newOrder?.id }}>
           localStorage.removeItem('laflaf_cart');
           localStorage.removeItem('laflaf_coupon');
           window.dispatchEvent(new Event('cart_updated'));
@@ -138,8 +212,8 @@ if (Astro.request.method === 'POST') {
     ) : (
       <>
         <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
-          <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white">Güvenli Ödeme</h1>
-          <p class="text-gray-500 dark:text-gray-400 mt-1">Ziyaretçi olarak veya giriş yaparak siparişinizi tamamlayabilirsiniz.</p>
+          <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white font-outfit">Güvenli Ödeme</h1>
+          <p class="text-gray-500 dark:text-gray-400 mt-1">Sipariş bilgilerinizi tamamlayarak güvenli şekilde satın alın.</p>
         </div>
 
         {hata && (
@@ -151,7 +225,7 @@ if (Astro.request.method === 'POST') {
 
         <form method="POST" id="checkoutForm" class="flex flex-col lg:flex-row gap-8">
           <input type="hidden" name="cart_data" id="cartDataInput" value="" />
-          <input type="hidden" name="payment_method" id="paymentMethodInput" value="havale" />
+          <input type="hidden" name="payment_method" id="paymentMethodInput" value={paymentMethods[0].id} />
           <input type="hidden" name="coupon_code" id="couponCodeInput" value="" />
           
           <!-- Sol: Form Alanları -->
@@ -159,121 +233,155 @@ if (Astro.request.method === 'POST') {
             
             <!-- Kişisel Bilgiler -->
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm">1</span>
-                Kişisel Bilgiler (Ziyaretçi)
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 font-outfit">
+                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">1</span>
+                Kişisel Bilgiler {isLoggedIn ? "(Üye Alışverişi)" : "(Ziyaretçi Alışverişi)"}
               </h2>
+              
+              {isLoggedIn ? (
+                <div class="mb-4 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 border border-purple-200/50">
+                  <i class="fas fa-user-check"></i>
+                  <span>Kayıtlı üye olarak alışveriş yapıyorsunuz. İletişim ve adres detaylarınız otomatik pre-fill edildi.</span>
+                </div>
+              ) : (
+                <div class="mb-4 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 border border-gray-200">
+                  <i class="fas fa-user-clock"></i>
+                  <span>Ziyaretçi olarak alışveriş yapıyorsunuz. Siparişlerinizi takip etmek için <a href="/profil" class="text-orange-600 font-bold hover:underline" target="_blank">üye olabilirsiniz</a>.</span>
+                </div>
+              )}
+              
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="md:col-span-2">
                   <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Ad Soyad *</label>
-                  <input type="text" name="customer_name" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" placeholder="Örn: Ahmet Yılmaz" />
+                  <input type="text" name="customer_name" required value={activeUser ? activeUser.name : ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Örn: Ahmet Yılmaz" />
                 </div>
                 <div>
                   <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">E-Posta Adresi *</label>
-                  <input type="email" name="customer_email" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" placeholder="Örn: ahmet@example.com" />
+                  <input type="email" name="customer_email" required value={activeUser ? activeUser.email : ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Örn: ahmet@example.com" />
                 </div>
                 <div>
-                  <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Telefon</label>
-                  <input type="tel" name="customer_phone" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" placeholder="Örn: 0555 123 4567" />
+                  <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Telefon *</label>
+                  <input type="tel" name="customer_phone" required value={activeUser ? activeUser.phone : ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Örn: 0555 123 4567" />
                 </div>
               </div>
             </div>
 
             <!-- Teslimat Adresi -->
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm">2</span>
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 font-outfit">
+                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">2</span>
                 Teslimat Adresi
               </h2>
               <div>
                 <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Açık Adres *</label>
-                <textarea name="shipping_address" required rows="3" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" placeholder="Mahalle, Sokak, Apartman No, İlçe, İl"></textarea>
+                <textarea name="shipping_address" required rows="3" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Mahalle, Sokak, Apartman No, İlçe, İl">{activeUser ? activeUser.address : ''}</textarea>
               </div>
             </div>
 
             <!-- Ödeme Yöntemi -->
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm">3</span>
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 font-outfit">
+                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">3</span>
                 Ödeme Yöntemi
               </h2>
               
-              <!-- Tab Headers -->
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6 border-b border-gray-200 dark:border-gray-700 pb-2">
-                <button type="button" class="pay-tab-btn px-4 py-3 text-sm font-bold border-b-2 border-orange-500 text-orange-600 transition" data-target="havale">
-                  <i class="fas fa-university mb-1 block text-lg"></i> Havale / EFT
-                </button>
-                <button type="button" class="pay-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white transition" data-target="kapida">
-                  <i class="fas fa-box mb-1 block text-lg"></i> Kapıda Ödeme
-                </button>
-                <button type="button" class="pay-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white transition" data-target="kredi_karti">
-                  <i class="fas fa-credit-card mb-1 block text-lg"></i> Kredi Kartı
-                </button>
-                <button type="button" class="pay-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white transition" data-target="banka_kredisi">
-                  <i class="fas fa-hand-holding-usd mb-1 block text-lg"></i> Banka Kredisi
-                </button>
+              <!-- Tab Headers (Dinamik) -->
+              <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-6 border-b border-gray-200 dark:border-gray-700 pb-2">
+                {paymentMethods.map((m, index) => (
+                  <button 
+                    type="button" 
+                    class={`pay-tab-btn px-2 py-3 text-xs md:text-sm transition flex flex-col items-center justify-center font-bold border-b-2 ${index === 0 ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'}`} 
+                    data-target={m.id}
+                  >
+                    <i class={`fas ${m.icon} mb-1.5 text-base md:text-lg`}></i> 
+                    <span class="text-center">{m.title}</span>
+                  </button>
+                ))}
               </div>
 
               <!-- Tab Contents -->
-              <div id="tab-havale" class="pay-tab-content block">
-                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-lg text-sm text-blue-800 dark:text-blue-300">
-                  <p class="font-bold mb-2">Banka Hesap Bilgilerimiz:</p>
-                  <p><strong>Banka:</strong> Örnek Bankası A.Ş.</p>
-                  <p><strong>IBAN:</strong> TR00 0000 0000 0000 0000 0000 00</p>
-                  <p><strong>Alıcı:</strong> Laflaf Bilişim ve Tic. Ltd. Şti.</p>
-                  <p class="mt-2 text-xs italic">Lütfen açıklama kısmına sipariş kodunuzu yazmayı unutmayın. Siparişiniz ödeme onayından sonra kargoya verilecektir.</p>
-                </div>
-              </div>
-
-              <div id="tab-kapida" class="pay-tab-content hidden">
-                <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-4 rounded-lg text-sm text-orange-800 dark:text-orange-300 flex items-start gap-3">
-                  <i class="fas fa-truck text-2xl mt-1"></i>
-                  <div>
-                    <p class="font-bold mb-1">Kapıda Nakit / Kredi Kartı ile Ödeme</p>
-                    <p>Siparişinizi teslim alırken kargo görevlisine nakit veya kredi kartı ile ödeme yapabilirsiniz. Kapıda ödeme hizmet bedeli yansıtılmamaktadır.</p>
+              {havaleActive && (
+                <div id="tab-havale" class="pay-tab-content block">
+                  <div class="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-5 rounded-xl text-sm text-blue-800 dark:text-blue-300">
+                    <p class="font-bold mb-3 text-base"><i class="fas fa-university text-blue-500 mr-1"></i> Banka Hesap Bilgilerimiz:</p>
+                    <p class="mb-1"><strong>Alıcı:</strong> {havaleIbanName}</p>
+                    <p class="mb-2"><strong>IBAN:</strong> <span class="font-mono bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded text-xs select-all">{havaleIbanNo}</span></p>
+                    <p class="mt-3 text-xs italic opacity-90 border-t border-blue-200/50 pt-2"><i class="fas fa-info-circle mr-1"></i> Lütfen açıklama kısmına sipariş kodunuzu yazmayı unutmayın. Siparişiniz ödeme onayından sonra kargoya verilecektir.</p>
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div id="tab-kredi_karti" class="pay-tab-content hidden relative">
-                <div class="absolute inset-0 bg-white/60 dark:bg-gray-800/60 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-lg">
-                  <div class="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2">
-                    <i class="fas fa-lock"></i> Aktif Etmek İçin Yöneticiye Başvurun
-                  </div>
-                </div>
-                <div class="opacity-30 pointer-events-none">
-                  <div class="grid grid-cols-2 gap-4">
-                    <div class="col-span-2">
-                      <label class="block text-xs font-semibold mb-1">Kart Numarası</label>
-                      <input type="text" class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50" placeholder="0000 0000 0000 0000" disabled>
-                    </div>
+              {kapidaNakitActive && (
+                <div id="tab-kapida_nakit" class="pay-tab-content hidden">
+                  <div class="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 p-5 rounded-xl text-sm text-orange-800 dark:text-orange-300 flex items-start gap-3">
+                    <i class="fas fa-money-bill-wave text-2xl mt-1 text-orange-500"></i>
                     <div>
-                      <label class="block text-xs font-semibold mb-1">Son Kullanma (AA/YY)</label>
-                      <input type="text" class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50" placeholder="12/25" disabled>
-                    </div>
-                    <div>
-                      <label class="block text-xs font-semibold mb-1">CVC</label>
-                      <input type="text" class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50" placeholder="123" disabled>
+                      <p class="font-bold mb-1">Kapıda Nakit Ödeme</p>
+                      <p class="leading-relaxed">Siparişinizi teslim alırken kargo görevlisine nakit olarak ödeme yapabilirsiniz. Kapıda ödeme hizmet bedeli yansıtılmamaktadır.</p>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div id="tab-banka_kredisi" class="pay-tab-content hidden relative">
-                <div class="absolute inset-0 bg-white/60 dark:bg-gray-800/60 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-lg">
-                  <div class="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2">
-                    <i class="fas fa-lock"></i> Aktif Etmek İçin Yöneticiye Başvurun
+              {kapidaPosActive && (
+                <div id="tab-kapida_pos" class="pay-tab-content hidden">
+                  <div class="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 p-5 rounded-xl text-sm text-orange-800 dark:text-orange-300 flex items-start gap-3">
+                    <i class="fas fa-credit-card text-2xl mt-1 text-orange-500"></i>
+                    <div>
+                      <p class="font-bold mb-1">Kapıda Kredi Kartı / POS ile Ödeme</p>
+                      <p class="leading-relaxed">Siparişinizi teslim alırken kargo görevlisine kredi kartı veya banka kartı ile kapıda ödeme yapabilirsiniz. Kapıda ödeme hizmet bedeli yansıtılmamaktadır.</p>
+                    </div>
                   </div>
                 </div>
-                <div class="opacity-30 pointer-events-none p-4 border border-gray-300 rounded-lg">
-                  <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold">Anında Alışveriş Kredisi</h3>
-                    <i class="fas fa-university text-2xl text-gray-400"></i>
+              )}
+
+              {krediKartiActive && (
+                <div id="tab-kredi_karti" class="pay-tab-content hidden">
+                  <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700">
+                    <div class="mb-5 flex justify-between items-center">
+                      <div>
+                        <h3 class="font-bold text-gray-900 dark:text-white mb-1">Güvenli Kredi Kartı Ödemesi</h3>
+                        <p class="text-xs text-gray-500">Kart bilgilerinizi girerek siparişinizi 3D Secure güvencesiyle tamamlayabilirsiniz.</p>
+                      </div>
+                      <div class="flex gap-1 text-gray-400 text-xl">
+                        <i class="fab fa-cc-visa"></i>
+                        <i class="fab fa-cc-mastercard"></i>
+                      </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Kart Sahibi Adı Soyadı</label>
+                        <input type="text" name="cc_name" id="cc_name" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:border-orange-500" placeholder="Ad Soyad" />
+                      </div>
+                      <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Kart Numarası</label>
+                        <input type="text" name="cc_number" id="cc_number" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:border-orange-500" placeholder="0000 0000 0000 0000" maxlength="19" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Son Kullanma (AA/YY)</label>
+                        <input type="text" name="cc_expire" id="cc_expire" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:border-orange-500" placeholder="AA/YY" maxlength="5" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Güvenlik Kodu (CVC/CVV)</label>
+                        <input type="text" name="cc_cvv" id="cc_cvv" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:border-orange-500" placeholder="123" maxlength="3" />
+                      </div>
+                    </div>
                   </div>
-                  <p class="text-sm mb-4">36 aya varan vade seçenekleriyle banka kredisi kullanarak alışverişinizi hemen tamamlayabilirsiniz.</p>
-                  <button type="button" class="w-full bg-blue-600 text-white font-bold py-2 rounded" disabled>Krediye Başvur</button>
                 </div>
-              </div>
+              )}
+
+              {krediKrediActive && (
+                <div id="tab-banka_kredisi" class="pay-tab-content hidden">
+                  <div class="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 p-5 rounded-xl text-sm text-purple-800 dark:text-purple-300">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-base">
+                      <i class="fas fa-hand-holding-usd text-lg text-purple-500"></i> Alışveriş Kredisi ile Ödeme
+                    </h3>
+                    <p class="leading-relaxed">Anlaşmalı bankalarımız aracılığıyla 36 aya varan vade seçenekleriyle alışveriş kredisi başvurusu yapabilirsiniz.</p>
+                    <p class="mt-2 text-xs italic opacity-90"><i class="fas fa-info-circle mr-1"></i> Siparişiniz tamamlandıktan sonra kredi başvuru penceresine yönlendirileceksiniz.</p>
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>
@@ -281,7 +389,7 @@ if (Astro.request.method === 'POST') {
           <!-- Sağ: Sipariş Özeti -->
           <div class="lg:w-1/3">
             <div class="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 sticky top-24">
-              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">Sipariş Özeti</h2>
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6 font-outfit">Sipariş Özeti</h2>
               
               <div id="checkoutSummaryItems" class="space-y-4 mb-6 border-b border-gray-200 dark:border-gray-700 pb-6 max-h-60 overflow-y-auto pr-2">
                 <!-- JS tarafından doldurulacak -->
@@ -290,11 +398,11 @@ if (Astro.request.method === 'POST') {
               <div class="space-y-3 mb-6 text-sm text-gray-600 dark:text-gray-300">
                 <div class="flex justify-between">
                   <span>Ara Toplam</span>
-                  <span id="coSubtotal" class="font-medium text-gray-900 dark:text-white">0,00 ₺</span>
+                  <span id="coSubtotal" class="font-medium text-gray-900 dark:text-white">0 ₺</span>
                 </div>
-                <div id="coDiscountRow" class="flex justify-between hidden text-green-600">
+                <div id="coDiscountRow" class="flex justify-between hidden text-green-600 font-semibold">
                   <span>İndirim (<span id="coCouponDisplay"></span>)</span>
-                  <span id="coDiscount" class="font-medium">-0,00 ₺</span>
+                  <span id="coDiscount" class="font-medium">-0 ₺</span>
                 </div>
                 <div class="flex justify-between">
                   <span>Kargo Ücreti</span>
@@ -305,7 +413,7 @@ if (Astro.request.method === 'POST') {
               <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-8">
                 <div class="flex justify-between items-center">
                   <span class="text-lg font-bold text-gray-900 dark:text-white">Toplam</span>
-                  <span id="coTotal" class="text-2xl font-extrabold text-orange-600">0,00 ₺</span>
+                  <span id="coTotal" class="text-2xl font-extrabold text-orange-600 font-outfit">0 ₺</span>
                 </div>
               </div>
               
@@ -313,7 +421,7 @@ if (Astro.request.method === 'POST') {
                 <i class="fas fa-lock"></i> Siparişi Onayla
               </button>
               
-              <p class="text-xs text-gray-500 text-center mt-4">
+              <p class="text-[11px] text-gray-400 text-center mt-4 leading-relaxed">
                 Siparişi onaylayarak <strong>Mesafeli Satış Sözleşmesi</strong> ve <strong>Ön Bilgilendirme Formu</strong>'nu kabul etmiş olursunuz.
               </p>
             </div>
@@ -324,9 +432,9 @@ if (Astro.request.method === 'POST') {
   </div>
 
   {!basari && (
-    <script is:inline>
+    <script is:inline define:vars={{ defaultMethod: paymentMethods[0].id }}>
       const formatMoney = (amount) => {
-        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+        return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ₺';
       };
 
       // Load cart data
@@ -355,7 +463,7 @@ if (Astro.request.method === 'POST') {
         div.className = 'flex gap-3 text-sm';
         
         const imgHtml = item.image 
-          ? `<img src="${item.image}" class="w-12 h-12 object-cover rounded border border-gray-200 dark:border-gray-600" />`
+          ? `<img src="${item.image}" class="w-12 h-12 object-cover rounded border border-gray-250 dark:border-gray-600" />`
           : `<div class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400"><i class="fas fa-image"></i></div>`;
         
         div.innerHTML = `
@@ -399,12 +507,23 @@ if (Astro.request.method === 'POST') {
       const tabContents = document.querySelectorAll('.pay-tab-content');
       const paymentMethodInput = document.getElementById('paymentMethodInput');
 
+      // Set active method to defaultMethod on load
+      paymentMethodInput.value = defaultMethod;
+      
+      // Make sure default tab is visible
+      const defaultTabEl = document.getElementById('tab-' + defaultMethod);
+      if (defaultTabEl) {
+        tabContents.forEach(c => c.classList.add('hidden'));
+        defaultTabEl.classList.remove('hidden');
+        defaultTabEl.classList.add('block');
+      }
+
       tabBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
           // Reset styles
           tabBtns.forEach(b => {
-            b.classList.remove('border-orange-500', 'text-orange-600', 'font-bold');
-            b.classList.add('border-transparent', 'text-gray-500', 'font-medium');
+            b.classList.remove('border-orange-500', 'text-orange-600');
+            b.classList.add('border-transparent', 'text-gray-500');
           });
           
           // Hide all contents
@@ -413,25 +532,59 @@ if (Astro.request.method === 'POST') {
 
           // Activate clicked
           const target = e.currentTarget;
-          target.classList.remove('border-transparent', 'text-gray-500', 'font-medium');
-          target.classList.add('border-orange-500', 'text-orange-600', 'font-bold');
+          target.classList.remove('border-transparent', 'text-gray-500');
+          target.classList.add('border-orange-500', 'text-orange-600');
           
           const targetId = target.getAttribute('data-target');
-          document.getElementById('tab-' + targetId).classList.remove('hidden');
-          document.getElementById('tab-' + targetId).classList.add('block');
+          const contentEl = document.getElementById('tab-' + targetId);
+          if (contentEl) {
+            contentEl.classList.remove('hidden');
+            contentEl.classList.add('block');
+          }
           
           paymentMethodInput.value = targetId;
         });
       });
 
-      // Prevent submit if restricted method
-      document.getElementById('checkoutForm').addEventListener('submit', (e) => {
-        const method = paymentMethodInput.value;
-        if (method === 'kredi_karti' || method === 'banka_kredisi') {
-          e.preventDefault();
-          alert('Bu ödeme yöntemi henüz aktif değildir. Lütfen Yöneticiye başvurun veya başka bir yöntem seçin.');
-        }
-      });
+      // Format Credit Card inputs dynamically for premium aesthetics
+      const ccNumber = document.getElementById('cc_number');
+      if (ccNumber) {
+        ccNumber.addEventListener('input', (e) => {
+          let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+          let matches = v.match(/\d{4,16}/g);
+          let match = matches && matches[0] || '';
+          let parts = [];
+
+          for (let i=0, len=match.length; i<len; i+=4) {
+            parts.push(match.substring(i, i+4));
+          }
+
+          if (parts.length > 0) {
+            e.target.value = parts.join(' ');
+          } else {
+            e.target.value = v;
+          }
+        });
+      }
+
+      const ccExpire = document.getElementById('cc_expire');
+      if (ccExpire) {
+        ccExpire.addEventListener('input', (e) => {
+          let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+          if (v.length >= 2) {
+            e.target.value = v.substring(0, 2) + '/' + v.substring(2, 4);
+          } else {
+            e.target.value = v;
+          }
+        });
+      }
+
+      const ccCvv = document.getElementById('cc_cvv');
+      if (ccCvv) {
+        ccCvv.addEventListener('input', (e) => {
+          e.target.value = e.target.value.replace(/[^0-9]/gi, '');
+        });
+      }
     </script>
   )}
 </BaseLayout>

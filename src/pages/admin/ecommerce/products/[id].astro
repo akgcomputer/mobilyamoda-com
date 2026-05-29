@@ -561,7 +561,7 @@ const isImg = (content: string) => content && (content.startsWith('http') || con
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" is:inline />
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js" is:inline></script>
 
-  <script>
+  <script is:inline>
   document.addEventListener('astro:page-load', () => {
     // 1. Quill Initialization
     const initQuill = () => {
@@ -573,18 +573,29 @@ const isImg = (content: string) => content && (content.startsWith('http') || con
         return;
       }
       
-      const Link = window.Quill.import('formats/link');
-      class MyLink extends Link {
-        static create(value) {
-          if (value && !value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('/') && !value.startsWith('mailto:')) {
-            value = 'https://' + value;
+      // Guard custom format registration from crashing on multiple transitions
+      if (!window.QuillLinkRegistered) {
+        try {
+          const Link = window.Quill.import('formats/link');
+          class MyLink extends Link {
+            static create(value) {
+              if (value && !value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('/') && !value.startsWith('mailto:')) {
+                value = 'https://' + value;
+              }
+              return super.create(value);
+            }
           }
-          return super.create(value);
+          window.Quill.register(MyLink, true);
+          window.QuillLinkRegistered = true;
+        } catch (e) {
+          console.warn("Quill link registration warning:", e);
         }
       }
-      window.Quill.register(MyLink, true);
 
-      if (!editorEl.classList.contains('ql-container')) {
+      const toolbarExists = editorEl.previousElementSibling?.classList.contains('ql-toolbar') || 
+                            editorEl.parentElement?.querySelector('.ql-toolbar');
+
+      if (!toolbarExists) {
         window.quillInstance = new window.Quill('#editor-container', {
           theme: 'snow',
           modules: {

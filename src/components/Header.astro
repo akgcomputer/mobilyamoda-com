@@ -39,7 +39,7 @@ const menuItems = settings.menu_items ? JSON.parse(settings.menu_items) : [
         </a>
 
         <!-- Sepet İkonu -->
-        {settings.site_mode === 'ecommerce' || settings.site_mode === 'mixed' ? (
+        {settings.site_mode !== 'blog' && settings.site_mode !== 'corporate' && settings.site_mode !== 'mixed2a' ? (
           <div class="relative">
             <a href="/sepet" class="text-gray-700 dark:text-white hover:text-orange-500 transition text-xl">
               <i class="fas fa-shopping-cart"></i>

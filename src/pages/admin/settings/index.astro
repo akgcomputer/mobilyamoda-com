@@ -338,12 +338,13 @@ if (urlParams.has('tab')) {
     )}
   </div>
   
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
+  <script is:inline>
+    function initSettingsPage() {
       const addMenuBtn = document.getElementById('addMenuBtn');
       const menuList = document.getElementById('menuList');
       
-      if(addMenuBtn && menuList) {
+      if (addMenuBtn && menuList && !addMenuBtn.dataset.bound) {
+        addMenuBtn.dataset.bound = 'true';
         addMenuBtn.addEventListener('click', () => {
           const div = document.createElement('div');
           div.className = 'menu-item flex items-center gap-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700 cursor-move';
@@ -364,43 +365,67 @@ if (urlParams.has('tab')) {
       }
       
       document.querySelectorAll('.btn-remove-menu').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          (e.currentTarget as HTMLElement).closest('.menu-item')?.remove();
-        });
+        if (!btn.dataset.bound) {
+          btn.dataset.bound = 'true';
+          btn.addEventListener('click', (e) => {
+            e.currentTarget.closest('.menu-item')?.remove();
+          });
+        }
       });
       
       // Initialize Quill if the editor exists
-      if (document.getElementById('quillEditor') && typeof Quill !== 'undefined') {
-        const quill = new Quill('#quillEditor', {
-          theme: 'snow',
-          modules: {
-            toolbar: [
-              ['bold', 'italic', 'underline', 'strike'],
-              ['blockquote', 'code-block'],
-              [{ 'header': 1 }, { 'header': 2 }],
-              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-              [{ 'script': 'sub'}, { 'script': 'super' }],
-              [{ 'indent': '-1'}, { 'indent': '+1' }],
-              [{ 'direction': 'rtl' }],
-              [{ 'size': ['small', false, 'large', 'huge'] }],
-              [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-              [{ 'color': [] }, { 'background': [] }],
-              [{ 'align': [] }],
-              ['link', 'image', 'video'],
-              ['clean']
-            ]
-          }
-        });
+      const quillEditorEl = document.getElementById('quillEditor');
+      if (quillEditorEl) {
+        const toolbarExists = quillEditorEl.previousElementSibling?.classList.contains('ql-toolbar') || 
+                              quillEditorEl.parentElement?.querySelector('.ql-toolbar');
         
-        // Populate existing content
-        const existingContent = document.getElementById('returnShippingInput').value;
-        if (existingContent) {
-          quill.root.innerHTML = existingContent;
+        if (!toolbarExists) {
+          if (typeof window.Quill === 'undefined') {
+            setTimeout(initSettingsPage, 100);
+            return;
+          }
+          
+          window.quillInstance = new window.Quill('#quillEditor', {
+            theme: 'snow',
+            modules: {
+              toolbar: [
+                ['bold', 'italic', 'underline', 'strike'],
+                ['blockquote'],
+                [{ 'header': 1 }, { 'header': 2 }],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'align': [] }],
+                ['link', 'clean']
+              ]
+            }
+          });
+          
+          // Populate existing content
+          const existingContent = document.getElementById('returnShippingInput').value;
+          if (existingContent) {
+            window.quillInstance.root.innerHTML = existingContent;
+          }
+          
+          // Bind form submit syncing
+          const form = quillEditorEl.closest('form');
+          if (form) {
+            form.addEventListener('submit', () => {
+              document.getElementById('returnShippingInput').value = window.quillInstance.root.innerHTML;
+            });
+          }
         }
       }
-    });
+    }
+
+    document.addEventListener('astro:page-load', initSettingsPage);
+    
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(initSettingsPage, 100);
+    } else {
+      document.addEventListener('DOMContentLoaded', initSettingsPage);
+    }
   </script>
   
-  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-  <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" is:inline />
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js" is:inline></script>
 </BaseLayout>

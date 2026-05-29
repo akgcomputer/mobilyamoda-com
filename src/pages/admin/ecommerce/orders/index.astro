@@ -49,9 +49,9 @@ const getPaymentMethod = (method: string) => {
 <BaseLayout title="Siparişler | Laflaf Admin">
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Sipariş Yönetimi</h1>
-    <button onclick="alert('POS ve Banka Kredisi modüllerini aktif etmek için sistem yöneticisine başvurunuz.')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2">
+    <a href="/admin/ecommerce/settings/payment" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2">
       <i class="fas fa-credit-card"></i> Ödeme Yöntemlerini Yönet
-    </button>
+    </a>
   </div>
 
   <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">

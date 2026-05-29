@@ -47,14 +47,14 @@ if (Astro.request.method === 'POST') {
   const action = formData.get('action');
 
   if (action === 'login') {
-    const email = formData.get('email') as string;
+    const usernameInput = formData.get('username') as string;
     const password = formData.get('password') as string;
     
-    if (!email || !password) {
-      errorMessage = 'E-posta ve şifre zorunludur.';
+    if (!usernameInput || !password) {
+      errorMessage = 'E-posta/Telefon ve şifre zorunludur.';
     } else {
       const users = await getUsers(dbBinding);
-      const existingUser = users.find(u => u.email === email);
+      const existingUser = users.find(u => u.email === usernameInput || u.phone === usernameInput);
       
       if (existingUser) {
         if (existingUser.password === password) {
@@ -71,7 +71,7 @@ if (Astro.request.method === 'POST') {
           errorMessage = 'Şifre hatalı.';
         }
       } else {
-        errorMessage = 'Bu e-posta adresi ile kayıtlı kullanıcı bulunamadı.';
+        errorMessage = 'Bu kullanıcı adı (E-posta / Telefon) ile kayıtlı üye bulunamadı.';
       }
     }
   }
@@ -269,7 +269,7 @@ if (Astro.request.method === 'POST') {
           )}
 
           <!-- KAYIT FORMU -->
-          <div id="registerSection" class="hidden">
+          <div id="registerSection">
             <div class="text-center mb-8">
               <h1 class="text-3xl font-bold mb-2">Aramıza Katıl</h1>
               <p class="text-gray-500 dark:text-gray-400 mb-4">İçeriklere yorum yapmak ve bildirim almak için hemen üye olun.</p>
@@ -342,7 +342,7 @@ if (Astro.request.method === 'POST') {
           </div>
 
           <!-- GİRİŞ FORMU -->
-          <div id="loginSection">
+          <div id="loginSection" class="hidden">
             <div class="text-center mb-10">
               <h1 class="text-3xl font-bold mb-2">Giriş Yap</h1>
               <p class="text-gray-500 dark:text-gray-400 mb-4">Hesabınıza giriş yaparak devam edin.</p>
@@ -355,8 +355,8 @@ if (Astro.request.method === 'POST') {
               <input type="hidden" name="action" value="login" />
               
               <div>
-                <label class="block text-sm font-medium mb-1">E-posta</label>
-                <input type="email" name="email" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="ornek@email.com">
+                <label class="block text-sm font-medium mb-1">E-posta veya Telefon Numarası</label>
+                <input type="text" name="username" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="ornek@email.com veya 05XXXXXXXXX">
               </div>
 
               <div>
