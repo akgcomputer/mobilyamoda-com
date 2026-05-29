@@ -903,8 +903,8 @@ const mainImageUrl = product.image_url || null;
           let cart = [];
           try { cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]'); } catch(e) {}
 
-          let price = product.price;
-          if (selectedVariant && selectedVariant.price) { price = selectedVariant.price; }
+          let price = parseFloat(product.price as any) || 0;
+          if (selectedVariant && selectedVariant.price) { price = parseFloat(selectedVariant.price); }
           
           let discount = 0;
           if (product.wholesalePrices) {
@@ -927,7 +927,8 @@ const mainImageUrl = product.image_url || null;
             qty: currentQty,
             price: finalPrice,
             image: (selectedVariant && selectedVariant.image_url) ? selectedVariant.image_url : product.image,
-            unit: product.unit
+            unit: product.unit,
+            currency: product.currency || '₺'
           };
 
           const existingIdx = cart.findIndex((item: any) => item.id === cartItem.id);
@@ -935,8 +936,8 @@ const mainImageUrl = product.image_url || null;
             cart[existingIdx].qty += currentQty;
             // recalculate price
             let newTotalQty = cart[existingIdx].qty;
-            let newBasePrice = product.price;
-            if (selectedVariant && selectedVariant.price) newBasePrice = selectedVariant.price;
+            let newBasePrice = parseFloat(product.price as any) || 0;
+            if (selectedVariant && selectedVariant.price) newBasePrice = parseFloat(selectedVariant.price);
             let newDiscount = 0;
             if (product.wholesalePrices) {
               const sortedWP = [...product.wholesalePrices].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
@@ -960,13 +961,15 @@ const mainImageUrl = product.image_url || null;
           } else {
             const originalText = addToCartBtn.innerHTML;
             addToCartBtn.innerHTML = '<i class="fas fa-check"></i> Eklendi!';
-            addToCartBtn.classList.replace('border-orange-500', 'bg-green-600');
-            addToCartBtn.classList.replace('text-orange-600', 'text-white');
+            addToCartBtn.style.backgroundColor = '#16a34a';
+            addToCartBtn.style.color = '#ffffff';
+            addToCartBtn.style.borderColor = '#16a34a';
             
             setTimeout(() => {
               addToCartBtn.innerHTML = originalText;
-              addToCartBtn.classList.replace('bg-green-600', 'border-orange-500');
-              addToCartBtn.classList.replace('text-white', 'text-orange-600');
+              addToCartBtn.style.backgroundColor = '';
+              addToCartBtn.style.color = '';
+              addToCartBtn.style.borderColor = '';
             }, 2000);
           }
         };

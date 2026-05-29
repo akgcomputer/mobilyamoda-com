@@ -438,15 +438,17 @@ if (Astro.request.method === 'POST') {
         if (!form) return;
         const defaultMethod = form.getAttribute('data-default-method') || 'havale';
 
-        const formatMoney = (amount: number) => {
-          return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ₺';
-        };
-
         // Load cart data
         let cart: any[] = [];
         try {
           cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]');
         } catch(e) {}
+
+        const cartCurrency = cart[0]?.currency || '₺';
+
+        const formatMoney = (amount: number, currency = cartCurrency) => {
+          return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ' + currency;
+        };
 
         // If cart empty, redirect
         if (cart.length === 0 && window.location.pathname === '/checkout') {
@@ -467,8 +469,11 @@ if (Astro.request.method === 'POST') {
         let subtotal = 0;
         
         cart.forEach(item => {
-          const itemTotal = item.qty * item.price;
+          const itemPrice = parseFloat(item.price) || 0;
+          const itemQty = parseInt(item.qty) || 1;
+          const itemTotal = itemQty * itemPrice;
           subtotal += itemTotal;
+          const itemCurrency = item.currency || cartCurrency;
           
           const div = document.createElement('div');
           div.className = 'flex gap-3 text-sm';
@@ -481,17 +486,17 @@ if (Astro.request.method === 'POST') {
             ${imgHtml}
             <div class="flex-1">
               <div class="font-bold text-gray-900 dark:text-white line-clamp-1">${item.name}</div>
-              <div class="text-xs text-gray-500">${item.variant_name ? item.variant_name + ' | ' : ''}${item.qty} Adet</div>
+              <div class="text-xs text-gray-500">${item.variant_name ? item.variant_name + ' | ' : ''}${itemQty} Adet</div>
             </div>
             <div class="font-bold text-gray-900 dark:text-white">
-              ${formatMoney(itemTotal)}
+              ${formatMoney(itemTotal, itemCurrency)}
             </div>
           `;
           summaryItemsContainer.appendChild(div);
         });
 
         const coSubtotal = document.getElementById('coSubtotal');
-        if (coSubtotal) coSubtotal.textContent = formatMoney(subtotal);
+        if (coSubtotal) coSubtotal.textContent = formatMoney(subtotal, cartCurrency);
         
         let discountAmount = 0;
         let appliedCoupon: any = null;
@@ -512,7 +517,7 @@ if (Astro.request.method === 'POST') {
           
           coDiscountRow.classList.remove('hidden');
           coCouponDisplay.textContent = appliedCoupon.code;
-          coDiscount.textContent = '-' + formatMoney(discountAmount);
+          coDiscount.textContent = '-' + formatMoney(discountAmount, cartCurrency);
           if (couponCodeInput) {
             couponCodeInput.value = appliedCoupon.code;
           }
@@ -520,7 +525,7 @@ if (Astro.request.method === 'POST') {
 
         const total = subtotal - discountAmount;
         const coTotal = document.getElementById('coTotal');
-        if (coTotal) coTotal.textContent = formatMoney(total > 0 ? total : 0);
+        if (coTotal) coTotal.textContent = formatMoney(total > 0 ? total : 0, cartCurrency);
 
         // Tabs Logic
         const tabBtns = document.querySelectorAll('.pay-tab-btn');

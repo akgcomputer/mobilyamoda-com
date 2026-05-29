@@ -256,125 +256,189 @@ if (Astro.request.method === 'POST') {
         </div>
       </div>
     ) : (
-      <!-- GİRİŞ / KAYIT FORMU (GİRİŞ YAPILMAMIŞ DURUM) -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden max-w-2xl mx-auto" id="authContainer">
-        <div class="p-8 sm:p-12">
+      <!-- GİRİŞ / KAYIT SEÇENEKLERİ (KART TASARIMI) -->
+      <div class="space-y-10">
+        
+        <!-- Hata & Başarı Mesajları -->
+        {errorMessage && (
+          <div class="p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-xl border border-red-200 dark:border-red-800 flex items-center gap-3">
+            <i class="fas fa-exclamation-circle text-xl"></i>
+            <span>{errorMessage}</span>
+          </div>
+        )}
+        {successMessage && (
+          <div class="p-4 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-xl border border-green-200 dark:border-green-800 flex items-center gap-3">
+            <i class="fas fa-check-circle text-xl"></i>
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          <!-- Hata & Başarı Mesajları -->
-          {errorMessage && (
-            <div class="mb-6 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-xl border border-red-200 dark:border-red-800">
-              {errorMessage}
+          <!-- Kart 1: Ziyaretçi Olarak Devam Et -->
+          <div id="cardGuest" class="cursor-pointer bg-white dark:bg-gray-800 rounded-2xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 dark:hover:border-orange-500 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-between text-center group h-full">
+            <div class="flex flex-col items-center">
+              <div class="w-16 h-16 rounded-2xl bg-orange-100 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                <i class="fas fa-user-secret"></i>
+              </div>
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Ziyaretçi Olarak Devam Et</h2>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Üye olmadan hemen ödeme adımına geçerek hızlı alışverişinizi tamamlayın.</p>
             </div>
-          )}
-          {successMessage && (
-            <div class="mb-6 p-4 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-xl border border-green-200 dark:border-green-800">
-              {successMessage}
+            <div class="mt-6 w-full">
+              <span class="inline-flex items-center gap-1 text-sm font-bold text-orange-600 dark:text-orange-400 group-hover:translate-x-1 transition-transform">
+                Devam Et <i class="fas fa-arrow-right text-xs"></i>
+              </span>
             </div>
-          )}
-
-          <!-- KAYIT FORMU -->
-          <div id="registerSection" class={actionParam === 'register' ? '' : 'hidden'}>
-            <div class="text-center mb-8">
-              <h1 class="text-3xl font-bold mb-2">Aramıza Katıl</h1>
-              <p class="text-gray-500 dark:text-gray-400 mb-4">İçeriklere yorum yapmak ve bildirim almak için hemen üye olun.</p>
-              <button type="button" id="showLoginBtn" class="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition font-medium">
-                Zaten üye misiniz? Giriş Yap
-              </button>
-            </div>
-
-            <form method="POST" id="registerForm" class="space-y-6">
-              <input type="hidden" name="action" value="register" />
-              
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label class="block text-sm font-medium mb-1">Ad Soyad</label>
-                  <input type="text" name="name" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="Ahmet Yılmaz">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-1">Cep Telefonu</label>
-                  <input type="tel" name="phone" class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="05XX XXX XX XX">
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-1">E-posta</label>
-                <input type="email" name="email" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="ornek@email.com">
-              </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label class="block text-sm font-medium mb-1">Şifre</label>
-                  <input type="password" name="password" id="regPassword" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="••••••••">
-                  <div class="mt-2 text-xs text-gray-500 space-y-1" id="pwRequirements">
-                    <p class="req-length text-red-500">❌ En az 8 karakter</p>
-                    <p class="req-upper text-red-500">❌ Büyük harf içermeli</p>
-                    <p class="req-lower text-red-500">❌ Küçük harf içermeli</p>
-                    <p class="req-number text-red-500">❌ Rakam içermeli</p>
-                    <p class="req-symbol text-red-500">❌ Sembol içermeli (@$!%*?& vb.)</p>
-                  </div>
-                  <div id="pwSuccess" class="hidden mt-2 text-sm font-bold text-green-600">✅ Şifre zorluk seviyesi uygun</div>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-1">Şifre (Tekrar)</label>
-                  <input type="password" name="password_confirm" id="regPasswordConfirm" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="••••••••">
-                  <div id="pwMatchError" class="hidden mt-2 text-xs text-red-500">Şifreler eşleşmiyor</div>
-                </div>
-              </div>
-
-              <div class="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
-                <label class="block text-sm font-bold mb-3">Hesap Türü Seçimi</label>
-                <div class="flex flex-wrap gap-6">
-                  <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="role" value="Abone" checked class="text-purple-600 focus:ring-purple-500">
-                    <span class="text-sm">Müşteri / Abone (Alışveriş & Yorum)</span>
-                  </label>
-                  <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="role" value="Yazar" class="text-purple-600 focus:ring-purple-500">
-                    <span class="text-sm">Yazar (İçerik Girebilir)</span>
-                  </label>
-                  <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="role" value="Editör" class="text-purple-600 focus:ring-purple-500">
-                    <span class="text-sm">Editör (Tüm İçerikleri Düzenleyebilir)</span>
-                  </label>
-                </div>
-              </div>
-
-              <button type="submit" id="registerSubmitBtn" disabled class="w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed">
-                Lütfen Şifre Kriterlerini Sağlayın
-              </button>
-            </form>
           </div>
 
-          <!-- GİRİŞ FORMU -->
-          <div id="loginSection" class={actionParam === 'login' ? '' : 'hidden'}>
-            <div class="text-center mb-10">
-              <h1 class="text-3xl font-bold mb-2">Giriş Yap</h1>
-              <p class="text-gray-500 dark:text-gray-400 mb-4">Hesabınıza giriş yaparak devam edin.</p>
-              <button type="button" id="showRegisterBtn" class="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition font-medium">
-                Hesabınız yok mu? Aramıza Katılın
-              </button>
+          <!-- Kart 2: Üye Ol -->
+          <div id="cardRegister" class="cursor-pointer bg-white dark:bg-gray-800 rounded-2xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-between text-center group h-full">
+            <div class="flex flex-col items-center">
+              <div class="w-16 h-16 rounded-2xl bg-purple-100 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                <i class="fas fa-user-plus"></i>
+              </div>
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Yeni Üyelik Oluştur</h2>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Fırsatları kaçırmamak, sipariş takibi yapmak ve yorum eklemek için üye olun.</p>
             </div>
+            <div class="mt-6 w-full">
+              <span class="inline-flex items-center gap-1 text-sm font-bold text-purple-600 dark:text-purple-400 group-hover:translate-x-1 transition-transform">
+                Kaydol <i class="fas fa-arrow-right text-xs"></i>
+              </span>
+            </div>
+          </div>
 
-            <form method="POST" class="space-y-6">
-              <input type="hidden" name="action" value="login" />
-              
-              <div>
-                <label class="block text-sm font-medium mb-1">E-posta veya Telefon Numarası</label>
-                <input type="text" name="username" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="ornek@email.com veya 05XXXXXXXXX">
+          <!-- Kart 3: Giriş Yap -->
+          <div id="cardLogin" class="cursor-pointer bg-white dark:bg-gray-800 rounded-2xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-between text-center group h-full">
+            <div class="flex flex-col items-center">
+              <div class="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                <i class="fas fa-key"></i>
               </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-1">Şifre</label>
-                <input type="password" name="password" required class="w-full px-4 py-3 border rounded-xl dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition" placeholder="••••••••">
-              </div>
-
-              <button type="submit" class="w-full py-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 transition font-bold text-lg">
-                Giriş Yap
-              </button>
-            </form>
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Üye Girişi Yap</h2>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Zaten hesabınız var mı? Güvenli şekilde giriş yapın ve alışverişe devam edin.</p>
+            </div>
+            <div class="mt-6 w-full">
+              <span class="inline-flex items-center gap-1 text-sm font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform">
+                Giriş Yap <i class="fas fa-arrow-right text-xs"></i>
+              </span>
+            </div>
           </div>
 
         </div>
+
+        <!-- YENİ ÜYE FORMU BÖLÜMÜ -->
+        <div id="sectionRegister" class="hidden bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8 sm:p-12 max-w-2xl mx-auto transform transition-all duration-300">
+          <div class="text-center mb-8">
+            <h2 class="text-3xl font-extrabold text-gray-900 dark:text-white font-outfit">Yeni Üyelik Oluştur</h2>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Aramıza katılarak avantajlı alışverişin keyfini çıkarın.</p>
+          </div>
+
+          <form method="POST" id="registerForm" class="space-y-6">
+            <input type="hidden" name="action" value="register" />
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Ad Soyad *</label>
+                <input type="text" name="name" required class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition" placeholder="Ahmet Yılmaz">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Cep Telefonu</label>
+                <input type="tel" name="phone" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition" placeholder="05XX XXX XX XX">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">E-posta *</label>
+              <input type="email" name="email" required class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition" placeholder="ornek@email.com">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Şifre *</label>
+                <input type="password" name="password" id="regPassword" required class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition" placeholder="••••••••">
+                <div class="mt-2 text-xs text-gray-500 space-y-1" id="pwRequirements">
+                  <p class="req-length text-red-500">❌ En az 8 karakter</p>
+                  <p class="req-upper text-red-500">❌ Büyük harf içermeli</p>
+                  <p class="req-lower text-red-500">❌ Küçük harf içermeli</p>
+                  <p class="req-number text-red-500">❌ Rakam içermeli</p>
+                  <p class="req-symbol text-red-500">❌ Sembol içermeli (@$!%*?& vb.)</p>
+                </div>
+                <div id="pwSuccess" class="hidden mt-2 text-sm font-bold text-green-600">✅ Şifre zorluk seviyesi uygun</div>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Şifre (Tekrar) *</label>
+                <input type="password" name="password_confirm" id="regPasswordConfirm" required class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition" placeholder="••••••••">
+                <div id="pwMatchError" class="hidden mt-2 text-xs text-red-500">Şifreler eşleşmiyor</div>
+              </div>
+            </div>
+
+            <div class="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
+              <label class="block text-sm font-bold mb-3">Hesap Türü Seçimi</label>
+              <div class="flex flex-wrap gap-6">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="role" value="Abone" checked class="text-purple-600 focus:ring-purple-500">
+                  <span class="text-sm">Müşteri / Abone</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="role" value="Yazar" class="text-purple-600 focus:ring-purple-500">
+                  <span class="text-sm">Yazar</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="role" value="Editör" class="text-purple-600 focus:ring-purple-500">
+                  <span class="text-sm">Editör</span>
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" id="registerSubmitBtn" disabled class="w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed">
+              Lütfen Şifre Kriterlerini Sağlayın
+            </button>
+          </form>
+        </div>
+
+        <!-- ÜYE GİRİŞ FORMU BÖLÜMÜ -->
+        <div id="sectionLogin" class="hidden bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8 sm:p-12 max-w-2xl mx-auto transform transition-all duration-300">
+          <div class="text-center mb-8">
+            <h2 class="text-3xl font-extrabold text-gray-900 dark:text-white font-outfit">Üye Girişi Yap</h2>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Hesabınıza güvenli şekilde giriş yapın.</p>
+          </div>
+
+          <form method="POST" class="space-y-6" id="loginForm">
+            <input type="hidden" name="action" value="login" />
+            
+            <div>
+              <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Kullanıcı Adı (E-posta veya Telefon)</label>
+              <input type="text" name="username" required class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition" placeholder="ornek@email.com veya 05XXXXXXXXX">
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Şifre</label>
+              <input type="password" name="password" required class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition" placeholder="••••••••">
+            </div>
+
+            <!-- Ben Robot Değilim Custom Widget -->
+            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl my-4 select-none shadow-sm">
+              <div class="flex items-center gap-3">
+                <div class="relative w-8 h-8 flex items-center justify-center">
+                  <input type="checkbox" id="recaptchaCheck" class="sr-only" />
+                  <div id="recaptchaBox" class="w-6 h-6 border-2 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 cursor-pointer transition-all flex items-center justify-center hover:border-gray-400">
+                    <span id="recaptchaSpinner" class="hidden w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
+                    <i id="recaptchaCheckIcon" class="hidden fas fa-check text-green-500 text-sm"></i>
+                  </div>
+                </div>
+                <label id="recaptchaLabel" class="text-sm font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">Ben robot değilim</label>
+              </div>
+              <div class="flex flex-col items-center opacity-70">
+                <img src="https://www.gstatic.com/recaptcha/api2/logo_48.png" alt="reCAPTCHA" class="w-6 h-6 object-contain" />
+                <span class="text-[8px] text-gray-400 mt-0.5">reCAPTCHA</span>
+              </div>
+            </div>
+
+            <button type="submit" id="loginSubmitBtn" disabled class="w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed">
+              Giriş Yapmak İçin Doğrulayın
+            </button>
+          </form>
+        </div>
+
       </div>
     )}
 
@@ -382,40 +446,124 @@ if (Astro.request.method === 'POST') {
 
   <script>
     document.addEventListener('astro:page-load', () => {
-      // Tab geçişleri
-      const showLoginBtn = document.getElementById('showLoginBtn');
-      const showRegisterBtn = document.getElementById('showRegisterBtn');
-      const loginSection = document.getElementById('loginSection');
-      const registerSection = document.getElementById('registerSection');
+      // Elements
+      const cardGuest = document.getElementById('cardGuest');
+      const cardRegister = document.getElementById('cardRegister');
+      const cardLogin = document.getElementById('cardLogin');
       
-      if (showLoginBtn && showRegisterBtn && loginSection && registerSection) {
-        showLoginBtn.addEventListener('click', () => {
-          registerSection.classList.add('hidden');
-          loginSection.classList.remove('hidden');
+      const sectionRegister = document.getElementById('sectionRegister');
+      const sectionLogin = document.getElementById('sectionLogin');
+      
+      // Guest Checkout Card Click handler
+      cardGuest?.addEventListener('click', () => {
+        window.location.href = '/checkout';
+      });
+
+      // Toggling Active States
+      const resetCards = () => {
+        [cardRegister, cardLogin].forEach(card => {
+          card?.classList.remove('border-purple-500', 'border-blue-500', 'shadow-2xl', 'scale-[1.02]');
+          card?.classList.add('border-gray-200', 'dark:border-gray-700');
         });
+      };
+
+      const selectRegister = () => {
+        resetCards();
+        cardRegister?.classList.remove('border-gray-200', 'dark:border-gray-700');
+        cardRegister?.classList.add('border-purple-500', 'shadow-2xl', 'scale-[1.02]');
         
-        showRegisterBtn.addEventListener('click', () => {
-          loginSection.classList.add('hidden');
-          registerSection.classList.remove('hidden');
-        });
+        sectionLogin?.classList.add('hidden');
+        sectionRegister?.classList.remove('hidden');
+        sectionRegister?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      };
+
+      const selectLogin = () => {
+        resetCards();
+        cardLogin?.classList.remove('border-gray-200', 'dark:border-gray-700');
+        cardLogin?.classList.add('border-blue-500', 'shadow-2xl', 'scale-[1.02]');
+        
+        sectionRegister?.classList.add('hidden');
+        sectionLogin?.classList.remove('hidden');
+        sectionLogin?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      };
+
+      cardRegister?.addEventListener('click', selectRegister);
+      cardLogin?.addEventListener('click', selectLogin);
+
+      // Deep Linking trigger via URL Parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get('action');
+      if (action === 'register') {
+        selectRegister();
+      } else if (action === 'login') {
+        selectLogin();
+      } else {
+        // Default to showing register if error/success exists for register, login if login
+        const errorMsg = document.querySelector('.bg-red-100')?.textContent || '';
+        const successMsg = document.querySelector('.bg-green-100')?.textContent || '';
+        if (errorMsg.includes('Şifre') || errorMsg.includes('kullanıcı adı') || successMsg.includes('onay')) {
+          selectLogin();
+        } else if (errorMsg || successMsg) {
+          selectRegister();
+        }
       }
 
-      // Şifre Zorluk Kontrolü
+      // --- Custom reCAPTCHA Widget Logic ---
+      const recaptchaBox = document.getElementById('recaptchaBox');
+      const recaptchaCheck = document.getElementById('recaptchaCheck') as HTMLInputElement | null;
+      const recaptchaSpinner = document.getElementById('recaptchaSpinner');
+      const recaptchaCheckIcon = document.getElementById('recaptchaCheckIcon');
+      const recaptchaLabel = document.getElementById('recaptchaLabel');
+      const loginSubmitBtn = document.getElementById('loginSubmitBtn') as HTMLButtonElement | null;
+      
+      let recaptchaVerified = false;
+
+      const triggerRecaptcha = () => {
+        if (recaptchaVerified) return;
+        recaptchaVerified = true;
+
+        if (recaptchaBox && recaptchaSpinner && recaptchaCheckIcon && loginSubmitBtn && recaptchaLabel) {
+          // Disable clicking recaptcha
+          recaptchaBox.style.pointerEvents = 'none';
+          if (recaptchaCheck) recaptchaCheck.checked = true;
+
+          // Play interactive spinner animation
+          recaptchaSpinner.classList.remove('hidden');
+          recaptchaLabel.textContent = 'Doğrulanıyor...';
+
+          setTimeout(() => {
+            recaptchaSpinner.classList.add('hidden');
+            recaptchaCheckIcon.classList.remove('hidden');
+            recaptchaBox.classList.add('bg-green-50', 'border-green-500', 'dark:bg-green-950/20');
+            recaptchaLabel.textContent = 'Doğrulandı!';
+            recaptchaLabel.className = 'text-sm font-bold text-green-600 dark:text-green-400';
+
+            // Unlock Login Submit Button with Premium styles
+            loginSubmitBtn.disabled = false;
+            loginSubmitBtn.className = 'w-full py-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 transition font-bold text-lg cursor-pointer transform hover:-translate-y-0.5 active:scale-95 duration-200';
+            loginSubmitBtn.textContent = 'Giriş Yap';
+          }, 900);
+        }
+      };
+
+      recaptchaBox?.addEventListener('click', triggerRecaptcha);
+      recaptchaLabel?.addEventListener('click', triggerRecaptcha);
+
+      // --- Password Strength Requirements Validation ---
       const pwInput = document.getElementById('regPassword') as HTMLInputElement | null;
       const pwConfirm = document.getElementById('regPasswordConfirm') as HTMLInputElement | null;
-      const submitBtn = document.getElementById('registerSubmitBtn') as HTMLButtonElement | null;
+      const registerSubmitBtn = document.getElementById('registerSubmitBtn') as HTMLButtonElement | null;
       const reqList = document.getElementById('pwRequirements');
       const pwSuccess = document.getElementById('pwSuccess');
       const matchError = document.getElementById('pwMatchError');
 
-      if (pwInput && submitBtn && reqList && pwSuccess && matchError && pwConfirm) {
+      if (pwInput && registerSubmitBtn && reqList && pwSuccess && matchError && pwConfirm) {
         const validatePassword = () => {
           const val = pwInput.value;
           const confVal = pwConfirm.value;
           
           let isValid = true;
 
-          // Kurallar
           const rules = [
             { regex: /.{8,}/, el: document.querySelector('.req-length') as HTMLElement | null },
             { regex: /[A-Z]/, el: document.querySelector('.req-upper') as HTMLElement | null },
@@ -427,17 +575,18 @@ if (Astro.request.method === 'POST') {
           rules.forEach(rule => {
             if (rule.el) {
               if (rule.regex.test(val)) {
-                rule.el.classList.replace('text-red-500', 'text-green-500');
+                rule.el.classList.remove('text-red-500');
+                rule.el.classList.add('text-green-500');
                 rule.el.innerText = rule.el.innerText.replace('❌', '✅');
               } else {
-                rule.el.classList.replace('text-green-500', 'text-red-500');
+                rule.el.classList.remove('text-green-500');
+                rule.el.classList.add('text-red-500');
                 rule.el.innerText = rule.el.innerText.replace('✅', '❌');
                 isValid = false;
               }
             }
           });
 
-          // Şifreler eşleşiyor mu?
           let isMatch = false;
           if (confVal.length > 0) {
             if (val === confVal) {
@@ -448,7 +597,6 @@ if (Astro.request.method === 'POST') {
             }
           }
 
-          // Tüm kurallar geçildiyse
           if (isValid) {
             reqList.classList.add('hidden');
             pwSuccess.classList.remove('hidden');
@@ -458,13 +606,13 @@ if (Astro.request.method === 'POST') {
           }
 
           if (isValid && isMatch) {
-            submitBtn.disabled = false;
-            submitBtn.className = 'w-full py-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 transition font-bold text-lg';
-            submitBtn.innerText = 'Aramıza Katıl';
+            registerSubmitBtn.disabled = false;
+            registerSubmitBtn.className = 'w-full py-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 transition font-bold text-lg cursor-pointer transform hover:-translate-y-0.5 active:scale-95 duration-200';
+            registerSubmitBtn.innerText = 'Aramıza Katıl';
           } else {
-            submitBtn.disabled = true;
-            submitBtn.className = 'w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed';
-            submitBtn.innerText = 'Lütfen Kriterleri Sağlayın';
+            registerSubmitBtn.disabled = true;
+            registerSubmitBtn.className = 'w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed';
+            registerSubmitBtn.innerText = 'Lütfen Kriterleri Sağlayın';
           }
         };
 
