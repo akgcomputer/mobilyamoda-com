@@ -5,7 +5,8 @@ import { getUsers, createUser } from '../lib/db';
 const dbBinding = Astro.locals.runtime?.env?.DB;
 
 // Basit Cookie tabanlı Mock Authentication
-const isLoggedIn = Astro.cookies.has('user_session');
+const sessionData = Astro.cookies.has('user_session') ? Astro.cookies.get('user_session')?.json() : null;
+const isLoggedIn = sessionData !== null && sessionData.id !== undefined;
 let userRole = 'Abone';
 let userName = 'Misafir';
 let errorMessage = '';
@@ -16,29 +17,26 @@ let userData: any = null;
 let userOrders: any[] = [];
 let userCommentCount = 0;
 
-if (isLoggedIn) {
-  const sessionData = Astro.cookies.get('user_session')?.json();
-  if (sessionData) {
-    userRole = sessionData.role === 'abone' ? 'Müşteri / Abone' : sessionData.role;
-    userName = sessionData.name;
-    const users = await getUsers(dbBinding);
-    userData = users.find(u => u.id === sessionData.id);
-    
-    // Siparişleri Çek
-    try {
-      if (dbBinding) {
-        const stmt = await dbBinding.prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY createdAt DESC').bind(sessionData.id).all();
-        if (stmt.results) userOrders = stmt.results;
+if (isLoggedIn && sessionData) {
+  userRole = sessionData.role === 'abone' ? 'Müşteri / Abone' : sessionData.role;
+  userName = sessionData.name;
+  const users = await getUsers(dbBinding);
+  userData = users.find(u => u.id === sessionData.id);
+  
+  // Siparişleri Çek
+  try {
+    if (dbBinding) {
+      const stmt = await dbBinding.prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY createdAt DESC').bind(sessionData.id).all();
+      if (stmt.results) userOrders = stmt.results;
 
-        // Yorum Sayısını Çek
-        if (userData && userData.email) {
-          const cStmt = await dbBinding.prepare('SELECT COUNT(*) as c FROM comments WHERE author_email = ?').bind(userData.email).first();
-          userCommentCount = cStmt ? (cStmt.c as number) : 0;
-        }
+      // Yorum Sayısını Çek
+      if (userData && userData.email) {
+        const cStmt = await dbBinding.prepare('SELECT COUNT(*) as c FROM comments WHERE author_email = ?').bind(userData.email).first();
+        userCommentCount = cStmt ? (cStmt.c as number) : 0;
       }
-    } catch (e) {
-      console.error(e);
     }
+  } catch (e) {
+    console.error(e);
   }
 }
 
@@ -97,12 +95,17 @@ if (Astro.request.method === 'POST') {
         errorMessage = 'Bu e-posta adresi zaten kullanımda.';
       } else {
         const clientIp = Astro.clientAddress || 'Bilinmiyor';
+        const isAbone = role.toLowerCase() === 'abone';
+        const userStatus = isAbone ? 'aktif' : 'pasif';
+        
         const newUser = await createUser({
-          name, email, password, phone, role: role.toLowerCase(), status: 'pasif', ip: clientIp
+          name, email, password, phone, role: role.toLowerCase(), status: userStatus, ip: clientIp
         }, dbBinding);
         
         if (newUser) {
-          successMessage = 'Kayıt başarılı! Yöneticinin onayından sonra giriş yapabilirsiniz.';
+          successMessage = isAbone 
+            ? 'Kayıt başarılı! Şimdi giriş yapabilirsiniz.' 
+            : 'Kayıt başarılı! Yöneticinin onayından sonra giriş yapabilirsiniz.';
         } else {
           errorMessage = 'Kayıt sırasında bir hata oluştu.';
         }
