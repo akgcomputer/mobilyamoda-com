@@ -152,12 +152,12 @@ if (siralama === 'artan') {
     </div>
 
     <!-- Main Section: Grid & Filters -->
-    <div class="flex gap-8 relative items-start">
+    <div class="flex flex-col lg:flex-row gap-8 relative items-start">
       
       <!-- LEFT COLUMN: Massive Filters Sidebar -->
       <aside 
         id="sidebarFilters" 
-        class="w-72 shrink-0 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-6 shadow-sm space-y-8 sticky top-24 max-h-[85vh] overflow-y-auto transition-all duration-300 transform translate-x-0"
+        class="hidden lg:block w-full lg:w-72 shrink-0 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-6 shadow-sm space-y-8 lg:sticky lg:top-24 lg:max-h-[85vh] overflow-y-auto transition-all duration-300 transform translate-x-0"
       >
         <div class="flex justify-between items-center border-b border-gray-50 dark:border-gray-700 pb-3">
           <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -414,42 +414,52 @@ if (siralama === 'artan') {
   </div>
 
   <!-- Dynamic Sidebar & Grid columns toggle logic -->
-  <script is:inline>
-    const toggleBtn = document.getElementById('toggleFiltersBtn');
-    const toggleText = document.getElementById('toggleText');
-    const sidebar = document.getElementById('sidebarFilters');
-    const productsGrid = document.getElementById('productsGrid');
+  <script>
+    document.addEventListener('astro:page-load', () => {
+      const toggleBtn = document.getElementById('toggleFiltersBtn');
+      const toggleText = document.getElementById('toggleText');
+      const sidebar = document.getElementById('sidebarFilters');
+      const productsGrid = document.getElementById('productsGrid');
 
-    // Load filter sidebar state from localStorage so it persists between pages!
-    let filterVisible = localStorage.getItem('laflaf_filter_visible') !== 'false';
+      if (!toggleBtn || !sidebar) return;
 
-    function applyFilterState() {
-      if (filterVisible) {
-        // Show Sidebar
-        sidebar.className = "w-72 shrink-0 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-6 shadow-sm space-y-8 sticky top-24 max-h-[85vh] overflow-y-auto transition-all duration-300 transform translate-x-0 block";
-        // 4 Columns
-        if (productsGrid) {
-          productsGrid.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 transition-all duration-300";
-        }
-        toggleText.textContent = "Filtreleri Gizle";
-      } else {
-        // Hide Sidebar
-        sidebar.className = "w-0 h-0 p-0 m-0 border-0 overflow-hidden hidden transition-all duration-300";
-        // 5 Columns
-        if (productsGrid) {
-          productsGrid.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 transition-all duration-300";
-        }
-        toggleText.textContent = "Filtreleri Göster";
+      // Load filter sidebar state from localStorage so it persists between pages!
+      const isMobile = window.innerWidth < 1024;
+      let filterVisible = localStorage.getItem('laflaf_filter_visible') !== 'false';
+      
+      // Default to hidden on mobile to avoid blocking the products listing!
+      if (isMobile) {
+        filterVisible = false;
       }
-    }
 
-    // Initial run
-    applyFilterState();
+      function applyFilterState() {
+        if (filterVisible) {
+          // Show Sidebar
+          sidebar.className = "w-full lg:w-72 shrink-0 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-6 shadow-sm space-y-8 lg:sticky lg:top-24 lg:max-h-[85vh] overflow-y-auto transition-all duration-300 transform translate-x-0 block";
+          // 4 Columns
+          if (productsGrid) {
+            productsGrid.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 transition-all duration-300";
+          }
+          if (toggleText) toggleText.textContent = "Filtreleri Gizle";
+        } else {
+          // Hide Sidebar
+          sidebar.className = "w-0 h-0 p-0 m-0 border-0 overflow-hidden hidden transition-all duration-300";
+          // 5 Columns
+          if (productsGrid) {
+            productsGrid.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 transition-all duration-300";
+          }
+          if (toggleText) toggleText.textContent = "Filtreleri Göster";
+        }
+      }
 
-    toggleBtn.addEventListener('click', () => {
-      filterVisible = !filterVisible;
-      localStorage.setItem('laflaf_filter_visible', filterVisible);
+      // Initial run
       applyFilterState();
+
+      toggleBtn.addEventListener('click', () => {
+        filterVisible = !filterVisible;
+        localStorage.setItem('laflaf_filter_visible', filterVisible);
+        applyFilterState();
+      });
     });
   </script>
 </BaseLayout>

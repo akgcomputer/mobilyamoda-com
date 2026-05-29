@@ -45,7 +45,10 @@ if (Astro.request.method === 'POST') {
       const excerpt = formData.get('excerpt') as string;
       const description = formData.get('description') as string;
       const price = parseFloat(formData.get('price') as string) || 0;
-      const compare_at_price = formData.get('compare_at_price') ? parseFloat(formData.get('compare_at_price') as string) : null;
+      const rawCompare = formData.get('compare_at_price') as string;
+      const parsedCompare = rawCompare && rawCompare.trim() !== '' ? parseFloat(rawCompare) : null;
+      const compare_at_price = isNaN(parsedCompare as any) ? null : parsedCompare;
+
       const currency = formData.get('currency') as string || '₺';
       const unit = formData.get('unit') as string || 'Adet';
       const min_order_qty = parseInt(formData.get('min_order_qty') as string) || 1;
@@ -119,10 +122,15 @@ if (Astro.request.method === 'POST') {
     } 
     else if (action === 'add_variant') {
       const vName = formData.get('v_name') as string;
-      const vStock = parseInt(formData.get('v_stock') as string) || 0;
-      const vPrice = parseFloat(formData.get('v_price') as string) || 0;
+      const rawVStock = formData.get('v_stock') as string;
+      const rawVPrice = formData.get('v_price') as string;
       const vImageUrl = formData.get('v_image_url') as string || null;
-      if (vName) {
+
+      const vStock = rawVStock && rawVStock.trim() !== '' ? parseInt(rawVStock) : 0;
+      const parsedVPrice = rawVPrice && rawVPrice.trim() !== '' ? parseFloat(rawVPrice) : null;
+      const vPrice = isNaN(parsedVPrice as any) ? null : parsedVPrice;
+
+      if (vName && !isNaN(vStock)) {
         await createProductVariant({
           product_id: productId,
           name: vName,
@@ -144,9 +152,12 @@ if (Astro.request.method === 'POST') {
       }
     }
     else if (action === 'add_wholesale') {
-      const qty = parseInt(formData.get('w_qty') as string);
-      const discount = parseFloat(formData.get('w_discount') as string);
-      if (qty > 0 && discount > 0) {
+      const rawQty = formData.get('w_qty') as string;
+      const rawDiscount = formData.get('w_discount') as string;
+      const qty = rawQty && rawQty.trim() !== '' ? parseInt(rawQty) : 0;
+      const discount = rawDiscount && rawDiscount.trim() !== '' ? parseFloat(rawDiscount) : 0;
+
+      if (!isNaN(qty) && !isNaN(discount) && qty > 0 && discount > 0) {
         await createWholesalePrice({
           product_id: productId,
           min_qty: qty,

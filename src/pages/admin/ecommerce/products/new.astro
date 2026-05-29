@@ -34,7 +34,10 @@ if (Astro.request.method === 'POST') {
     const excerpt = formData.get('excerpt') as string;
     const description = formData.get('description') as string;
     const price = parseFloat(formData.get('price') as string) || 0;
-    const compare_at_price = formData.get('compare_at_price') ? parseFloat(formData.get('compare_at_price') as string) : null;
+    const rawCompare = formData.get('compare_at_price') as string;
+    const parsedCompare = rawCompare && rawCompare.trim() !== '' ? parseFloat(rawCompare) : null;
+    const compare_at_price = isNaN(parsedCompare as any) ? null : parsedCompare;
+    
     const currency = formData.get('currency') as string || '₺';
     const unit = formData.get('unit') as string || 'Adet';
     const min_order_qty = parseInt(formData.get('min_order_qty') as string) || 1;
@@ -109,12 +112,20 @@ if (Astro.request.method === 'POST') {
         for (let i = 0; i < vNames.length; i++) {
           const vName = vNames[i]?.toString().trim();
           if (vName) {
+            const rawVPrice = vPrices[i]?.toString();
+            const parsedVPrice = rawVPrice && rawVPrice.trim() !== '' ? parseFloat(rawVPrice) : null;
+            const finalVPrice = isNaN(parsedVPrice as any) ? null : parsedVPrice;
+
+            const rawVStock = vStocks[i]?.toString();
+            const parsedVStock = rawVStock && rawVStock.trim() !== '' ? parseInt(rawVStock) : 0;
+            const finalVStock = isNaN(parsedVStock) ? 0 : parsedVStock;
+
             await createProductVariant({
               product_id: newProduct.id,
               name: vName,
               sku: slugify(vName),
-              price: parseFloat(vPrices[i]?.toString() || '0'),
-              stock: parseInt(vStocks[i]?.toString() || '0'),
+              price: finalVPrice,
+              stock: finalVStock,
               image_url: null
             }, dbBinding);
           }
@@ -124,9 +135,12 @@ if (Astro.request.method === 'POST') {
         const wQtys = formData.getAll('w_qty[]');
         const wDiscounts = formData.getAll('w_discount[]');
         for (let i = 0; i < wQtys.length; i++) {
-          const qty = parseInt(wQtys[i]?.toString() || '0');
-          const discount = parseFloat(wDiscounts[i]?.toString() || '0');
-          if (qty > 0 && discount > 0) {
+          const rawWQty = wQtys[i]?.toString();
+          const rawWDiscount = wDiscounts[i]?.toString();
+          const qty = rawWQty && rawWQty.trim() !== '' ? parseInt(rawWQty) : 0;
+          const discount = rawWDiscount && rawWDiscount.trim() !== '' ? parseFloat(rawWDiscount) : 0;
+
+          if (!isNaN(qty) && !isNaN(discount) && qty > 0 && discount > 0) {
             await createWholesalePrice({
               product_id: newProduct.id,
               min_qty: qty,

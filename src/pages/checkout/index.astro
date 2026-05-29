@@ -223,7 +223,7 @@ if (Astro.request.method === 'POST') {
           </div>
         )}
 
-        <form method="POST" id="checkoutForm" class="flex flex-col lg:flex-row gap-8">
+        <form method="POST" id="checkoutForm" class="flex flex-col lg:flex-row gap-8" data-default-method={paymentMethods[0].id}>
           <input type="hidden" name="cart_data" id="cartDataInput" value="" />
           <input type="hidden" name="payment_method" id="paymentMethodInput" value={paymentMethods[0].id} />
           <input type="hidden" name="coupon_code" id="couponCodeInput" value="" />
@@ -246,7 +246,7 @@ if (Astro.request.method === 'POST') {
               ) : (
                 <div class="mb-4 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 border border-gray-200">
                   <i class="fas fa-user-clock"></i>
-                  <span>Ziyaretçi olarak alışveriş yapıyorsunuz. Siparişlerinizi takip etmek için <a href="/profil" class="text-orange-600 font-bold hover:underline" target="_blank">üye olabilirsiniz</a>.</span>
+                  <span>Ziyaretçi olarak alışveriş yapıyorsunuz. Siparişlerinizi takip etmek için <a href="/profil?action=register" class="text-orange-600 font-bold hover:underline" target="_blank">üye olabilirsiniz</a>.</span>
                 </div>
               )}
               
@@ -432,159 +432,184 @@ if (Astro.request.method === 'POST') {
   </div>
 
   {!basari && (
-    <script is:inline define:vars={{ defaultMethod: paymentMethods[0].id }}>
-      const formatMoney = (amount) => {
-        return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ₺';
-      };
+    <script>
+      document.addEventListener('astro:page-load', () => {
+        const form = document.getElementById('checkoutForm');
+        if (!form) return;
+        const defaultMethod = form.getAttribute('data-default-method') || 'havale';
 
-      // Load cart data
-      let cart = [];
-      try {
-        cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]');
-      } catch(e) {}
+        const formatMoney = (amount: number) => {
+          return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ₺';
+        };
 
-      // If cart empty, redirect
-      if (cart.length === 0) {
-        window.location.href = '/sepet';
-      }
+        // Load cart data
+        let cart: any[] = [];
+        try {
+          cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]');
+        } catch(e) {}
 
-      // Populate hidden input
-      document.getElementById('cartDataInput').value = JSON.stringify(cart);
-
-      // Render Summary
-      const summaryItemsContainer = document.getElementById('checkoutSummaryItems');
-      let subtotal = 0;
-      
-      cart.forEach(item => {
-        const itemTotal = item.qty * item.price;
-        subtotal += itemTotal;
-        
-        const div = document.createElement('div');
-        div.className = 'flex gap-3 text-sm';
-        
-        const imgHtml = item.image 
-          ? `<img src="${item.image}" class="w-12 h-12 object-cover rounded border border-gray-250 dark:border-gray-600" />`
-          : `<div class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400"><i class="fas fa-image"></i></div>`;
-        
-        div.innerHTML = `
-          ${imgHtml}
-          <div class="flex-1">
-            <div class="font-bold text-gray-900 dark:text-white line-clamp-1">${item.name}</div>
-            <div class="text-xs text-gray-500">${item.variant_name ? item.variant_name + ' | ' : ''}${item.qty} Adet</div>
-          </div>
-          <div class="font-bold text-gray-900 dark:text-white">
-            ${formatMoney(itemTotal)}
-          </div>
-        `;
-        summaryItemsContainer.appendChild(div);
-      });
-
-      document.getElementById('coSubtotal').textContent = formatMoney(subtotal);
-      
-      let discountAmount = 0;
-      let appliedCoupon = null;
-      try { appliedCoupon = JSON.parse(localStorage.getItem('laflaf_coupon')); } catch(e){}
-
-      if (appliedCoupon) {
-        if (appliedCoupon.type === 'percentage') {
-          discountAmount = subtotal * (appliedCoupon.value / 100);
-        } else {
-          discountAmount = appliedCoupon.value;
+        // If cart empty, redirect
+        if (cart.length === 0 && window.location.pathname === '/checkout') {
+          window.location.href = '/sepet';
+          return;
         }
-        if (discountAmount > subtotal) discountAmount = subtotal;
+
+        // Populate hidden input
+        const cartDataInput = document.getElementById('cartDataInput') as HTMLInputElement | null;
+        if (cartDataInput) {
+          cartDataInput.value = JSON.stringify(cart);
+        }
+
+        // Render Summary
+        const summaryItemsContainer = document.getElementById('checkoutSummaryItems');
+        if (!summaryItemsContainer) return;
+        summaryItemsContainer.innerHTML = '';
+        let subtotal = 0;
         
-        document.getElementById('coDiscountRow').classList.remove('hidden');
-        document.getElementById('coCouponDisplay').textContent = appliedCoupon.code;
-        document.getElementById('coDiscount').textContent = '-' + formatMoney(discountAmount);
-        document.getElementById('couponCodeInput').value = appliedCoupon.code;
-      }
-
-      const total = subtotal - discountAmount;
-      document.getElementById('coTotal').textContent = formatMoney(total > 0 ? total : 0);
-
-      // Tabs Logic
-      const tabBtns = document.querySelectorAll('.pay-tab-btn');
-      const tabContents = document.querySelectorAll('.pay-tab-content');
-      const paymentMethodInput = document.getElementById('paymentMethodInput');
-
-      // Set active method to defaultMethod on load
-      paymentMethodInput.value = defaultMethod;
-      
-      // Make sure default tab is visible
-      const defaultTabEl = document.getElementById('tab-' + defaultMethod);
-      if (defaultTabEl) {
-        tabContents.forEach(c => c.classList.add('hidden'));
-        defaultTabEl.classList.remove('hidden');
-        defaultTabEl.classList.add('block');
-      }
-
-      tabBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          // Reset styles
-          tabBtns.forEach(b => {
-            b.classList.remove('border-orange-500', 'text-orange-600');
-            b.classList.add('border-transparent', 'text-gray-500');
-          });
+        cart.forEach(item => {
+          const itemTotal = item.qty * item.price;
+          subtotal += itemTotal;
           
-          // Hide all contents
+          const div = document.createElement('div');
+          div.className = 'flex gap-3 text-sm';
+          
+          const imgHtml = item.image 
+            ? `<img src="${item.image}" class="w-12 h-12 object-cover rounded border border-gray-250 dark:border-gray-600" />`
+            : `<div class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400"><i class="fas fa-image"></i></div>`;
+          
+          div.innerHTML = `
+            ${imgHtml}
+            <div class="flex-1">
+              <div class="font-bold text-gray-900 dark:text-white line-clamp-1">${item.name}</div>
+              <div class="text-xs text-gray-500">${item.variant_name ? item.variant_name + ' | ' : ''}${item.qty} Adet</div>
+            </div>
+            <div class="font-bold text-gray-900 dark:text-white">
+              ${formatMoney(itemTotal)}
+            </div>
+          `;
+          summaryItemsContainer.appendChild(div);
+        });
+
+        const coSubtotal = document.getElementById('coSubtotal');
+        if (coSubtotal) coSubtotal.textContent = formatMoney(subtotal);
+        
+        let discountAmount = 0;
+        let appliedCoupon: any = null;
+        try { appliedCoupon = JSON.parse(localStorage.getItem('laflaf_coupon') || 'null'); } catch(e){}
+
+        const coDiscountRow = document.getElementById('coDiscountRow');
+        const coCouponDisplay = document.getElementById('coCouponDisplay');
+        const coDiscount = document.getElementById('coDiscount');
+        const couponCodeInput = document.getElementById('couponCodeInput') as HTMLInputElement | null;
+
+        if (appliedCoupon && coDiscountRow && coCouponDisplay && coDiscount) {
+          if (appliedCoupon.type === 'percentage') {
+            discountAmount = subtotal * (appliedCoupon.value / 100);
+          } else {
+            discountAmount = appliedCoupon.value;
+          }
+          if (discountAmount > subtotal) discountAmount = subtotal;
+          
+          coDiscountRow.classList.remove('hidden');
+          coCouponDisplay.textContent = appliedCoupon.code;
+          coDiscount.textContent = '-' + formatMoney(discountAmount);
+          if (couponCodeInput) {
+            couponCodeInput.value = appliedCoupon.code;
+          }
+        }
+
+        const total = subtotal - discountAmount;
+        const coTotal = document.getElementById('coTotal');
+        if (coTotal) coTotal.textContent = formatMoney(total > 0 ? total : 0);
+
+        // Tabs Logic
+        const tabBtns = document.querySelectorAll('.pay-tab-btn');
+        const tabContents = document.querySelectorAll('.pay-tab-content');
+        const paymentMethodInput = document.getElementById('paymentMethodInput') as HTMLInputElement | null;
+
+        // Set active method to defaultMethod on load
+        if (paymentMethodInput) {
+          paymentMethodInput.value = defaultMethod;
+        }
+        
+        // Make sure default tab is visible
+        const defaultTabEl = document.getElementById('tab-' + defaultMethod);
+        if (defaultTabEl) {
           tabContents.forEach(c => c.classList.add('hidden'));
-          tabContents.forEach(c => c.classList.remove('block'));
+          defaultTabEl.classList.remove('hidden');
+          defaultTabEl.classList.add('block');
+        }
 
-          // Activate clicked
-          const target = e.currentTarget;
-          target.classList.remove('border-transparent', 'text-gray-500');
-          target.classList.add('border-orange-500', 'text-orange-600');
-          
-          const targetId = target.getAttribute('data-target');
-          const contentEl = document.getElementById('tab-' + targetId);
-          if (contentEl) {
-            contentEl.classList.remove('hidden');
-            contentEl.classList.add('block');
-          }
-          
-          paymentMethodInput.value = targetId;
+        tabBtns.forEach(btn => {
+          btn.addEventListener('click', (e: any) => {
+            // Reset styles
+            tabBtns.forEach(b => {
+              b.classList.remove('border-orange-500', 'text-orange-600');
+              b.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            // Hide all contents
+            tabContents.forEach(c => c.classList.add('hidden'));
+            tabContents.forEach(c => c.classList.remove('block'));
+
+            // Activate clicked
+            const target = e.currentTarget;
+            target.classList.remove('border-transparent', 'text-gray-500');
+            target.classList.add('border-orange-500', 'text-orange-600');
+            
+            const targetId = target.getAttribute('data-target');
+            const contentEl = document.getElementById('tab-' + targetId);
+            if (contentEl) {
+              contentEl.classList.remove('hidden');
+              contentEl.classList.add('block');
+            }
+            
+            if (paymentMethodInput) {
+              paymentMethodInput.value = targetId;
+            }
+          });
         });
+
+        // Format Credit Card inputs dynamically for premium aesthetics
+        const ccNumber = document.getElementById('cc_number') as HTMLInputElement | null;
+        if (ccNumber) {
+          ccNumber.addEventListener('input', (e: any) => {
+            let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+            let matches = v.match(/\d{4,16}/g);
+            let match = matches && matches[0] || '';
+            let parts = [];
+
+            for (let i=0, len=match.length; i<len; i+=4) {
+              parts.push(match.substring(i, i+4));
+            }
+
+            if (parts.length > 0) {
+              e.target.value = parts.join(' ');
+            } else {
+              e.target.value = v;
+            }
+          });
+        }
+
+        const ccExpire = document.getElementById('cc_expire') as HTMLInputElement | null;
+        if (ccExpire) {
+          ccExpire.addEventListener('input', (e: any) => {
+            let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+            if (v.length >= 2) {
+              e.target.value = v.substring(0, 2) + '/' + v.substring(2, 4);
+            } else {
+              e.target.value = v;
+            }
+          });
+        }
+
+        const ccCvv = document.getElementById('cc_cvv') as HTMLInputElement | null;
+        if (ccCvv) {
+          ccCvv.addEventListener('input', (e: any) => {
+            e.target.value = e.target.value.replace(/[^0-9]/gi, '');
+          });
+        }
       });
-
-      // Format Credit Card inputs dynamically for premium aesthetics
-      const ccNumber = document.getElementById('cc_number');
-      if (ccNumber) {
-        ccNumber.addEventListener('input', (e) => {
-          let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-          let matches = v.match(/\d{4,16}/g);
-          let match = matches && matches[0] || '';
-          let parts = [];
-
-          for (let i=0, len=match.length; i<len; i+=4) {
-            parts.push(match.substring(i, i+4));
-          }
-
-          if (parts.length > 0) {
-            e.target.value = parts.join(' ');
-          } else {
-            e.target.value = v;
-          }
-        });
-      }
-
-      const ccExpire = document.getElementById('cc_expire');
-      if (ccExpire) {
-        ccExpire.addEventListener('input', (e) => {
-          let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-          if (v.length >= 2) {
-            e.target.value = v.substring(0, 2) + '/' + v.substring(2, 4);
-          } else {
-            e.target.value = v;
-          }
-        });
-      }
-
-      const ccCvv = document.getElementById('cc_cvv');
-      if (ccCvv) {
-        ccCvv.addEventListener('input', (e) => {
-          e.target.value = e.target.value.replace(/[^0-9]/gi, '');
-        });
-      }
     </script>
   )}
 </BaseLayout>

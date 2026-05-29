@@ -10,6 +10,7 @@ let userRole = 'Abone';
 let userName = 'Misafir';
 let errorMessage = '';
 let successMessage = '';
+const actionParam = Astro.url.searchParams.get('action') || 'register';
 
 let userData: any = null;
 let userOrders: any[] = [];
@@ -269,7 +270,7 @@ if (Astro.request.method === 'POST') {
           )}
 
           <!-- KAYIT FORMU -->
-          <div id="registerSection">
+          <div id="registerSection" class={actionParam === 'register' ? '' : 'hidden'}>
             <div class="text-center mb-8">
               <h1 class="text-3xl font-bold mb-2">Aramıza Katıl</h1>
               <p class="text-gray-500 dark:text-gray-400 mb-4">İçeriklere yorum yapmak ve bildirim almak için hemen üye olun.</p>
@@ -342,7 +343,7 @@ if (Astro.request.method === 'POST') {
           </div>
 
           <!-- GİRİŞ FORMU -->
-          <div id="loginSection" class="hidden">
+          <div id="loginSection" class={actionParam === 'login' ? '' : 'hidden'}>
             <div class="text-center mb-10">
               <h1 class="text-3xl font-bold mb-2">Giriş Yap</h1>
               <p class="text-gray-500 dark:text-gray-400 mb-4">Hesabınıza giriş yaparak devam edin.</p>
@@ -376,93 +377,97 @@ if (Astro.request.method === 'POST') {
 
   </div>
 
-  <script is:inline>
-    // Tab geçişleri
-    const showLoginBtn = document.getElementById('showLoginBtn');
-    const showRegisterBtn = document.getElementById('showRegisterBtn');
-    const loginSection = document.getElementById('loginSection');
-    const registerSection = document.getElementById('registerSection');
-    
-    if (showLoginBtn && showRegisterBtn) {
-      showLoginBtn.addEventListener('click', () => {
-        registerSection.classList.add('hidden');
-        loginSection.classList.remove('hidden');
-      });
+  <script>
+    document.addEventListener('astro:page-load', () => {
+      // Tab geçişleri
+      const showLoginBtn = document.getElementById('showLoginBtn');
+      const showRegisterBtn = document.getElementById('showRegisterBtn');
+      const loginSection = document.getElementById('loginSection');
+      const registerSection = document.getElementById('registerSection');
       
-      showRegisterBtn.addEventListener('click', () => {
-        loginSection.classList.add('hidden');
-        registerSection.classList.remove('hidden');
-      });
-    }
-
-    // Şifre Zorluk Kontrolü
-    const pwInput = document.getElementById('regPassword');
-    const pwConfirm = document.getElementById('regPasswordConfirm');
-    const submitBtn = document.getElementById('registerSubmitBtn');
-    const reqList = document.getElementById('pwRequirements');
-    const pwSuccess = document.getElementById('pwSuccess');
-    const matchError = document.getElementById('pwMatchError');
-
-    if (pwInput && submitBtn) {
-      function validatePassword() {
-        const val = pwInput.value;
-        const confVal = pwConfirm.value;
-        
-        let isValid = true;
-
-        // Kurallar
-        const rules = [
-          { regex: /.{8,}/, el: document.querySelector('.req-length') },
-          { regex: /[A-Z]/, el: document.querySelector('.req-upper') },
-          { regex: /[a-z]/, el: document.querySelector('.req-lower') },
-          { regex: /[0-9]/, el: document.querySelector('.req-number') },
-          { regex: /[^A-Za-z0-9]/, el: document.querySelector('.req-symbol') }
-        ];
-
-        rules.forEach(rule => {
-          if (rule.regex.test(val)) {
-            rule.el.classList.replace('text-red-500', 'text-green-500');
-            rule.el.innerText = rule.el.innerText.replace('❌', '✅');
-          } else {
-            rule.el.classList.replace('text-green-500', 'text-red-500');
-            rule.el.innerText = rule.el.innerText.replace('✅', '❌');
-            isValid = false;
-          }
+      if (showLoginBtn && showRegisterBtn && loginSection && registerSection) {
+        showLoginBtn.addEventListener('click', () => {
+          registerSection.classList.add('hidden');
+          loginSection.classList.remove('hidden');
         });
-
-        // Şifreler eşleşiyor mu?
-        let isMatch = false;
-        if (confVal.length > 0) {
-          if (val === confVal) {
-            matchError.classList.add('hidden');
-            isMatch = true;
-          } else {
-            matchError.classList.remove('hidden');
-          }
-        }
-
-        // Tüm kurallar geçildiyse
-        if (isValid) {
-          reqList.classList.add('hidden');
-          pwSuccess.classList.remove('hidden');
-        } else {
-          reqList.classList.remove('hidden');
-          pwSuccess.classList.add('hidden');
-        }
-
-        if (isValid && isMatch) {
-          submitBtn.disabled = false;
-          submitBtn.className = 'w-full py-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 transition font-bold text-lg';
-          submitBtn.innerText = 'Aramıza Katıl';
-        } else {
-          submitBtn.disabled = true;
-          submitBtn.className = 'w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed';
-          submitBtn.innerText = 'Lütfen Kriterleri Sağlayın';
-        }
+        
+        showRegisterBtn.addEventListener('click', () => {
+          loginSection.classList.add('hidden');
+          registerSection.classList.remove('hidden');
+        });
       }
 
-      pwInput.addEventListener('input', validatePassword);
-      pwConfirm.addEventListener('input', validatePassword);
-    }
+      // Şifre Zorluk Kontrolü
+      const pwInput = document.getElementById('regPassword') as HTMLInputElement | null;
+      const pwConfirm = document.getElementById('regPasswordConfirm') as HTMLInputElement | null;
+      const submitBtn = document.getElementById('registerSubmitBtn') as HTMLButtonElement | null;
+      const reqList = document.getElementById('pwRequirements');
+      const pwSuccess = document.getElementById('pwSuccess');
+      const matchError = document.getElementById('pwMatchError');
+
+      if (pwInput && submitBtn && reqList && pwSuccess && matchError && pwConfirm) {
+        const validatePassword = () => {
+          const val = pwInput.value;
+          const confVal = pwConfirm.value;
+          
+          let isValid = true;
+
+          // Kurallar
+          const rules = [
+            { regex: /.{8,}/, el: document.querySelector('.req-length') as HTMLElement | null },
+            { regex: /[A-Z]/, el: document.querySelector('.req-upper') as HTMLElement | null },
+            { regex: /[a-z]/, el: document.querySelector('.req-lower') as HTMLElement | null },
+            { regex: /[0-9]/, el: document.querySelector('.req-number') as HTMLElement | null },
+            { regex: /[^A-Za-z0-9]/, el: document.querySelector('.req-symbol') as HTMLElement | null }
+          ];
+
+          rules.forEach(rule => {
+            if (rule.el) {
+              if (rule.regex.test(val)) {
+                rule.el.classList.replace('text-red-500', 'text-green-500');
+                rule.el.innerText = rule.el.innerText.replace('❌', '✅');
+              } else {
+                rule.el.classList.replace('text-green-500', 'text-red-500');
+                rule.el.innerText = rule.el.innerText.replace('✅', '❌');
+                isValid = false;
+              }
+            }
+          });
+
+          // Şifreler eşleşiyor mu?
+          let isMatch = false;
+          if (confVal.length > 0) {
+            if (val === confVal) {
+              matchError.classList.add('hidden');
+              isMatch = true;
+            } else {
+              matchError.classList.remove('hidden');
+            }
+          }
+
+          // Tüm kurallar geçildiyse
+          if (isValid) {
+            reqList.classList.add('hidden');
+            pwSuccess.classList.remove('hidden');
+          } else {
+            reqList.classList.remove('hidden');
+            pwSuccess.classList.add('hidden');
+          }
+
+          if (isValid && isMatch) {
+            submitBtn.disabled = false;
+            submitBtn.className = 'w-full py-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 transition font-bold text-lg';
+            submitBtn.innerText = 'Aramıza Katıl';
+          } else {
+            submitBtn.disabled = true;
+            submitBtn.className = 'w-full py-4 bg-gray-400 text-white rounded-xl transition font-bold text-lg cursor-not-allowed';
+            submitBtn.innerText = 'Lütfen Kriterleri Sağlayın';
+          }
+        };
+
+        pwInput.addEventListener('input', validatePassword);
+        pwConfirm.addEventListener('input', validatePassword);
+      }
+    });
   </script>
 </BaseLayout>
