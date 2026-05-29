@@ -100,9 +100,9 @@ const getPaymentMethod = (method: string) => {
                       {item.variant_name && <div class="text-xs text-gray-500">{item.variant_name}</div>}
                       <a href={`/urunler/detay/${item.product_id}`} target="_blank" class="text-[10px] text-blue-500 hover:underline">Sitede Gör</a>
                     </td>
-                    <td class="py-4">{item.unit_price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+                    <td class="py-4">{item.unit_price.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₺</td>
                     <td class="py-4">{item.quantity}</td>
-                    <td class="py-4 text-right font-medium">{item.total_price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+                    <td class="py-4 text-right font-medium">{item.total_price.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₺</td>
                   </tr>
                 ))
               ) : (
@@ -112,15 +112,15 @@ const getPaymentMethod = (method: string) => {
             <tfoot class="border-t border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white">
               <tr>
                 <td colspan="3" class="pt-4 text-right">Ara Toplam:</td>
-                <td class="pt-4 text-right">{order.subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+                <td class="pt-4 text-right">{order.subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₺</td>
               </tr>
               <tr>
                 <td colspan="3" class="pt-2 text-right">Kargo:</td>
-                <td class="pt-2 text-right">{order.shipping_fee > 0 ? order.shipping_fee.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' ₺' : 'Ücretsiz'}</td>
+                <td class="pt-2 text-right">{order.shipping_fee > 0 ? order.shipping_fee.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ₺' : 'Ücretsiz'}</td>
               </tr>
               <tr>
                 <td colspan="3" class="pt-2 pb-2 text-right font-bold text-lg">Genel Toplam:</td>
-                <td class="pt-2 pb-2 text-right font-bold text-lg text-orange-600">{order.total_amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</td>
+                <td class="pt-2 pb-2 text-right font-bold text-lg text-orange-600">{order.total_amount.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₺</td>
               </tr>
             </tfoot>
           </table>

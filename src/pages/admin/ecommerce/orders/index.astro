@@ -94,7 +94,7 @@ const getPaymentMethod = (method: string) => {
                   {new Date(order.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </td>
                 <td class="px-6 py-4 font-bold text-gray-900 dark:text-white">
-                  {order.total_amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                  {order.total_amount.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₺
                 </td>
                 <td class="px-6 py-4">
                   {getPaymentMethod(order.payment_method)}

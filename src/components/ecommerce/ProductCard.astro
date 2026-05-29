@@ -175,11 +175,11 @@ const isBadgeImage = (b: any) => {
       <div class="mt-auto pt-2">
         <div class="flex items-baseline gap-2">
           <span class="text-lg md:text-xl font-bold text-gray-900 dark:text-white">
-            {product.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+            {product.price.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₺
           </span>
           {product.compare_at_price && product.compare_at_price > product.price && (
             <span class="text-xs md:text-sm text-gray-500 line-through">
-              {product.compare_at_price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+              {product.compare_at_price.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₺
             </span>
           )}
         </div>

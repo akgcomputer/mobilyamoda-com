@@ -80,7 +80,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
   <script is:inline>
     const formatMoney = (amount) => {
-      return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
+      return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
     };
 
     let cart = [];

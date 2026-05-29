@@ -66,7 +66,7 @@ const isOutOfStock = product.allow_backorder === 1 ? false : (
 
 // Format Price
 const formatPrice = (p: number) => {
-  return new Intl.NumberFormat('tr-TR').format(p) + ' ' + (product.currency || '₺');
+  return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(p) + ' ' + (product.currency || '₺');
 };
 
 // Yorum ve Soru Cevap Verilerini Çek
@@ -626,7 +626,7 @@ const shippingInfo = siteSettings.return_shipping_info || '<p>Standart iade ve k
 
     // Currency formatter
     const formatMoney = (amount) => {
-      return new Intl.NumberFormat('tr-TR').format(amount) + ' ' + (product.currency || '₺');
+      return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ' + (product.currency || '₺');
     };
 
     // Calculate Price

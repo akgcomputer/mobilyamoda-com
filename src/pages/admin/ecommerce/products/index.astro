@@ -361,7 +361,7 @@ function getBadgeNames(badgesJson: string | null) {
                   <div class="text-xs text-gray-500 mt-0.5">/{product.slug}</div>
                 </td>
                 <td class="px-3 py-4 whitespace-nowrap">
-                  <div class="font-bold text-gray-900 dark:text-white">{product.price.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</div>
+                  <div class="font-bold text-gray-900 dark:text-white">{product.price.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
                 </td>
                 <td class="px-3 py-4 hidden md:table-cell text-sm text-gray-500 dark:text-gray-400">
                   <div class="line-clamp-1">{getCategoryName(product.category_id || 0)}</div>

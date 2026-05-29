@@ -326,7 +326,7 @@ if (Astro.request.method === 'POST') {
   {!basari && (
     <script is:inline>
       const formatMoney = (amount) => {
-        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
+        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
       };
 
       // Load cart data

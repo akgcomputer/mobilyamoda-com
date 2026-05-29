@@ -617,6 +617,30 @@ export async function deleteProductVariant(id: number, db?: any): Promise<boolea
   return false;
 }
 
+export async function getProductVariants(productId: number, db?: any): Promise<ProductVariant[]> {
+  if (db) {
+    const { results } = await db.prepare("SELECT * FROM product_variants WHERE product_id = ? ORDER BY id ASC").bind(productId).all();
+    return results as ProductVariant[];
+  }
+  const local = await getLocalDb();
+  if (local && local.data.product_variants) {
+    return (local.data.product_variants || []).filter((v: any) => v.product_id === productId).sort((a: any, b: any) => a.id - b.id);
+  }
+  return [];
+}
+
+export async function getProductWholesalePrices(productId: number, db?: any): Promise<WholesalePrice[]> {
+  if (db) {
+    const { results } = await db.prepare("SELECT * FROM wholesale_prices WHERE product_id = ? ORDER BY min_qty ASC").bind(productId).all();
+    return results as WholesalePrice[];
+  }
+  const local = await getLocalDb();
+  if (local && local.data.wholesale_prices) {
+    return (local.data.wholesale_prices || []).filter((w: any) => w.product_id === productId).sort((a: any, b: any) => a.min_qty - b.min_qty);
+  }
+  return [];
+}
+
 export async function clearProductVariants(productId: number, db?: any): Promise<boolean> {
   if (db) {
     const { success } = await db.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(productId).run();

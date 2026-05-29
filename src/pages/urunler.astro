@@ -1,0 +1,455 @@
+---
+// src/pages/urunler.astro
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ProductCard from '../components/ecommerce/ProductCard.astro';
+import { getProducts, getCategories, getBrands, getProductVariants, getProductWholesalePrices } from '../lib/db';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+
+// Fetch all products, categories, and brands
+const allProducts = await getProducts(dbBinding);
+const categories = await getCategories(dbBinding, 'product');
+const allBrands = await getBrands(dbBinding);
+
+// Populate variants and wholesalePrices for all products
+for (const p of allProducts) {
+  p.variants = await getProductVariants(p.id, dbBinding);
+  p.wholesalePrices = await getProductWholesalePrices(p.id, dbBinding);
+}
+
+// Gather unique variant choices (colors, dimensions, etc.) defensively
+const allVariantsSet = new Set<string>();
+allProducts.forEach(p => {
+  if (p.variants) {
+    p.variants.forEach(v => {
+      const parts = v.name.split('-');
+      parts.forEach(part => {
+        const clean = part.trim();
+        if (clean && isNaN(parseInt(clean)) && clean.length > 1) {
+          allVariantsSet.add(clean);
+        }
+      });
+    });
+  }
+});
+const uniqueVariants = Array.from(allVariantsSet).sort();
+
+// Gather unique seller names
+const uniqueSellers = Array.from(new Set(allProducts.map(p => p.seller_name).filter(Boolean))).sort();
+
+// Read query params from URL
+const kategoriParam = Astro.url.searchParams.get('kategori') || '';
+const minFiyatParam = Astro.url.searchParams.get('min_fiyat') || '';
+const maxFiyatParam = Astro.url.searchParams.get('max_fiyat') || '';
+const toptanParam = Astro.url.searchParams.get('toptan') || ''; // '1' or ''
+const degerlendirmeParam = Astro.url.searchParams.get('degerlendirme') || ''; // '1' or ''
+const yildizParam = Astro.url.searchParams.get('yildiz') || ''; // '1' or ''
+const saticiParams = Astro.url.searchParams.getAll('satici') || [];
+const varyantParams = Astro.url.searchParams.getAll('varyant') || [];
+const siralama = Astro.url.searchParams.get('siralama') || 'onerilen';
+
+// Apply filters server-side for elite SEO & load speeds
+let filteredProducts = allProducts.filter(p => {
+  // 1. Category check
+  if (kategoriParam) {
+    const cat = categories.find(c => c.slug === kategoriParam || c.id.toString() === kategoriParam);
+    if (!cat) return false;
+    const isThisOrChild = p.category_id === cat.id || categories.some(c => c.parent_id === cat.id && p.category_id === c.id);
+    if (!isThisOrChild) return false;
+  }
+  
+  // 2. Price limits
+  if (minFiyatParam && p.price < parseFloat(minFiyatParam)) return false;
+  if (maxFiyatParam && p.price > parseFloat(maxFiyatParam)) return false;
+  
+  // 3. Wholesale capability
+  if (toptanParam === '1' && (!p.wholesalePrices || p.wholesalePrices.length === 0)) return false;
+  
+  // 4. Most Reviewed
+  if (degerlendirmeParam === '1' && (!p.review_count || p.review_count === 0)) return false;
+  
+  // 5. Most Stars (4.0 and up)
+  if (yildizParam === '1' && p.rating < 4) return false;
+  
+  // 6. Seller matches
+  if (saticiParams.length > 0 && (!p.seller_name || !saticiParams.includes(p.seller_name))) return false;
+  
+  // 7. Variant matches
+  if (varyantParams.length > 0) {
+    if (!p.variants || p.variants.length === 0) return false;
+    const hasMatch = p.variants.some(v => {
+      return varyantParams.some(vp => v.name.toLowerCase().includes(vp.toLowerCase()));
+    });
+    if (!hasMatch) return false;
+  }
+  
+  return true;
+});
+
+// Apply Sort Options
+if (siralama === 'artan') {
+  filteredProducts.sort((a, b) => a.price - b.price);
+} else if (siralama === 'azalan') {
+  filteredProducts.sort((a, b) => b.price - a.price);
+} else if (siralama === 'degerlendirme') {
+  filteredProducts.sort((a, b) => (b.review_count || 0) - (a.review_count || 0));
+} else if (siralama === 'puan') {
+  filteredProducts.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+} else if (siralama === 'onerilen') {
+  // SHUFFLE RANDOMLY on every page refresh!
+  filteredProducts.sort(() => Math.random() - 0.5);
+}
+---
+
+<BaseLayout title="Ürünler | Laflaf E-Ticaret" description="Geniş ürün kataloğumuzu inceleyin. Fırsatları kaçırmayın!">
+  
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-10 min-h-screen">
+    
+    <!-- Top Bar: Header and Toggles/Sorting -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 pb-4 border-b border-gray-100 dark:border-gray-800">
+      <div>
+        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white font-outfit">Ürün Kataloğu</h1>
+        <p class="text-sm text-gray-500 mt-1">{filteredProducts.length} adet ürün listeleniyor</p>
+      </div>
+      
+      <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <!-- Filter Toggle Button -->
+        <button 
+          type="button" 
+          id="toggleFiltersBtn" 
+          class="inline-flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm text-sm font-bold transition-all"
+        >
+          <i class="fas fa-filter text-orange-500"></i> 
+          <span id="toggleText">Filtreleri Gizle</span>
+        </button>
+
+        <!-- Sorting Selector -->
+        <form method="GET" id="sortingForm" class="flex-grow md:flex-grow-0">
+          {/* Keep existing params hidden except siralama */}
+          {kategoriParam && <input type="hidden" name="kategori" value={kategoriParam} />}
+          {minFiyatParam && <input type="hidden" name="min_fiyat" value={minFiyatParam} />}
+          {maxFiyatParam && <input type="hidden" name="max_fiyat" value={maxFiyatParam} />}
+          {toptanParam && <input type="hidden" name="toptan" value={toptanParam} />}
+          {degerlendirmeParam && <input type="hidden" name="degerlendirme" value={degerlendirmeParam} />}
+          {yildizParam && <input type="hidden" name="yildiz" value={yildizParam} />}
+          {saticiParams.map(s => <input type="hidden" name="satici" value={s} />)}
+          {varyantParams.map(v => <input type="hidden" name="varyant" value={v} />)}
+
+          <select 
+            name="siralama" 
+            id="sortSelect" 
+            onchange="this.form.submit()" 
+            class="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl font-bold focus:ring-orange-500 focus:border-orange-500 block w-full p-2.5 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 shadow-sm"
+          >
+            <option value="onerilen" selected={siralama === 'onerilen'}>Önerilen (Rastgele)</option>
+            <option value="artan" selected={siralama === 'artan'}>Fiyat: Düşükten Yükseğe</option>
+            <option value="azalan" selected={siralama === 'azalan'}>Fiyat: Yüksekten Düşüğe</option>
+            <option value="degerlendirme" selected={siralama === 'degerlendirme'}>En Çok Değerlendirilenler</option>
+            <option value="puan" selected={siralama === 'puan'}>En Yüksek Puanlılar</option>
+          </select>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main Section: Grid & Filters -->
+    <div class="flex gap-8 relative items-start">
+      
+      <!-- LEFT COLUMN: Massive Filters Sidebar -->
+      <aside 
+        id="sidebarFilters" 
+        class="w-72 shrink-0 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-6 shadow-sm space-y-8 sticky top-24 max-h-[85vh] overflow-y-auto transition-all duration-300 transform translate-x-0"
+      >
+        <div class="flex justify-between items-center border-b border-gray-50 dark:border-gray-700 pb-3">
+          <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <i class="fas fa-sliders-h text-orange-500"></i> Filtre Seçenekleri
+          </h3>
+          <a href="/urunler" class="text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline">Temizle</a>
+        </div>
+
+        <form method="GET" id="filterForm" class="space-y-6">
+          {/* Keep sorting parameter intact */}
+          <input type="hidden" name="siralama" value={siralama} />
+
+          <!-- Category filter -->
+          <div class="space-y-2">
+            <h4 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Kategoriler</h4>
+            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <label class="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+                <input 
+                  type="radio" 
+                  name="kategori" 
+                  value="" 
+                  checked={kategoriParam === ''} 
+                  onchange="this.form.submit()" 
+                  class="w-4 h-4 text-orange-600 bg-gray-50 border-gray-300 focus:ring-orange-500 focus:ring-2 rounded-full"
+                />
+                <span class="font-medium text-gray-700 dark:text-gray-300">Tümü</span>
+              </label>
+              {categories.map(cat => (
+                <label class="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+                  <input 
+                    type="radio" 
+                    name="kategori" 
+                    value={cat.slug} 
+                    checked={kategoriParam === cat.slug} 
+                    onchange="this.form.submit()" 
+                    class="w-4 h-4 text-orange-600 bg-gray-50 border-gray-300 focus:ring-orange-500 focus:ring-2 rounded-full"
+                  />
+                  <span class={`font-medium text-gray-700 dark:text-gray-300 ${cat.parent_id ? 'pl-3 text-xs opacity-80' : ''}`}>
+                    {cat.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <!-- Price limits filter -->
+          <div class="space-y-3">
+            <h4 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Fiyat Aralığı</h4>
+            <div class="flex items-center gap-2">
+              <input 
+                type="number" 
+                name="min_fiyat" 
+                value={minFiyatParam} 
+                placeholder="Min ₺" 
+                class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-orange-500 focus:border-orange-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              />
+              <span class="text-gray-400 font-bold">-</span>
+              <input 
+                type="number" 
+                name="max_fiyat" 
+                value={maxFiyatParam} 
+                placeholder="Max ₺" 
+                class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-orange-500 focus:border-orange-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              />
+            </div>
+            <button 
+              type="submit" 
+              class="w-full bg-gray-900 hover:bg-black dark:bg-orange-600 dark:hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition"
+            >
+              Uygula
+            </button>
+          </div>
+
+          <!-- Variant choices filter (Colors, spec differences) -->
+          {uniqueVariants.length > 0 && (
+            <div class="space-y-2">
+              <h4 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Seçenekler / Varyasyon</h4>
+              <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {uniqueVariants.map(v => (
+                  <label class="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      name="varyant" 
+                      value={v} 
+                      checked={varyantParams.includes(v)} 
+                      onchange="this.form.submit()" 
+                      class="w-4 h-4 text-orange-600 bg-gray-50 border-gray-300 focus:ring-orange-500 focus:ring-2 rounded-lg"
+                    />
+                    <span class="font-medium text-gray-700 dark:text-gray-300">{v}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Seller filter -->
+          {uniqueSellers.length > 0 && (
+            <div class="space-y-2">
+              <h4 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Satıcı</h4>
+              <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {uniqueSellers.map(seller => (
+                  <label class="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      name="satici" 
+                      value={seller} 
+                      checked={saticiParams.includes(seller)} 
+                      onchange="this.form.submit()" 
+                      class="w-4 h-4 text-orange-600 bg-gray-50 border-gray-300 focus:ring-orange-500 focus:ring-2 rounded-lg"
+                    />
+                    <span class="font-medium text-gray-700 dark:text-gray-300">{seller}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Toptan Satış, Değerlendirme, Yıldız switches -->
+          <div class="space-y-3 pt-4 border-t border-gray-50 dark:border-gray-700">
+            <h4 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Diğer Özellikler</h4>
+            
+            <label class="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                name="toptan" 
+                value="1" 
+                checked={toptanParam === '1'} 
+                onchange="this.form.submit()" 
+                class="w-4 h-4 text-orange-600 bg-gray-50 border-gray-300 focus:ring-orange-500 focus:ring-2 rounded-lg"
+              />
+              <span class="font-medium text-gray-700 dark:text-gray-300">Toptan Satışa Uygun</span>
+            </label>
+
+            <label class="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                name="degerlendirme" 
+                value="1" 
+                checked={degerlendirmeParam === '1'} 
+                onchange="this.form.submit()" 
+                class="w-4 h-4 text-orange-600 bg-gray-50 border-gray-300 focus:ring-orange-500 focus:ring-2 rounded-lg"
+              />
+              <span class="font-medium text-gray-700 dark:text-gray-300">En Çok Değerlendirilenler</span>
+            </label>
+
+            <label class="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                name="yildiz" 
+                value="1" 
+                checked={yildizParam === '1'} 
+                onchange="this.form.submit()" 
+                class="w-4 h-4 text-orange-600 bg-gray-50 border-gray-300 focus:ring-orange-500 focus:ring-2 rounded-lg"
+              />
+              <span class="font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                Yüksek Puanlılar (4.0+ <i class="fas fa-star text-yellow-400 text-xs"></i>)
+              </span>
+            </label>
+          </div>
+
+        </form>
+      </aside>
+
+      <!-- RIGHT COLUMN: Dynamic 4 vs 5 Grid & rhythmic campaigns -->
+      <main class="flex-1">
+        {filteredProducts.length === 0 ? (
+          <div class="py-24 text-center bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
+            <div class="w-16 h-16 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+              <i class="fas fa-search-minus"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Ürün Bulunamadı</h3>
+            <p class="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">Seçtiğiniz filtre kriterlerine uygun e-ticaret ürünü bulunamadı. Lütfen filtreleri gevşetip tekrar deneyin.</p>
+            <a href="/urunler" class="inline-block mt-6 bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow-md">Tüm Ürünleri Göster</a>
+          </div>
+        ) : (
+          <div 
+            id="productsGrid" 
+            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 transition-all duration-300"
+          >
+            {(() => {
+              // Rhythmic Campaign Banners (2 products + 1 campaign banner)
+              const elements = [];
+              let bannerCycle = 0;
+              
+              // 3 variations of highly styled premium campaign banners
+              const campaignBanners = [
+                {
+                  title: "Süper Kargo Fırsatı!",
+                  desc: "250 TL ve üzeri siparişlerinizde kargo tamamen bedava! Güvenli teslimat garantisiyle siparişinizi şimdi oluşturun.",
+                  bg: "from-orange-500 via-red-500 to-pink-500",
+                  icon: "fa-shipping-fast"
+                },
+                {
+                  title: "Toptan Al, Az Öde!",
+                  desc: "Toplu siparişleriniz için özel toptan satış indirim baremleri aktif. Detaylar ürün sayfalarında sizleri bekliyor.",
+                  bg: "from-green-600 via-teal-500 to-emerald-600",
+                  icon: "fa-percent"
+                },
+                {
+                  title: "Haftanın İndirim Kodu",
+                  desc: "Sepette sürpriz indirimler kazanmak için bültenimize abone olun veya indirim kodlarımızı anında yakalayın!",
+                  bg: "from-blue-600 via-indigo-500 to-violet-600",
+                  icon: "fa-ticket-alt"
+                }
+              ];
+
+              for (let i = 0; i < filteredProducts.length; i++) {
+                // Add product card
+                elements.push({ type: 'product', data: filteredProducts[i] });
+                
+                // Every 2 products, inject a banner rhythmically
+                if ((i + 1) % 2 === 0 && i < filteredProducts.length - 1) {
+                  const banner = campaignBanners[bannerCycle % campaignBanners.length];
+                  elements.push({ type: 'banner', data: banner });
+                  bannerCycle++;
+                }
+              }
+
+              return elements.map(el => {
+                if (el.type === 'product') {
+                  return <ProductCard product={el.data} brands={allBrands} />;
+                } else {
+                  const b = el.data;
+                  return (
+                    <div class={`col-span-1 rounded-xl p-6 bg-gradient-to-br ${b.bg} text-white flex flex-col justify-between shadow-sm relative overflow-hidden group border border-black/5 aspect-[3/4]`}>
+                      <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+                      <div class="absolute -right-10 -top-10 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700 pointer-events-none"></div>
+                      
+                      <div>
+                        <div class="w-10 h-10 rounded-lg bg-white/15 backdrop-blur-md flex items-center justify-center text-lg mb-4 border border-white/20">
+                          <i class={`fas ${b.icon}`}></i>
+                        </div>
+                        <h3 class="text-lg font-bold font-outfit mb-2 leading-tight">{b.title}</h3>
+                        <p class="text-xs text-white/90 leading-relaxed font-light line-clamp-6">{b.desc}</p>
+                      </div>
+                      
+                      <div class="mt-4">
+                        <button 
+                          onclick="alert('Kampanya detayları ve aktif indirim kodları için sepet sayfasını inceleyin!')" 
+                          class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-2 rounded-xl text-xs transition"
+                        >
+                          Fırsatı Yakala
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+              });
+            })()}
+          </div>
+        )}
+      </main>
+    </div>
+  </div>
+
+  <!-- Dynamic Sidebar & Grid columns toggle logic -->
+  <script is:inline>
+    const toggleBtn = document.getElementById('toggleFiltersBtn');
+    const toggleText = document.getElementById('toggleText');
+    const sidebar = document.getElementById('sidebarFilters');
+    const productsGrid = document.getElementById('productsGrid');
+
+    // Load filter sidebar state from localStorage so it persists between pages!
+    let filterVisible = localStorage.getItem('laflaf_filter_visible') !== 'false';
+
+    function applyFilterState() {
+      if (filterVisible) {
+        // Show Sidebar
+        sidebar.className = "w-72 shrink-0 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-6 shadow-sm space-y-8 sticky top-24 max-h-[85vh] overflow-y-auto transition-all duration-300 transform translate-x-0 block";
+        // 4 Columns
+        if (productsGrid) {
+          productsGrid.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 transition-all duration-300";
+        }
+        toggleText.textContent = "Filtreleri Gizle";
+      } else {
+        // Hide Sidebar
+        sidebar.className = "w-0 h-0 p-0 m-0 border-0 overflow-hidden hidden transition-all duration-300";
+        // 5 Columns
+        if (productsGrid) {
+          productsGrid.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 transition-all duration-300";
+        }
+        toggleText.textContent = "Filtreleri Göster";
+      }
+    }
+
+    // Initial run
+    applyFilterState();
+
+    toggleBtn.addEventListener('click', () => {
+      filterVisible = !filterVisible;
+      localStorage.setItem('laflaf_filter_visible', filterVisible);
+      applyFilterState();
+    });
+  </script>
+</BaseLayout>

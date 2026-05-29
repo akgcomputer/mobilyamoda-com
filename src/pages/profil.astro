@@ -200,7 +200,7 @@ if (Astro.request.method === 'POST') {
                         </span>
                       </div>
                       <div class="font-bold text-xl">
-                        {order.total_amount.toLocaleString('tr-TR', {style:'currency', currency:'TRY'})}
+                        {order.total_amount.toLocaleString('tr-TR', {style:'currency', currency:'TRY', minimumFractionDigits: 0, maximumFractionDigits: 0})}
                       </div>
                     </div>
                   ))}
