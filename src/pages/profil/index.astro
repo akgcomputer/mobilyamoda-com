@@ -12,6 +12,7 @@ let userName = 'Misafir';
 let errorMessage = '';
 let successMessage = '';
 const actionParam = Astro.url.searchParams.get('action') || 'register';
+const redirectParam = Astro.url.searchParams.get('redirect') || '';
 
 let userData: any = null;
 let userOrders: any[] = [];
@@ -44,6 +45,7 @@ if (isLoggedIn && sessionData) {
 if (Astro.request.method === 'POST') {
   const formData = await Astro.request.formData();
   const action = formData.get('action');
+  const redirect = (formData.get('redirect') as string) || redirectParam || '';
 
   if (action === 'login') {
     const usernameInput = formData.get('username') as string;
@@ -63,6 +65,9 @@ if (Astro.request.method === 'POST') {
             Astro.cookies.set('user_session', { id: existingUser.id, name: existingUser.name, role: existingUser.role }, { path: '/' });
             if (existingUser.role !== 'abone') {
               return Astro.redirect('/admin');
+            }
+            if (redirect === 'checkout') {
+              return Astro.redirect('/checkout');
             }
             return Astro.redirect('/profil');
           }
@@ -103,9 +108,15 @@ if (Astro.request.method === 'POST') {
         }, dbBinding);
         
         if (newUser) {
-          successMessage = isAbone 
-            ? 'Kayıt başarılı! Şimdi giriş yapabilirsiniz.' 
-            : 'Kayıt başarılı! Yöneticinin onayından sonra giriş yapabilirsiniz.';
+          if (isAbone) {
+            Astro.cookies.set('user_session', { id: newUser.id, name: newUser.name, role: newUser.role }, { path: '/' });
+            if (redirect === 'checkout') {
+              return Astro.redirect('/checkout');
+            }
+            return Astro.redirect('/profil?registration_success=true');
+          } else {
+            successMessage = 'Kayıt başarılı! Yöneticinin onayından sonra giriş yapabilirsiniz.';
+          }
         } else {
           errorMessage = 'Kayıt sırasında bir hata oluştu.';
         }
@@ -335,6 +346,7 @@ if (Astro.request.method === 'POST') {
 
           <form method="POST" id="registerForm" class="space-y-6">
             <input type="hidden" name="action" value="register" />
+            <input type="hidden" name="redirect" value={redirectParam} />
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
@@ -405,6 +417,7 @@ if (Astro.request.method === 'POST') {
 
           <form method="POST" class="space-y-6" id="loginForm">
             <input type="hidden" name="action" value="login" />
+            <input type="hidden" name="redirect" value={redirectParam} />
             
             <div>
               <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Kullanıcı Adı (E-posta veya Telefon)</label>

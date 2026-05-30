@@ -94,15 +94,17 @@ if (Astro.request.method === 'POST') {
 
     let subtotal = 0;
     const orderItems = cartData.map(item => {
-      const itemTotal = item.qty * item.price;
+      const itemPrice = Number(item.price) || 0;
+      const itemQty = Number(item.qty) || 1;
+      const itemTotal = itemQty * itemPrice;
       subtotal += itemTotal;
       return {
         product_id: item.product_id,
         variant_id: item.variant_id || null,
         product_name: item.name,
         variant_name: item.variant_name || null,
-        quantity: item.qty,
-        unit_price: item.price,
+        quantity: itemQty,
+        unit_price: itemPrice,
         total_price: itemTotal
       };
     });
@@ -113,11 +115,12 @@ if (Astro.request.method === 'POST') {
 
     if (coupon_code) {
       const coupon = await getCouponByCode(coupon_code, dbBinding);
-      if (coupon && coupon.status === 'aktif' && (!coupon.min_cart_amount || subtotal >= coupon.min_cart_amount)) {
+      if (coupon && coupon.status === 'aktif' && (!coupon.min_cart_amount || subtotal >= Number(coupon.min_cart_amount))) {
+        const discountValue = Number(coupon.discount_value) || 0;
         if (coupon.discount_type === 'percentage') {
-          discount_amount = subtotal * (coupon.discount_value / 100);
+          discount_amount = subtotal * (discountValue / 100);
         } else {
-          discount_amount = coupon.discount_value;
+          discount_amount = discountValue;
         }
         if (discount_amount > subtotal) discount_amount = subtotal;
         final_coupon_code = coupon.code;

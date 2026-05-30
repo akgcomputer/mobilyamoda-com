@@ -1,6 +1,9 @@
 ---
 // src/pages/sepet/index.astro
 import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const isLoggedIn = Astro.cookies.has('user_session');
+const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
 ---
 
 <BaseLayout title="Sepetim | Laflaf E-Ticaret">
@@ -63,7 +66,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             </div>
           </div>
           
-          <a href="/checkout" class="block w-full bg-orange-600 hover:bg-orange-700 text-white text-center font-bold py-4 px-6 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5 text-lg">
+          <a href={checkoutUrl} class="block w-full bg-orange-600 hover:bg-orange-700 text-white text-center font-bold py-4 px-6 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5 text-lg">
             Siparişi Tamamla <i class="fas fa-arrow-right ml-2"></i>
           </a>
           
@@ -199,11 +202,30 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           renderCart();
         } 
         else if (btn.classList.contains('qty-btn')) {
-          if (btn.classList.contains('minus') && cart[index].qty > 1) {
-            cart[index].qty--;
+          const item = cart[index];
+          if (btn.classList.contains('minus') && item.qty > 1) {
+            item.qty--;
           } else if (btn.classList.contains('plus')) {
-            cart[index].qty++;
+            item.qty++;
           }
+          
+          // Dynamic wholesale discount calculation if base_price and wholesale_prices exist
+          if (item.base_price !== undefined) {
+            const basePrice = parseFloat(item.base_price) || 0;
+            const wholesaleRules = item.wholesale_prices || [];
+            let discount = 0;
+            if (wholesaleRules && wholesaleRules.length > 0) {
+              const sortedWP = [...wholesaleRules].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
+              for(let wp of sortedWP) {
+                if (item.qty >= parseInt(wp.min_qty)) { 
+                  discount = parseFloat(wp.discount_percentage); 
+                  break; 
+                }
+              }
+            }
+            item.price = basePrice * (1 - discount / 100);
+          }
+          
           localStorage.setItem('laflaf_cart', JSON.stringify(cart));
           renderCart();
         }

@@ -941,6 +941,8 @@ const mainImageUrl = product.image_url || null;
             variant_id: selectedVariant ? selectedVariant.id : null,
             qty: currentQty,
             price: finalPrice,
+            base_price: price,
+            wholesale_prices: product.wholesalePrices || [],
             image: (selectedVariant && selectedVariant.image_url) ? selectedVariant.image_url : product.image,
             unit: product.unit,
             currency: product.currency || '₺'
@@ -951,11 +953,12 @@ const mainImageUrl = product.image_url || null;
             cart[existingIdx].qty += currentQty;
             // recalculate price
             let newTotalQty = cart[existingIdx].qty;
-            let newBasePrice = parseFloat(product.price as any) || 0;
+            let newBasePrice = cart[existingIdx].base_price || parseFloat(product.price as any) || 0;
             if (selectedVariant && selectedVariant.price) newBasePrice = parseFloat(selectedVariant.price);
+            let wholesaleRules = cart[existingIdx].wholesale_prices || product.wholesalePrices || [];
             let newDiscount = 0;
-            if (product.wholesalePrices) {
-              const sortedWP = [...product.wholesalePrices].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
+            if (wholesaleRules && wholesaleRules.length > 0) {
+              const sortedWP = [...wholesaleRules].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
               for(let wp of sortedWP) {
                 if (newTotalQty >= parseInt(wp.min_qty)) { 
                   newDiscount = parseFloat(wp.discount_percentage); 
@@ -964,6 +967,8 @@ const mainImageUrl = product.image_url || null;
               }
             }
             cart[existingIdx].price = newBasePrice * (1 - newDiscount / 100);
+            cart[existingIdx].base_price = newBasePrice;
+            cart[existingIdx].wholesale_prices = wholesaleRules;
           } else {
             cart.push(cartItem);
           }
