@@ -4,6 +4,29 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { createOrder, getCouponByCode, getSettings, getUsers } from '../../lib/db';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
+
+const safeParseFloat = (val: any) => {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  let str = val.toString().replace(/[₺$€\s]/g, '');
+  if (str.includes('.') && str.includes(',')) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (str.includes(',')) {
+    const parts = str.split(',');
+    if (parts[1] && parts[1].length === 3) {
+      str = str.replace(/,/g, '');
+    } else {
+      str = str.replace(',', '.');
+    }
+  } else if (str.includes('.')) {
+    const parts = str.split('.');
+    if (parts[1] && parts[1].length === 3) {
+      str = str.replace(/\./g, '');
+    }
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+};
 let basari = '';
 let hata = '';
 
@@ -94,8 +117,8 @@ if (Astro.request.method === 'POST') {
 
     let subtotal = 0;
     const orderItems = cartData.map(item => {
-      const itemPrice = Number(item.price) || 0;
-      const itemQty = Number(item.qty) || 1;
+      const itemPrice = safeParseFloat(item.price);
+      const itemQty = parseInt(item.qty as any) || 1;
       const itemTotal = itemQty * itemPrice;
       subtotal += itemTotal;
       return {
@@ -453,6 +476,29 @@ if (Astro.request.method === 'POST') {
           return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ' + currency;
         };
 
+        const safeParseFloat = (val: any) => {
+          if (typeof val === 'number') return val;
+          if (!val) return 0;
+          let str = val.toString().replace(/[₺$€\s]/g, '');
+          if (str.includes('.') && str.includes(',')) {
+            str = str.replace(/\./g, '').replace(',', '.');
+          } else if (str.includes(',')) {
+            const parts = str.split(',');
+            if (parts[1] && parts[1].length === 3) {
+              str = str.replace(/,/g, '');
+            } else {
+              str = str.replace(',', '.');
+            }
+          } else if (str.includes('.')) {
+            const parts = str.split('.');
+            if (parts[1] && parts[1].length === 3) {
+              str = str.replace(/\./g, '');
+            }
+          }
+          const num = parseFloat(str);
+          return isNaN(num) ? 0 : num;
+        };
+
         // If cart empty, redirect
         if (cart.length === 0 && window.location.pathname === '/checkout') {
           window.location.href = '/sepet';
@@ -472,7 +518,7 @@ if (Astro.request.method === 'POST') {
         let subtotal = 0;
         
         cart.forEach(item => {
-          const itemPrice = parseFloat(item.price) || 0;
+          const itemPrice = safeParseFloat(item.price);
           const itemQty = parseInt(item.qty) || 1;
           const itemTotal = itemQty * itemPrice;
           subtotal += itemTotal;

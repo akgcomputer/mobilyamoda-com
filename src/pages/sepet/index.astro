@@ -87,6 +87,29 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ' + currency;
       };
 
+      const safeParseFloat = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        let str = val.toString().replace(/[₺$€\s]/g, '');
+        if (str.includes('.') && str.includes(',')) {
+          str = str.replace(/\./g, '').replace(',', '.');
+        } else if (str.includes(',')) {
+          const parts = str.split(',');
+          if (parts[1] && parts[1].length === 3) {
+            str = str.replace(/,/g, '');
+          } else {
+            str = str.replace(',', '.');
+          }
+        } else if (str.includes('.')) {
+          const parts = str.split('.');
+          if (parts[1] && parts[1].length === 3) {
+            str = str.replace(/\./g, '');
+          }
+        }
+        const num = parseFloat(str);
+        return isNaN(num) ? 0 : num;
+      };
+
       let cart: any[] = [];
       try {
         cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]');
@@ -118,7 +141,8 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         const cartCurrency = cart[0]?.currency || '₺';
 
         cart.forEach((item, index) => {
-          const itemTotal = item.price * item.qty;
+          const itemPrice = safeParseFloat(item.price);
+          const itemTotal = itemPrice * item.qty;
           subtotal += itemTotal;
           const itemCurrency = item.currency || '₺';
 
@@ -138,7 +162,7 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
             <div class="flex-1">
               <h3 class="text-lg font-bold text-gray-900 dark:text-white line-clamp-2">${item.name}</h3>
               ${variantHtml}
-              <div class="text-orange-600 font-bold mt-2">${formatMoney(item.price, itemCurrency)} <span class="text-xs text-gray-400 font-normal">/ ${item.unit}</span></div>
+              <div class="text-orange-600 font-bold mt-2">${formatMoney(itemPrice, itemCurrency)} <span class="text-xs text-gray-400 font-normal">/ ${item.unit}</span></div>
             </div>
             <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
               <div class="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
@@ -211,7 +235,7 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           
           // Dynamic wholesale discount calculation if base_price and wholesale_prices exist
           if (item.base_price !== undefined) {
-            const basePrice = parseFloat(item.base_price) || 0;
+            const basePrice = safeParseFloat(item.base_price);
             const wholesaleRules = item.wholesale_prices || [];
             let discount = 0;
             if (wholesaleRules && wholesaleRules.length > 0) {
@@ -246,7 +270,7 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           couponMessage.classList.add('hidden');
 
           let subtotal = 0;
-          cart.forEach(item => subtotal += (item.price * item.qty));
+          cart.forEach(item => subtotal += (safeParseFloat(item.price) * item.qty));
 
           try {
             const res = await fetch('/api/validate-coupon', {
