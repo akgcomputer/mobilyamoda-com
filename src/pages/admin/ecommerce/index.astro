@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import { getSettings, updateSetting } from '../../../lib/db';
+import { getSettings, updateSetting, getOrders, getProducts } from '../../../lib/db';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 
@@ -15,6 +15,50 @@ if (Astro.request.method === 'POST') {
   returnShippingInfo = info;
   mesaj = 'İade ve Kargo bilgileri başarıyla kaydedildi.';
 }
+
+// Sipariş ve Ürün verilerini gerçek zamanlı çekelim
+const allOrders = await getOrders(dbBinding);
+const allProducts = await getProducts(dbBinding);
+
+// Tarih sınırlarını tanımlayalım
+const now = new Date();
+const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+const getOrdersInTimeframe = (list: any[], status: string, dateLimit: Date) => {
+  return list.filter(o => {
+    const oDate = new Date(o.createdAt);
+    return oDate >= dateLimit && o.status === status;
+  });
+};
+
+const getSalesInTimeframe = (list: any[], dateLimit: Date) => {
+  return list
+    .filter(o => {
+      const oDate = new Date(o.createdAt);
+      return oDate >= dateLimit && o.status !== 'iptal';
+    })
+    .reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0);
+};
+
+// Bekleyen Siparişler
+const pending7d = getOrdersInTimeframe(allOrders, 'bekliyor', sevenDaysAgo).length;
+const pending30d = getOrdersInTimeframe(allOrders, 'bekliyor', oneMonthAgo).length;
+const pending90d = getOrdersInTimeframe(allOrders, 'bekliyor', threeMonthsAgo).length;
+
+// Teslim Edilen Siparişler (Tamamlandı)
+const delivered7d = getOrdersInTimeframe(allOrders, 'tamamlandi', sevenDaysAgo).length;
+const delivered30d = getOrdersInTimeframe(allOrders, 'tamamlandi', oneMonthAgo).length;
+const delivered90d = getOrdersInTimeframe(allOrders, 'tamamlandi', threeMonthsAgo).length;
+
+// Toplam Satış Cirosu
+const sales7d = getSalesInTimeframe(allOrders, sevenDaysAgo);
+const sales30d = getSalesInTimeframe(allOrders, oneMonthAgo);
+const sales90d = getSalesInTimeframe(allOrders, threeMonthsAgo);
+
+// Toplam Ürün Adeti
+const totalProductsCount = allProducts.length;
 
 const cards = [
   { title: 'Manşet (Slider)', icon: 'fas fa-images', color: 'text-purple-600', bg: 'bg-purple-100', link: '/admin/ecommerce/sliders' },
@@ -48,6 +92,84 @@ const cards = [
         <button onclick="this.parentElement.remove()" class="absolute top-0 bottom-0 right-0 px-4 py-3 text-green-700">✕</button>
       </div>
     )}
+
+    <!-- Gerçek Verilerden Oluşan İstatistik Kartları -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+      
+      <!-- Bekleyen Siparişler -->
+      <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-4 border-b dark:border-gray-700 pb-3">
+          <div>
+            <h3 class="text-xs font-extrabold text-gray-450 dark:text-gray-400 uppercase tracking-wider">Bekleyen Siparişler</h3>
+            <p class="text-2xl font-black text-yellow-600 font-outfit mt-1">{pending90d} Adet</p>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-yellow-50 dark:bg-yellow-950/20 text-yellow-600 flex items-center justify-center text-xl">
+            <i class="fas fa-clock"></i>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1.5 font-medium">
+          <div class="flex justify-between"><span>Son 7 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{pending7d} Adet</strong></div>
+          <div class="flex justify-between"><span>Son 30 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{pending30d} Adet</strong></div>
+          <div class="flex justify-between"><span>Son 90 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{pending90d} Adet</strong></div>
+        </div>
+      </div>
+
+      <!-- Teslim Edilen Siparişler -->
+      <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-4 border-b dark:border-gray-700 pb-3">
+          <div>
+            <h3 class="text-xs font-extrabold text-gray-450 dark:text-gray-400 uppercase tracking-wider">Teslim Edilenler</h3>
+            <p class="text-2xl font-black text-green-600 font-outfit mt-1">{delivered90d} Adet</p>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-green-50 dark:bg-green-950/20 text-green-600 flex items-center justify-center text-xl">
+            <i class="fas fa-check-circle"></i>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1.5 font-medium">
+          <div class="flex justify-between"><span>Son 7 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{delivered7d} Adet</strong></div>
+          <div class="flex justify-between"><span>Son 30 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{delivered30d} Adet</strong></div>
+          <div class="flex justify-between"><span>Son 90 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{delivered90d} Adet</strong></div>
+        </div>
+      </div>
+
+      <!-- Toplam Satış -->
+      <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-4 border-b dark:border-gray-700 pb-3">
+          <div>
+            <h3 class="text-xs font-extrabold text-gray-450 dark:text-gray-400 uppercase tracking-wider">Toplam Ciro</h3>
+            <p class="text-2xl font-black text-indigo-600 font-outfit mt-1">{sales90d.toLocaleString('tr-TR')} ₺</p>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 flex items-center justify-center text-xl">
+            <i class="fas fa-lira-sign"></i>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1.5 font-medium">
+          <div class="flex justify-between"><span>Son 7 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{sales7d.toLocaleString('tr-TR')} ₺</strong></div>
+          <div class="flex justify-between"><span>Son 30 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{sales30d.toLocaleString('tr-TR')} ₺</strong></div>
+          <div class="flex justify-between"><span>Son 90 Gün:</span><strong class="text-gray-750 dark:text-gray-250">{sales90d.toLocaleString('tr-TR')} ₺</strong></div>
+        </div>
+      </div>
+
+      <!-- Toplam Ürün Adeti -->
+      <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4 border-b dark:border-gray-700 pb-3">
+          <div>
+            <h3 class="text-xs font-extrabold text-gray-450 dark:text-gray-400 uppercase tracking-wider">Aktif Ürünler</h3>
+            <p class="text-2xl font-black text-orange-600 font-outfit mt-1">{totalProductsCount} Ürün</p>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-950/20 text-orange-600 flex items-center justify-center text-xl">
+            <i class="fas fa-box-open"></i>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+          <span class="block">Katalogda yer alan aktif satışa açık ürün çeşitliliğiniz.</span>
+          <a href="/admin/ecommerce/products" class="text-orange-650 hover:underline font-bold mt-2 block flex items-center gap-1">
+            Tümünü Yönet <i class="fas fa-chevron-right text-[10px]"></i>
+          </a>
+        </div>
+      </div>
+
+    </div>
 
     <!-- Navigation Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
