@@ -67,7 +67,7 @@ const canSeeMedya = userRole === 'admin';
   <link rel="icon" type="image/svg+xml" href={siteFavicon}>
   <link rel="stylesheet" href="/src/styles/global.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <ViewTransitions />
+  {!isAdmin && <ViewTransitions />}
   <script is:inline>
     const theme = (() => {
       if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
