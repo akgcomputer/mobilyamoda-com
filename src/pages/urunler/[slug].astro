@@ -305,7 +305,7 @@ const mainImageUrl = product.image_url || null;
             <h3 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4">Seçenekler (Varyasyon)</h3>
             <div class="flex flex-wrap gap-3" id="variantsContainer">
               {product.variants.map((v: any, index: number) => {
-                const isActive = firstInStockVariant && v.id === firstInStockVariant.id;
+                const isActive = false;
                 return (
                   <button 
                     type="button" 
@@ -402,6 +402,12 @@ const mainImageUrl = product.image_url || null;
               </button>
             </div>
           )}
+          
+          <!-- Uyarı Info Alanı -->
+          <div id="productWarningArea" class="hidden my-4 p-3.5 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 rounded-xl text-xs font-bold animate-pulse flex items-center gap-2">
+            <i class="fas fa-exclamation-circle text-sm text-rose-600"></i>
+            <span id="productWarningText"></span>
+          </div>
           
           <div class="flex justify-between items-center text-sm border-b border-gray-200 dark:border-gray-700 pb-4 mb-4">
             <span class="text-gray-500">Minimum Sipariş: <strong class="text-gray-700 dark:text-gray-300">{product.min_order_qty || 1} {product.unit}</strong></span>
@@ -806,7 +812,24 @@ const mainImageUrl = product.image_url || null;
       const minOrderQty = parseInt(product.minOrderQty as any) || 1;
 
       let currentQty = minOrderQty;
-      let selectedVariant = variants.length > 0 ? variants.find((v: any) => v.stock > 0) : null;
+      let selectedVariant = null; // Do not select a variant by default!
+
+      // Warning Area DOM Elements
+      const warningArea = document.getElementById('productWarningArea');
+      const warningText = document.getElementById('productWarningText');
+
+      const showWarning = (msg: string) => {
+        if (warningArea && warningText) {
+          warningText.textContent = msg;
+          warningArea.classList.remove('hidden');
+        }
+      };
+
+      const clearWarning = () => {
+        if (warningArea) {
+          warningArea.classList.add('hidden');
+        }
+      };
 
       // Calculate Price
       const updatePrice = () => {
@@ -851,26 +874,35 @@ const mainImageUrl = product.image_url || null;
         if (currentQty > minOrderQty) {
           currentQty--;
           if (qtyInput) qtyInput.value = String(currentQty);
+          clearWarning();
           updatePrice();
+        } else {
+          showWarning(`Bu ürün Minimum Sipariş miktarından (${minOrderQty}) az sipariş verilemez.`);
         }
       });
 
       qtyPlus?.addEventListener('click', () => {
         if (selectedVariant && currentQty >= selectedVariant.stock) {
-          alert('Bu varyasyon için maksimum stok miktarına ulaştınız.');
+          showWarning(`Bu varyasyon için maksimum stok miktarına (${selectedVariant.stock}) ulaştınız.`);
           return;
         }
         currentQty++;
         if (qtyInput) qtyInput.value = String(currentQty);
+        clearWarning();
         updatePrice();
       });
 
       qtyInput?.addEventListener('change', (e: any) => {
         let val = parseInt(e.target.value);
-        if (isNaN(val) || val < minOrderQty) val = minOrderQty;
+        if (isNaN(val) || val < minOrderQty) {
+          val = minOrderQty;
+          showWarning(`Bu ürün Minimum Sipariş miktarından (${minOrderQty}) az sipariş verilemez.`);
+        } else {
+          clearWarning();
+        }
         if (selectedVariant && val > selectedVariant.stock) {
           val = selectedVariant.stock;
-          alert('Maksimum stok: ' + selectedVariant.stock);
+          showWarning(`Bu varyasyon için maksimum stok miktarı: ${selectedVariant.stock}`);
         }
         currentQty = val;
         qtyInput.value = String(currentQty);
@@ -880,6 +912,7 @@ const mainImageUrl = product.image_url || null;
       // Variant Selection
       variantBtns.forEach(btn => {
         btn.addEventListener('click', (e: any) => {
+          clearWarning(); // Clear missing variant warning
           variantBtns.forEach(b => {
             b.classList.remove('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
             b.classList.add('border-gray-300', 'dark:border-gray-600');
@@ -915,6 +948,20 @@ const mainImageUrl = product.image_url || null;
 
       // Add to Cart Logic
       const handleAddToCart = (redirect = false) => {
+        clearWarning();
+
+        // 1. Variant missing check
+        if (variants.length > 0 && !selectedVariant) {
+          showWarning("Lütfen seçenek (varyasyon) seçiniz.");
+          return;
+        }
+
+        // 2. Quantity check
+        if (currentQty < minOrderQty) {
+          showWarning(`Bu ürün Minimum Sipariş miktarından (${minOrderQty}) az sipariş verilemez.`);
+          return;
+        }
+
         let cart = [];
         try { cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]'); } catch(e) {}
 
