@@ -465,7 +465,14 @@ const mainImageUrl = product.image_url || null;
               <form method="POST" class="space-y-4">
                 <input type="hidden" name="action" value="review" />
                 <input type="hidden" name="product_id" value={product.id} />
-                <input type="hidden" name="user_name" value={user ? user.username : 'Ziyaretçi'} />
+                {user ? (
+                  <input type="hidden" name="user_name" value={user.name} />
+                ) : (
+                  <div>
+                    <label class="block text-sm mb-1 text-gray-700 dark:text-gray-300">İsminiz *</label>
+                    <input type="text" name="user_name" required placeholder="Sitede görünecek isim" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                  </div>
+                )}
                 <div>
                   <label class="block text-sm mb-1 text-gray-700 dark:text-gray-300">Puanınız *</label>
                   <select name="rating" required class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
@@ -528,8 +535,8 @@ const mainImageUrl = product.image_url || null;
                 <form method="POST" class="space-y-4">
                   <input type="hidden" name="action" value="qa" />
                   <input type="hidden" name="product_id" value={product.id} />
-                  <input type="hidden" name="user_name" value={user.username} />
-                  <p class="text-sm text-gray-600 dark:text-gray-300">Merhaba <strong>{user.username}</strong>, sorunuzu yazabilirsiniz:</p>
+                  <input type="hidden" name="user_name" value={user.name} />
+                  <p class="text-sm text-gray-600 dark:text-gray-300">Merhaba <strong>{user.name}</strong>, sorunuzu yazabilirsiniz:</p>
                   <div>
                     <textarea name="question" required rows="3" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Sipariş süreci, ürün özellikleri vb. hakkında soru sorun..."></textarea>
                   </div>
@@ -653,7 +660,8 @@ const mainImageUrl = product.image_url || null;
         console.error("Product JSON parse error:", e);
       }
       
-      const videoUrl = dataEl.getAttribute('data-video');
+      const rawVideoUrl = dataEl.getAttribute('data-video');
+      const videoUrl = (rawVideoUrl === 'null' || rawVideoUrl === 'undefined') ? null : rawVideoUrl;
       
       // Elements
       const mainImage = document.getElementById('mainImage') as any;
@@ -674,7 +682,9 @@ const mainImageUrl = product.image_url || null;
         if (imgEl) {
           mediaItems.push({ type: 'image', url: imgEl.src });
         } else if (btn.querySelector('.fa-play')) {
-          mediaItems.push({ type: 'video', url: videoUrl });
+          if (videoUrl) {
+            mediaItems.push({ type: 'video', url: videoUrl });
+          }
         }
       });
 
@@ -687,6 +697,7 @@ const mainImageUrl = product.image_url || null;
         
         currentMediaIndex = index;
         const item = mediaItems[currentMediaIndex];
+        if (!item) return;
         
         if (item.type === 'image') {
           if (mainVideo) {
@@ -701,7 +712,7 @@ const mainImageUrl = product.image_url || null;
           if (mainImage) {
             mainImage.classList.add('hidden');
           }
-          if (mainVideo) {
+          if (mainVideo && item.url) {
             let embedUrl = item.url;
             const match = item.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
             if (match && match[1]) {
@@ -793,213 +804,220 @@ const mainImageUrl = product.image_url || null;
       const addToCartBtn = document.getElementById('addToCartBtn');
       const buyNowBtn = document.getElementById('buyNowBtn');
 
-      if (qtyInput && qtyMinus && qtyPlus && displayPrice && totalPriceEl && addToCartBtn) {
-        let currentQty = product.minOrderQty;
-        let selectedVariant = product.variants.length > 0 ? product.variants.find((v: any) => v.stock > 0) : null;
+      const variants = Array.isArray(product.variants) ? product.variants : [];
+      const wholesalePrices = Array.isArray(product.wholesalePrices) ? product.wholesalePrices : [];
+      const minOrderQty = parseInt(product.minOrderQty as any) || 1;
 
-        // Calculate Price
-        const updatePrice = () => {
-          let basePrice = product.price;
-          let appliedDiscount = 0;
+      let currentQty = minOrderQty;
+      let selectedVariant = variants.length > 0 ? variants.find((v: any) => v.stock > 0) : null;
+
+      // Calculate Price
+      const updatePrice = () => {
+        if (!displayPrice || !totalPriceEl) return;
+        let basePrice = parseFloat(product.price as any) || 0;
+        let appliedDiscount = 0;
+        
+        // Check Wholesale Overrides
+        if (wholesalePrices.length > 0) {
+          // Sort descending by min_qty to find the highest applied tier
+          const sortedWP = [...wholesalePrices].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
+          for(let wp of sortedWP) {
+            if (currentQty >= parseInt(wp.min_qty)) {
+              appliedDiscount = parseFloat(wp.discount_percentage);
+              break;
+            }
+          }
+        }
+
+        // Add Variant specific price if it overrides or adds
+        let unitPriceBeforeDiscount = basePrice;
+        if (selectedVariant && selectedVariant.price) {
+          unitPriceBeforeDiscount = parseFloat(selectedVariant.price as any) || basePrice;
+        }
+
+        // Apply discount
+        let finalUnitPrice = unitPriceBeforeDiscount * (1 - appliedDiscount / 100);
+
+        // Update UI
+        displayPrice.textContent = formatMoney(finalUnitPrice);
+        totalPriceEl.textContent = formatMoney(finalUnitPrice * currentQty);
+
+        const discountBadge = document.getElementById('discountBadge');
+        if (discountBadge) {
+          if (appliedDiscount > 0) {
+            discountBadge.textContent = `%${appliedDiscount} Toptan İndirimi Uygulandı!`;
+            discountBadge.classList.remove('hidden');
+          } else {
+            discountBadge.classList.add('hidden');
+          }
+        }
+      };
+
+      // Quantity Handlers
+      qtyMinus?.addEventListener('click', () => {
+        if (currentQty > minOrderQty) {
+          currentQty--;
+          if (qtyInput) qtyInput.value = String(currentQty);
+          updatePrice();
+        }
+      });
+
+      qtyPlus?.addEventListener('click', () => {
+        // Check variant stock limit
+        if (selectedVariant && currentQty >= selectedVariant.stock) {
+          alert('Bu varyasyon için maksimum stok miktarına ulaştınız.');
+          return;
+        }
+        currentQty++;
+        if (qtyInput) qtyInput.value = String(currentQty);
+        updatePrice();
+      });
+
+      qtyInput?.addEventListener('change', (e: any) => {
+        let val = parseInt(e.target.value);
+        if (isNaN(val) || val < minOrderQty) val = minOrderQty;
+        if (selectedVariant && val > selectedVariant.stock) {
+          val = selectedVariant.stock;
+          alert('Maksimum stok: ' + selectedVariant.stock);
+        }
+        currentQty = val;
+        qtyInput.value = String(currentQty);
+        updatePrice();
+      });
+
+      // Variant Selection (Always attach click handlers if variant buttons exist)
+      variantBtns.forEach(btn => {
+        btn.addEventListener('click', (e: any) => {
+          // Remove active class from all
+          variantBtns.forEach(b => {
+            b.classList.remove('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
+            b.classList.add('border-gray-300', 'dark:border-gray-600');
+          });
           
-          // Check Wholesale Overrides
-          if (product.wholesalePrices && product.wholesalePrices.length > 0) {
-            // Sort descending by min_qty to find the highest applied tier
-            const sortedWP = [...product.wholesalePrices].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
-            for(let wp of sortedWP) {
-              if (currentQty >= parseInt(wp.min_qty)) {
-                appliedDiscount = parseFloat(wp.discount_percentage);
-                break;
-              }
+          // Add active to clicked
+          const target = e.currentTarget;
+          target.classList.remove('border-gray-300', 'dark:border-gray-600');
+          target.classList.add('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
+          
+          // Update selected Variant
+          const vId = parseInt(target.getAttribute('data-id'));
+          selectedVariant = variants.find((v: any) => v.id === vId);
+          
+          // Image change if variant has specific image
+          const vImage = target.getAttribute('data-image');
+          if (vImage && vImage !== 'null') {
+            // Find the index of variant image in the mediaItems and slide to it
+            const mediaIndex = mediaItems.findIndex((item) => getPathname(item.url) === getPathname(vImage));
+            if (mediaIndex !== -1) {
+              showMedia(mediaIndex);
+            } else if (mainImage) {
+              // If not in gallery, set it directly on main cover
+              mainImage.src = vImage;
+              if (mainVideo) mainVideo.classList.add('hidden');
+              mainImage.classList.remove('hidden');
             }
           }
 
-          // Add Variant specific price if it overrides or adds
-          let unitPriceBeforeDiscount = basePrice;
-          if (selectedVariant && selectedVariant.price) {
-            unitPriceBeforeDiscount = selectedVariant.price;
+          // Adjust qty if it exceeds new variant stock
+          if (selectedVariant && currentQty > selectedVariant.stock) {
+            currentQty = selectedVariant.stock;
+            if (qtyInput) qtyInput.value = String(currentQty);
           }
 
-          // Apply discount
-          let finalUnitPrice = unitPriceBeforeDiscount * (1 - appliedDiscount / 100);
+          updatePrice();
+        });
+      });
 
-          // Update UI
-          displayPrice.textContent = formatMoney(finalUnitPrice);
-          totalPriceEl.textContent = formatMoney(finalUnitPrice * currentQty);
+      // Add to Cart Logic (Local Storage)
+      const handleAddToCart = (redirect = false) => {
+        let cart = [];
+        try { cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]'); } catch(e) {}
 
-          const discountBadge = document.getElementById('discountBadge');
-          if (discountBadge) {
-            if (appliedDiscount > 0) {
-              discountBadge.textContent = `%${appliedDiscount} Toptan İndirimi Uygulandı!`;
-              discountBadge.classList.remove('hidden');
-            } else {
-              discountBadge.classList.add('hidden');
+        let price = parseFloat(product.price as any) || 0;
+        if (selectedVariant && selectedVariant.price) { price = parseFloat(selectedVariant.price); }
+        
+        let discount = 0;
+        if (wholesalePrices.length > 0) {
+          const sortedWP = [...wholesalePrices].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
+          for(let wp of sortedWP) {
+            if (currentQty >= parseInt(wp.min_qty)) { 
+              discount = parseFloat(wp.discount_percentage); 
+              break; 
             }
           }
+        }
+        let finalPrice = price * (1 - discount / 100);
+
+        const cartItem = {
+          id: product.id + (selectedVariant ? '-' + selectedVariant.id : ''),
+          product_id: product.id,
+          name: product.name,
+          variant_name: selectedVariant ? selectedVariant.name : null,
+          variant_id: selectedVariant ? selectedVariant.id : null,
+          qty: currentQty,
+          price: finalPrice,
+          base_price: price,
+          wholesale_prices: wholesalePrices,
+          image: (selectedVariant && selectedVariant.image_url) ? selectedVariant.image_url : product.image,
+          unit: product.unit,
+          currency: product.currency || '₺'
         };
 
-        // Quantity Handlers
-        qtyMinus.addEventListener('click', () => {
-          if (currentQty > product.minOrderQty) {
-            currentQty--;
-            qtyInput.value = String(currentQty);
-            updatePrice();
-          }
-        });
-
-        qtyPlus.addEventListener('click', () => {
-          // Check variant stock limit
-          if (selectedVariant && currentQty >= selectedVariant.stock) {
-            alert('Bu varyasyon için maksimum stok miktarına ulaştınız.');
-            return;
-          }
-          currentQty++;
-          qtyInput.value = String(currentQty);
-          updatePrice();
-        });
-
-        qtyInput.addEventListener('change', (e: any) => {
-          let val = parseInt(e.target.value);
-          if (isNaN(val) || val < product.minOrderQty) val = product.minOrderQty;
-          if (selectedVariant && val > selectedVariant.stock) {
-            val = selectedVariant.stock;
-            alert('Maksimum stok: ' + selectedVariant.stock);
-          }
-          currentQty = val;
-          qtyInput.value = String(currentQty);
-          updatePrice();
-        });
-
-        // Variant Selection
-        variantBtns.forEach(btn => {
-          btn.addEventListener('click', (e: any) => {
-            // Remove active class from all
-            variantBtns.forEach(b => {
-              b.classList.remove('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
-              b.classList.add('border-gray-300', 'dark:border-gray-600');
-            });
-            
-            // Add active to clicked
-            const target = e.currentTarget;
-            target.classList.remove('border-gray-300', 'dark:border-gray-600');
-            target.classList.add('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
-            
-            // Update selected Variant
-            const vId = parseInt(target.getAttribute('data-id'));
-            selectedVariant = product.variants.find((v: any) => v.id === vId);
-            
-            // Image change if variant has specific image
-            const vImage = target.getAttribute('data-image');
-            if (vImage && vImage !== 'null') {
-              // Find the index of variant image in the mediaItems and slide to it
-              const mediaIndex = mediaItems.findIndex((item) => getPathname(item.url) === getPathname(vImage));
-              if (mediaIndex !== -1) {
-                showMedia(mediaIndex);
-              } else if (mainImage) {
-                // If not in gallery, set it directly on main cover
-                mainImage.src = vImage;
-                if (mainVideo) mainVideo.classList.add('hidden');
-                mainImage.classList.remove('hidden');
-              }
-            }
-
-            // Adjust qty if it exceeds new variant stock
-            if (selectedVariant && currentQty > selectedVariant.stock) {
-              currentQty = selectedVariant.stock;
-              qtyInput.value = String(currentQty);
-            }
-
-            updatePrice();
-          });
-        });
-
-        // Add to Cart Logic (Local Storage)
-        const handleAddToCart = (redirect = false) => {
-          let cart = [];
-          try { cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]'); } catch(e) {}
-
-          let price = parseFloat(product.price as any) || 0;
-          if (selectedVariant && selectedVariant.price) { price = parseFloat(selectedVariant.price); }
-          
-          let discount = 0;
-          if (product.wholesalePrices) {
-            const sortedWP = [...product.wholesalePrices].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
+        const existingIdx = cart.findIndex((item: any) => item.id === cartItem.id);
+        if (existingIdx !== -1) {
+          cart[existingIdx].qty += currentQty;
+          // recalculate price
+          let newTotalQty = cart[existingIdx].qty;
+          let newBasePrice = cart[existingIdx].base_price || parseFloat(product.price as any) || 0;
+          if (selectedVariant && selectedVariant.price) newBasePrice = parseFloat(selectedVariant.price);
+          let wholesaleRules = cart[existingIdx].wholesale_prices || wholesalePrices;
+          let newDiscount = 0;
+          if (wholesaleRules && wholesaleRules.length > 0) {
+            const sortedWP = [...wholesaleRules].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
             for(let wp of sortedWP) {
-              if (currentQty >= parseInt(wp.min_qty)) { 
-                discount = parseFloat(wp.discount_percentage); 
+              if (newTotalQty >= parseInt(wp.min_qty)) { 
+                newDiscount = parseFloat(wp.discount_percentage); 
                 break; 
               }
             }
           }
-          let finalPrice = price * (1 - discount / 100);
+          cart[existingIdx].price = newBasePrice * (1 - newDiscount / 100);
+          cart[existingIdx].base_price = newBasePrice;
+          cart[existingIdx].wholesale_prices = wholesaleRules;
+        } else {
+          cart.push(cartItem);
+        }
 
-          const cartItem = {
-            id: product.id + (selectedVariant ? '-' + selectedVariant.id : ''),
-            product_id: product.id,
-            name: product.name,
-            variant_name: selectedVariant ? selectedVariant.name : null,
-            variant_id: selectedVariant ? selectedVariant.id : null,
-            qty: currentQty,
-            price: finalPrice,
-            base_price: price,
-            wholesale_prices: product.wholesalePrices || [],
-            image: (selectedVariant && selectedVariant.image_url) ? selectedVariant.image_url : product.image,
-            unit: product.unit,
-            currency: product.currency || '₺'
-          };
+        localStorage.setItem('laflaf_cart', JSON.stringify(cart));
+        window.dispatchEvent(new Event('cart_updated'));
 
-          const existingIdx = cart.findIndex((item: any) => item.id === cartItem.id);
-          if (existingIdx !== -1) {
-            cart[existingIdx].qty += currentQty;
-            // recalculate price
-            let newTotalQty = cart[existingIdx].qty;
-            let newBasePrice = cart[existingIdx].base_price || parseFloat(product.price as any) || 0;
-            if (selectedVariant && selectedVariant.price) newBasePrice = parseFloat(selectedVariant.price);
-            let wholesaleRules = cart[existingIdx].wholesale_prices || product.wholesalePrices || [];
-            let newDiscount = 0;
-            if (wholesaleRules && wholesaleRules.length > 0) {
-              const sortedWP = [...wholesaleRules].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
-              for(let wp of sortedWP) {
-                if (newTotalQty >= parseInt(wp.min_qty)) { 
-                  newDiscount = parseFloat(wp.discount_percentage); 
-                  break; 
-                }
-              }
-            }
-            cart[existingIdx].price = newBasePrice * (1 - newDiscount / 100);
-            cart[existingIdx].base_price = newBasePrice;
-            cart[existingIdx].wholesale_prices = wholesaleRules;
-          } else {
-            cart.push(cartItem);
-          }
+        if (redirect) {
+          window.location.href = '/checkout';
+        } else if (addToCartBtn) {
+          const originalText = addToCartBtn.innerHTML;
+          addToCartBtn.innerHTML = '<i class="fas fa-check"></i> Eklendi!';
+          addToCartBtn.style.backgroundColor = '#16a34a';
+          addToCartBtn.style.color = '#ffffff';
+          addToCartBtn.style.borderColor = '#16a34a';
+          
+          setTimeout(() => {
+            addToCartBtn.innerHTML = originalText;
+            addToCartBtn.style.backgroundColor = '';
+            addToCartBtn.style.color = '';
+            addToCartBtn.style.borderColor = '';
+          }, 2000);
+        }
+      };
 
-          localStorage.setItem('laflaf_cart', JSON.stringify(cart));
-          window.dispatchEvent(new Event('cart_updated'));
-
-          if (redirect) {
-            window.location.href = '/checkout';
-          } else {
-            const originalText = addToCartBtn.innerHTML;
-            addToCartBtn.innerHTML = '<i class="fas fa-check"></i> Eklendi!';
-            addToCartBtn.style.backgroundColor = '#16a34a';
-            addToCartBtn.style.color = '#ffffff';
-            addToCartBtn.style.borderColor = '#16a34a';
-            
-            setTimeout(() => {
-              addToCartBtn.innerHTML = originalText;
-              addToCartBtn.style.backgroundColor = '';
-              addToCartBtn.style.color = '';
-              addToCartBtn.style.borderColor = '';
-            }, 2000);
-          }
-        };
-
+      if (addToCartBtn) {
         addToCartBtn.addEventListener('click', () => handleAddToCart(false));
-        buyNowBtn?.addEventListener('click', () => handleAddToCart(true));
-
-        // Initial price calculation
-        updatePrice();
       }
+      if (buyNowBtn) {
+        buyNowBtn.addEventListener('click', () => handleAddToCart(true));
+      }
+
+      // Initial price calculation on page load
+      updatePrice();
 
       // Favorites Logic
       const favBtn = document.getElementById('favBtn');
