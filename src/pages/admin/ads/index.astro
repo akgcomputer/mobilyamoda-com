@@ -1,274 +1,445 @@
 ---
+// src/pages/admin/ads/index.astro
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { getAllPosts, updatePost, getSettings, updateSetting } from '../../../lib/db';
 
-// Sponsorlu içerikler (mock)
-let sponsorluIcerikler = [
-  { id: 1, title: 'En İyi Yazılım Araçları 2026', slug: 'yazilim-araclari', views: 12500, likes: 890, status: 'active', startDate: '2026-05-01', endDate: '2026-06-01' },
-  { id: 2, title: 'Seyahat Rehberi: Sapanca', slug: 'sapanca-rehberi', views: 8400, likes: 456, status: 'active', startDate: '2026-05-10', endDate: '2026-06-10' },
-  { id: 3, title: 'Sağlıklı Beslenme Tüyoları', slug: 'saglikli-beslenme', views: 3200, likes: 234, status: 'expired', startDate: '2026-04-01', endDate: '2026-05-01' },
-];
-
-// Reklam alanları
-let reklamAlanlari = [
-  { id: 1, name: 'Ana Sayfa - Üst Banner', position: 'home_top', code: '<div class="bg-gray-200 p-4 text-center">Reklam Kodu</div>', status: 'active' },
-  { id: 2, name: 'Ana Sayfa - Sidebar', position: 'home_sidebar', code: '<div class="bg-gray-200 p-4 text-center">Sidebar Reklam</div>', status: 'active' },
-  { id: 3, name: 'İçerik - İçi', position: 'content_middle', code: '<div class="bg-gray-200 p-4 text-center">İçerik İçi Reklam</div>', status: 'inactive' },
-  { id: 4, name: 'İçerik - Alt', position: 'content_bottom', code: '<div class="bg-gray-200 p-4 text-center">İçerik Altı Reklam</div>', status: 'active' },
-  { id: 5, name: 'Kategori - Üst', position: 'category_top', code: '<div class="bg-gray-200 p-4 text-center">Kategori Üst Reklam</div>', status: 'active' },
-];
-
+const dbBinding = Astro.locals.runtime?.env?.DB;
 let mesaj = '';
 let hata = '';
-let aktifSekme = 'sponsorlu'; // sponsorlu veya reklam
+let aktifSekme = Astro.url.searchParams.get('tab') || 'sponsorlu';
 
 // Form işleme
 if (Astro.request.method === 'POST') {
-  const formData = await Astro.request.formData();
-  const islem = formData.get('islem');
-  const tip = formData.get('tip');
-  
-  if (tip === 'sponsorlu') {
-    if (islem === 'ekle') {
-      const title = formData.get('title');
-      if (title) {
-        sponsorluIcerikler.push({
-          id: sponsorluIcerikler.length + 1,
-          title: title,
-          slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          views: 0,
-          likes: 0,
-          status: 'active',
-          startDate: formData.get('startDate') || new Date().toISOString().split('T')[0],
-          endDate: formData.get('endDate') || '',
-        });
-        mesaj = 'Sponsorlu içerik eklendi';
+  try {
+    const formData = await Astro.request.formData();
+    const islem = formData.get('islem') as string;
+    const tip = formData.get('tip') as string;
+    
+    if (tip === 'sponsorlu') {
+      const postId = parseInt(formData.get('postId') as string);
+      if (islem === 'ekle') {
+        if (!postId) throw new Error('Lütfen sponsor yapılacak bir içerik seçin.');
+        await updatePost(postId, { isSponsored: true }, dbBinding);
+        mesaj = 'İçerik başarıyla sponsorlu olarak işaretlendi.';
+      } else if (islem === 'sil') {
+        await updatePost(postId, { isSponsored: false }, dbBinding);
+        mesaj = 'İçerik sponsorluktan çıkarıldı.';
+      } else if (islem === 'toggle') {
+        const posts = await getAllPosts(dbBinding);
+        const post = posts.find(p => p.id === postId);
+        if (post) {
+          await updatePost(postId, { isSponsored: !post.isSponsored }, dbBinding);
+          mesaj = 'Sponsorluk durumu güncellendi.';
+        }
       }
-    } else if (islem === 'sil') {
-      const id = parseInt(formData.get('id'));
-      sponsorluIcerikler = sponsorluIcerikler.filter(i => i.id !== id);
-      mesaj = 'Sponsorlu içerik silindi';
-    } else if (islem === 'toggle') {
-      const id = parseInt(formData.get('id'));
-      const index = sponsorluIcerikler.findIndex(i => i.id === id);
-      if (index !== -1) {
-        sponsorluIcerikler[index].status = sponsorluIcerikler[index].status === 'active' ? 'expired' : 'active';
-        mesaj = 'Durum güncellendi';
+    } else if (tip === 'reklam') {
+      const keys = [
+        'ad_left_top_image', 'ad_left_top_link', 'ad_left_top_status',
+        'ad_left_bottom_image', 'ad_left_bottom_link', 'ad_left_bottom_status',
+        'ad_right_top_image', 'ad_right_top_link', 'ad_right_top_status',
+        'ad_right_bottom_image', 'ad_right_bottom_link', 'ad_right_bottom_status'
+      ];
+      for (const key of keys) {
+        const val = formData.get(key) as string || '';
+        await updateSetting(key, val, dbBinding);
       }
+      mesaj = 'Reklam alanları başarıyla güncellendi.';
+    } else if (tip === 'google') {
+      const keys = ['google_pub_id', 'google_home_banner', 'google_content_ad', 'google_sidebar_ad'];
+      for (const key of keys) {
+        const val = formData.get(key) as string || '';
+        await updateSetting(key, val, dbBinding);
+      }
+      mesaj = 'Google Ads ayarları başarıyla kaydedildi.';
     }
-  } else if (tip === 'reklam') {
-    if (islem === 'ekle') {
-      const name = formData.get('name');
-      const position = formData.get('position');
-      if (name && position) {
-        reklamAlanlari.push({
-          id: reklamAlanlari.length + 1,
-          name,
-          position,
-          code: formData.get('code') || '',
-          status: 'active',
-        });
-        mesaj = 'Reklam alanı eklendi';
-      }
-    } else if (islem === 'sil') {
-      const id = parseInt(formData.get('id'));
-      reklamAlanlari = reklamAlanlari.filter(a => a.id !== id);
-      mesaj = 'Reklam alanı silindi';
-    } else if (islem === 'toggle') {
-      const id = parseInt(formData.get('id'));
-      const index = reklamAlanlari.findIndex(a => a.id === id);
-      if (index !== -1) {
-        reklamAlanlari[index].status = reklamAlanlari[index].status === 'active' ? 'inactive' : 'active';
-        mesaj = 'Durum güncellendi';
-      }
-    } else if (islem === 'guncelle') {
-      const id = parseInt(formData.get('id'));
-      const index = reklamAlanlari.findIndex(a => a.id === id);
-      if (index !== -1) {
-        reklamAlanlari[index].code = formData.get('code') || '';
-        mesaj = 'Reklam kodu güncellendi';
-      }
-    }
+  } catch (err: any) {
+    hata = err.message || 'İşlem sırasında bir hata oluştu.';
   }
 }
 
-// URL'den aktif sekmeyi al
-const urlParams = Astro.url.searchParams;
-if (urlParams.has('tab')) {
-  aktifSekme = urlParams.get('tab');
-}
+// Tüm verileri güncel olarak çekelim
+const allPosts = await getAllPosts(dbBinding);
+const settings = await getSettings(dbBinding);
+
+// Sponsorlu ve normal içerikleri ayır
+const sponsorluIcerikler = allPosts.filter(p => p.isSponsored);
+const normalIcerikler = allPosts.filter(p => !p.isSponsored && p.status === 'published');
 ---
 
-<BaseLayout title="Reklam Alanları" isAdmin={true}>
-  <div class="space-y-6">
-    <!-- Sekmeler -->
-    <div class="flex border-b border-gray-200 dark:border-gray-700">
-      <a href="/admin/ads?tab=sponsorlu" class={`px-4 py-2 text-sm font-medium transition ${aktifSekme === 'sponsorlu' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
-        📢 Sponsorlu İçerikler
+<BaseLayout title="Reklam ve Sponsorlu İçerik Yönetimi" isAdmin={true}>
+  
+  <div class="max-w-6xl mx-auto p-6">
+    
+    <!-- Header -->
+    <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+          <i class="fas fa-ad text-orange-600 dark:text-orange-400"></i>
+        </div>
+        Reklam & Sponsor Yönetimi
+      </h1>
+      <p class="text-gray-500 dark:text-gray-400 mt-2 ml-15">Sponsorlu blog içeriklerini, görsel reklam alanlarını ve Google AdSense kodlarını buradan yönetin.</p>
+    </div>
+
+    <!-- Alert Messages -->
+    {mesaj && (
+      <div class="p-4 mb-6 text-sm text-green-800 rounded-xl bg-green-50 dark:bg-gray-800 dark:text-green-400 border border-green-200">
+        {mesaj}
+      </div>
+    )}
+    {hata && (
+      <div class="p-4 mb-6 text-sm text-red-800 rounded-xl bg-red-50 dark:bg-gray-800 dark:text-red-400 border border-red-200">
+        {hata}
+      </div>
+    )}
+
+    <!-- Tabs Navigation -->
+    <div class="flex flex-wrap border-b border-gray-200 dark:border-gray-700 gap-1 mb-8">
+      <a 
+        href="?tab=sponsorlu" 
+        class={`px-5 py-3 text-sm font-bold rounded-t-xl transition-all flex items-center gap-2 border-b-2 ${aktifSekme === 'sponsorlu' ? 'bg-orange-50 dark:bg-orange-950/20 text-orange-600 border-orange-500' : 'text-gray-500 hover:text-gray-750 dark:hover:text-gray-200 border-transparent'}`}
+      >
+        <i class="fas fa-award"></i> 1. Sponsorlu İçerikler ({sponsorluIcerikler.length})
       </a>
-      <a href="/admin/ads?tab=reklam" class={`px-4 py-2 text-sm font-medium transition ${aktifSekme === 'reklam' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
-        🎯 Reklam Alanları
+      <a 
+        href="?tab=reklam" 
+        class={`px-5 py-3 text-sm font-bold rounded-t-xl transition-all flex items-center gap-2 border-b-2 ${aktifSekme === 'reklam' ? 'bg-orange-50 dark:bg-orange-950/20 text-orange-600 border-orange-500' : 'text-gray-500 hover:text-gray-750 dark:hover:text-gray-200 border-transparent'}`}
+      >
+        <i class="fas fa-image"></i> 2. Reklam Alanları (4 Slot)
       </a>
-      <a href="/admin/ads?tab=google" class={`px-4 py-2 text-sm font-medium transition ${aktifSekme === 'google' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
-        📊 Google Ads
+      <a 
+        href="?tab=google" 
+        class={`px-5 py-3 text-sm font-bold rounded-t-xl transition-all flex items-center gap-2 border-b-2 ${aktifSekme === 'google' ? 'bg-orange-50 dark:bg-orange-950/20 text-orange-600 border-orange-500' : 'text-gray-500 hover:text-gray-750 dark:hover:text-gray-200 border-transparent'}`}
+      >
+        <i class="fab fa-google"></i> 3. Google AdSense
       </a>
     </div>
 
-    {mesaj && <div class="bg-green-100 text-green-700 p-3 rounded">{mesaj}</div>}
-    {hata && <div class="bg-red-100 text-red-700 p-3 rounded">{hata}</div>}
-
-    <!-- Sponsorlu İçerikler Sekmesi -->
+    <!-- TAB 1: Sponsorlu İçerikler -->
     {aktifSekme === 'sponsorlu' && (
       <div class="space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <h2 class="text-lg font-semibold mb-4">Yeni Sponsorlu İçerik Ekle</h2>
-          <form method="POST" class="flex flex-wrap gap-3">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-150 dark:border-gray-700">
+          <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Yeni Sponsorlu İçerik Ekle</h2>
+          <form method="POST" class="flex flex-wrap gap-3 items-end">
             <input type="hidden" name="tip" value="sponsorlu" />
             <input type="hidden" name="islem" value="ekle" />
-            <input type="text" name="title" placeholder="İçerik başlığı" required class="flex-1 min-w-[200px] px-3 py-2 border rounded dark:bg-gray-700" />
-            <input type="date" name="startDate" class="px-3 py-2 border rounded dark:bg-gray-700" />
-            <input type="date" name="endDate" class="px-3 py-2 border rounded dark:bg-gray-700" />
-            <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">Sponsor Ekle</button>
-          </form>
-        </div>
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <table class="w-full">
-            <thead class="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th class="px-4 py-3 text-left">İçerik</th>
-                <th class="px-4 py-3 text-left">Görüntülenme</th>
-                <th class="px-4 py-3 text-left">Beğeni</th>
-                <th class="px-4 py-3 text-left">Başlangıç</th>
-                <th class="px-4 py-3 text-left">Bitiş</th>
-                <th class="px-4 py-3 text-center">Durum</th>
-                <th class="px-4 py-3 text-center">İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sponsorluIcerikler.map(item => (
-                <tr class="border-t dark:border-gray-700">
-                  <td class="px-4 py-3">
-                    <a href={`/${item.slug}`} target="_blank" class="text-orange-600 hover:underline">{item.title}</a>
-                  </td>
-                  <td class="px-4 py-3">{item.views.toLocaleString()}</td>
-                  <td class="px-4 py-3">{item.likes.toLocaleString()}</td>
-                  <td class="px-4 py-3">{item.startDate}</td>
-                  <td class="px-4 py-3">{item.endDate || '-'}</td>
-                  <td class="px-4 py-3 text-center">
-                    <span class={`px-2 py-1 text-xs rounded-full ${item.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                      {item.status === 'active' ? 'Aktif' : 'Süresi Doldu'}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 text-center">
-                    <div class="flex justify-center gap-2">
-                      <form method="POST" class="inline">
-                        <input type="hidden" name="tip" value="sponsorlu" />
-                        <input type="hidden" name="islem" value="toggle" />
-                        <input type="hidden" name="id" value={item.id} />
-                        <button type="submit" class="text-blue-600 hover:text-blue-800" title="Durum Değiştir">🔄</button>
-                      </form>
-                      <form method="POST" class="inline" onsubmit="return confirm('Sil?')">
-                        <input type="hidden" name="tip" value="sponsorlu" />
-                        <input type="hidden" name="islem" value="sil" />
-                        <input type="hidden" name="id" value={item.id} />
-                        <button type="submit" class="text-red-600 hover:text-red-800">🗑️</button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    )}
-
-    <!-- Reklam Alanları Sekmesi -->
-    {aktifSekme === 'reklam' && (
-      <div class="space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <h2 class="text-lg font-semibold mb-4">Yeni Reklam Alanı Ekle</h2>
-          <form method="POST" class="flex flex-wrap gap-3">
-            <input type="hidden" name="tip" value="reklam" />
-            <input type="hidden" name="islem" value="ekle" />
-            <input type="text" name="name" placeholder="Alan adı" required class="flex-1 px-3 py-2 border rounded dark:bg-gray-700" />
-            <select name="position" class="px-3 py-2 border rounded dark:bg-gray-700">
-              <option value="home_top">Ana Sayfa - Üst</option>
-              <option value="home_sidebar">Ana Sayfa - Sidebar</option>
-              <option value="content_top">İçerik - Üst</option>
-              <option value="content_middle">İçerik - Orta</option>
-              <option value="content_bottom">İçerik - Alt</option>
-              <option value="category_top">Kategori - Üst</option>
-              <option value="category_sidebar">Kategori - Sidebar</option>
-            </select>
-            <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">Ekle</button>
-          </form>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {reklamAlanlari.map(ad => (
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-              <div class="flex justify-between items-start mb-3">
-                <div>
-                  <h3 class="font-semibold">{ad.name}</h3>
-                  <p class="text-xs text-gray-500">Pozisyon: {ad.position}</p>
-                </div>
-                <div class="flex gap-2">
-                  <form method="POST" class="inline">
-                    <input type="hidden" name="tip" value="reklam" />
-                    <input type="hidden" name="islem" value="toggle" />
-                    <input type="hidden" name="id" value={ad.id} />
-                    <button type="submit" class={`px-2 py-1 text-xs rounded ${ad.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                      {ad.status === 'active' ? 'Aktif' : 'Pasif'}
-                    </button>
-                  </form>
-                  <form method="POST" class="inline" onsubmit="return confirm('Sil?')">
-                    <input type="hidden" name="tip" value="reklam" />
-                    <input type="hidden" name="islem" value="sil" />
-                    <input type="hidden" name="id" value={ad.id} />
-                    <button type="submit" class="text-red-600 hover:text-red-800">🗑️</button>
-                  </form>
-                </div>
-              </div>
-              <form method="POST">
-                <input type="hidden" name="tip" value="reklam" />
-                <input type="hidden" name="islem" value="guncelle" />
-                <input type="hidden" name="id" value={ad.id} />
-                <textarea name="code" rows="3" class="w-full px-3 py-2 border rounded font-mono text-sm dark:bg-gray-700 mb-2">{ad.code}</textarea>
-                <button type="submit" class="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700">Kodu Güncelle</button>
-              </form>
+            <div class="flex-1 min-w-[250px]">
+              <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">İçerik Seçin</label>
+              <select name="postId" required class="w-full text-sm px-3 py-2.5 border rounded-xl bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none">
+                <option value="">-- Sponsor Yapılacak Yazı Seçin --</option>
+                {normalIcerikler.map(post => (
+                  <option value={post.id}>{post.title} ({post.category?.name || 'Genel'})</option>
+                ))}
+              </select>
             </div>
-          ))}
+            <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition shadow-sm">
+              <i class="fas fa-plus mr-1"></i> Sponsor Ekle
+            </button>
+          </form>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-150 dark:border-gray-700 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 font-bold uppercase text-xs border-b dark:border-gray-700">
+                <tr>
+                  <th class="px-6 py-4">İçerik Başlığı</th>
+                  <th class="px-6 py-4">Görüntülenme</th>
+                  <th class="px-6 py-4">Beğeni</th>
+                  <th class="px-6 py-4">Eklenme Tarihi</th>
+                  <th class="px-6 py-4 text-center">Durum</th>
+                  <th class="px-6 py-4 text-center">İşlem</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                {sponsorluIcerikler.length === 0 ? (
+                  <tr>
+                    <td colspan="6" class="py-16 text-center text-gray-500 italic">Henüz hiçbir sponsorlu içerik bulunmamaktadır.</td>
+                  </tr>
+                ) : (
+                  sponsorluIcerikler.map(item => (
+                    <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition">
+                      <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">
+                        <a href={`/${item.category?.slug || 'genel'}/${item.slug}`} target="_blank" class="text-orange-600 hover:underline">{item.title}</a>
+                      </td>
+                      <td class="px-6 py-4 text-gray-500 dark:text-gray-400 font-semibold">{item.views.toLocaleString()}</td>
+                      <td class="px-6 py-4 text-gray-500 dark:text-gray-400 font-semibold">{item.likes.toLocaleString()}</td>
+                      <td class="px-6 py-4 text-gray-400 dark:text-gray-500 text-xs">{new Date(item.createdAt).toLocaleDateString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td class="px-6 py-4 text-center">
+                        <span class={`px-2.5 py-1 text-xs rounded-full font-bold ${item.isSponsored ? 'bg-green-100 text-green-700 dark:bg-green-950/20 dark:text-green-400' : 'bg-gray-100 text-gray-750'}`}>
+                          {item.isSponsored ? 'Aktif' : 'Pasif'}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 text-center">
+                        <div class="flex justify-center gap-2">
+                          <form method="POST" class="inline">
+                            <input type="hidden" name="tip" value="sponsorlu" />
+                            <input type="hidden" name="islem" value="toggle" />
+                            <input type="hidden" name="postId" value={item.id} />
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold p-2 rounded-lg text-xs transition" title="Durum Değiştir">
+                              <i class="fas fa-sync-alt"></i> Durum
+                            </button>
+                          </form>
+                          <form method="POST" class="inline" onsubmit="return confirm('Sponsorlu içerik durumunu kaldırmak istediğinize emin misiniz?')">
+                            <input type="hidden" name="tip" value="sponsorlu" />
+                            <input type="hidden" name="islem" value="sil" />
+                            <input type="hidden" name="postId" value={item.id} />
+                            <button type="submit" class="bg-red-600 hover:bg-red-750 text-white font-bold p-2 rounded-lg text-xs transition" title="Kaldır">
+                              <i class="fas fa-trash-alt"></i> Kaldır
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )}
 
-    <!-- Google Ads Sekmesi -->
+    <!-- TAB 2: Reklam Alanları Sekmesi -->
+    {aktifSekme === 'reklam' && (
+      <form method="POST" class="space-y-6">
+        <input type="hidden" name="tip" value="reklam" />
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          <!-- SLOT 1: Sol Üst Banner -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-150 dark:border-gray-700 p-5 space-y-4">
+            <div class="flex justify-between items-center border-b dark:border-gray-700 pb-2">
+              <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-columns text-orange-500"></i> Sol Sidebar - Üst (Dikdörtgen / Dik)
+              </h3>
+              <select name="ad_left_top_status" class="text-xs px-2.5 py-1.5 rounded-lg border dark:bg-gray-700 dark:text-white outline-none font-bold">
+                <option value="active" selected={settings['ad_left_top_status'] === 'active'}>Aktif</option>
+                <option value="inactive" selected={settings['ad_left_top_status'] === 'inactive' || !settings['ad_left_top_status']}>Pasif</option>
+              </select>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">REKLAM GÖRSELİ (URL)</label>
+                <input 
+                  type="text" 
+                  name="ad_left_top_image" 
+                  value={settings['ad_left_top_image'] || ''} 
+                  placeholder="https://site.com/reklam-gorseli.jpg" 
+                  class="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">HARİCİ YÖNLENDİRME LİNKİ (URL)</label>
+                <input 
+                  type="text" 
+                  name="ad_left_top_link" 
+                  value={settings['ad_left_top_link'] || ''} 
+                  placeholder="https://partner-linki.com" 
+                  class="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+              {settings['ad_left_top_image'] && (
+                <div class="pt-2">
+                  <span class="block text-xs font-bold text-gray-400 mb-1">Önizleme:</span>
+                  <div class="w-full h-32 rounded-lg overflow-hidden border bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                    <img src={settings['ad_left_top_image']} class="max-h-full max-w-full object-contain" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <!-- SLOT 2: Sol Alt Banner -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-150 dark:border-gray-700 p-5 space-y-4">
+            <div class="flex justify-between items-center border-b dark:border-gray-700 pb-2">
+              <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-columns text-orange-500"></i> Sol Sidebar - Alt (Kare)
+              </h3>
+              <select name="ad_left_bottom_status" class="text-xs px-2.5 py-1.5 rounded-lg border dark:bg-gray-700 dark:text-white outline-none font-bold">
+                <option value="active" selected={settings['ad_left_bottom_status'] === 'active'}>Aktif</option>
+                <option value="inactive" selected={settings['ad_left_bottom_status'] === 'inactive' || !settings['ad_left_bottom_status']}>Pasif</option>
+              </select>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">REKLAM GÖRSELİ (URL)</label>
+                <input 
+                  type="text" 
+                  name="ad_left_bottom_image" 
+                  value={settings['ad_left_bottom_image'] || ''} 
+                  placeholder="https://site.com/reklam-gorseli.jpg" 
+                  class="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">HARİCİ YÖNLENDİRME LİNKİ (URL)</label>
+                <input 
+                  type="text" 
+                  name="ad_left_bottom_link" 
+                  value={settings['ad_left_bottom_link'] || ''} 
+                  placeholder="https://partner-linki.com" 
+                  class="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+              {settings['ad_left_bottom_image'] && (
+                <div class="pt-2">
+                  <span class="block text-xs font-bold text-gray-400 mb-1">Önizleme:</span>
+                  <div class="w-full h-32 rounded-lg overflow-hidden border bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                    <img src={settings['ad_left_bottom_image']} class="max-h-full max-w-full object-contain" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <!-- SLOT 3: Sağ Üst Banner -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-150 dark:border-gray-700 p-5 space-y-4">
+            <div class="flex justify-between items-center border-b dark:border-gray-700 pb-2">
+              <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-columns text-orange-500"></i> Sağ Sidebar - Üst (Dikdörtgen / Dik)
+              </h3>
+              <select name="ad_right_top_status" class="text-xs px-2.5 py-1.5 rounded-lg border dark:bg-gray-700 dark:text-white outline-none font-bold">
+                <option value="active" selected={settings['ad_right_top_status'] === 'active'}>Aktif</option>
+                <option value="inactive" selected={settings['ad_right_top_status'] === 'inactive' || !settings['ad_right_top_status']}>Pasif</option>
+              </select>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">REKLAM GÖRSELİ (URL)</label>
+                <input 
+                  type="text" 
+                  name="ad_right_top_image" 
+                  value={settings['ad_right_top_image'] || ''} 
+                  placeholder="https://site.com/reklam-gorseli.jpg" 
+                  class="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">HARİCİ YÖNLENDİRME LİNKİ (URL)</label>
+                <input 
+                  type="text" 
+                  name="ad_right_top_link" 
+                  value={settings['ad_right_top_link'] || ''} 
+                  placeholder="https://partner-linki.com" 
+                  class="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+              {settings['ad_right_top_image'] && (
+                <div class="pt-2">
+                  <span class="block text-xs font-bold text-gray-400 mb-1">Önizleme:</span>
+                  <div class="w-full h-32 rounded-lg overflow-hidden border bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                    <img src={settings['ad_right_top_image']} class="max-h-full max-w-full object-contain" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <!-- SLOT 4: Sağ Alt Banner -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-150 dark:border-gray-700 p-5 space-y-4">
+            <div class="flex justify-between items-center border-b dark:border-gray-700 pb-2">
+              <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-columns text-orange-500"></i> Sağ Sidebar - Alt (Kare)
+              </h3>
+              <select name="ad_right_bottom_status" class="text-xs px-2.5 py-1.5 rounded-lg border dark:bg-gray-700 dark:text-white outline-none font-bold">
+                <option value="active" selected={settings['ad_right_bottom_status'] === 'active'}>Aktif</option>
+                <option value="inactive" selected={settings['ad_right_bottom_status'] === 'inactive' || !settings['ad_right_bottom_status']}>Pasif</option>
+              </select>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">REKLAM GÖRSELİ (URL)</label>
+                <input 
+                  type="text" 
+                  name="ad_right_bottom_image" 
+                  value={settings['ad_right_bottom_image'] || ''} 
+                  placeholder="https://site.com/reklam-gorseli.jpg" 
+                  class="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">HARİCİ YÖNLENDİRME LİNKİ (URL)</label>
+                <input 
+                  type="text" 
+                  name="ad_right_bottom_link" 
+                  value={settings['ad_right_bottom_link'] || ''} 
+                  placeholder="https://partner-linki.com" 
+                  class="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+              {settings['ad_right_bottom_image'] && (
+                <div class="pt-2">
+                  <span class="block text-xs font-bold text-gray-400 mb-1">Önizleme:</span>
+                  <div class="w-full h-32 rounded-lg overflow-hidden border bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                    <img src={settings['ad_right_bottom_image']} class="max-h-full max-w-full object-contain" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        <div class="flex justify-end pt-4">
+          <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 px-8 rounded-xl text-sm transition flex items-center gap-2 shadow-md">
+            <i class="fas fa-save"></i> Tüm Reklam Alanı Değişikliklerini Kaydet
+          </button>
+        </div>
+      </form>
+    )}
+
+    <!-- TAB 3: Google Ads Sekmesi -->
     {aktifSekme === 'google' && (
       <div class="space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold mb-4">📊 Google Ads Ayarları</h2>
-          <p class="text-sm text-gray-500 mb-4">Google AdSense kodlarınızı aşağıdaki alanlara girebilirsiniz.</p>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-150 dark:border-gray-700 p-6">
+          <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+            <i class="fab fa-google text-orange-500"></i> Google AdSense Ayarları
+          </h2>
+          <p class="text-sm text-gray-500 mb-6">Google AdSense kodlarınızı aşağıdaki alanlara girerek tüm sitede entegre edebilirsiniz.</p>
           
-          <div class="space-y-4">
+          <form method="POST" class="space-y-4">
+            <input type="hidden" name="tip" value="google" />
+            
             <div>
-              <label class="block text-sm font-medium mb-1">Publisher ID (pub-xxx)</label>
-              <input type="text" placeholder="pub-1234567890" class="w-full px-3 py-2 border rounded dark:bg-gray-700" />
+              <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Publisher ID (pub-xxx)</label>
+              <input 
+                type="text" 
+                name="google_pub_id" 
+                value={settings['google_pub_id'] || ''} 
+                placeholder="pub-1234567890" 
+                class="w-full px-4 py-2.5 border rounded-xl bg-white dark:bg-gray-900 dark:text-white dark:border-gray-700 focus:ring-2 focus:ring-orange-500 outline-none" 
+              />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">Ana Sayfa Banner Kodu</label>
-              <textarea rows="4" placeholder='<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-xxx"></script>' class="w-full px-3 py-2 border rounded font-mono text-sm dark:bg-gray-700"></textarea>
+              <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Ana Sayfa Banner Kodu</label>
+              <textarea 
+                name="google_home_banner" 
+                rows="4" 
+                placeholder='<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-xxx"></script>' 
+                class="w-full px-4 py-2.5 border rounded-xl font-mono text-sm bg-white dark:bg-gray-900 dark:text-white dark:border-gray-700 focus:ring-2 focus:ring-orange-500 outline-none"
+              >{settings['google_home_banner'] || ''}</textarea>
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">İçerik İçi Reklam Kodu</label>
-              <textarea rows="4" class="w-full px-3 py-2 border rounded font-mono text-sm dark:bg-gray-700"></textarea>
+              <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">İçerik İçi Reklam Kodu</label>
+              <textarea 
+                name="google_content_ad" 
+                rows="4" 
+                class="w-full px-4 py-2.5 border rounded-xl font-mono text-sm bg-white dark:bg-gray-900 dark:text-white dark:border-gray-700 focus:ring-2 focus:ring-orange-500 outline-none"
+              >{settings['google_content_ad'] || ''}</textarea>
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">Sidebar Reklam Kodu</label>
-              <textarea rows="4" class="w-full px-3 py-2 border rounded font-mono text-sm dark:bg-gray-700"></textarea>
+              <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Sidebar Reklam Kodu</label>
+              <textarea 
+                name="google_sidebar_ad" 
+                rows="4" 
+                class="w-full px-4 py-2.5 border rounded-xl font-mono text-sm bg-white dark:bg-gray-900 dark:text-white dark:border-gray-700 focus:ring-2 focus:ring-orange-500 outline-none"
+              >{settings['google_sidebar_ad'] || ''}</textarea>
             </div>
-            <button class="bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700">Kaydet</button>
-          </div>
+            <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-xl text-sm transition flex items-center gap-2 shadow-md">
+              <i class="fas fa-save"></i> Google Reklam Ayarlarını Kaydet
+            </button>
+          </form>
         </div>
       </div>
     )}

@@ -1,7 +1,7 @@
 ---
 // [slug].astro - Tekil İçerik Görünümü
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getPostBySlug, getPosts, getCommentsByPost, createComment } from '../../lib/db';
+import { getPostBySlug, getPosts, getCommentsByPost, createComment, getSettings } from '../../lib/db';
 
 const slug = Astro.params.slug;
 const dbBinding = Astro.locals.runtime?.env?.DB;
@@ -10,6 +10,8 @@ const post = await getPostBySlug(slug as string, dbBinding);
 if (!post) {
   return Astro.redirect('/');
 }
+
+const settings = await getSettings(dbBinding);
 
 let commentSuccess = false;
 let commentError = '';
@@ -91,9 +93,17 @@ const currentUrl = Astro.url.href;
       <!-- SOL SIDEBAR: Aynı Kategori & Reklamlar -->
       <aside class="w-full lg:w-72 flex-shrink-0 space-y-8 order-2 lg:order-1">
         <!-- Üst Dikdörtgen Reklam -->
-        <div class="w-full h-64 bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-400 dark:border-gray-600">
-          <span class="text-gray-500 text-sm font-medium">Reklam Alanı (Dikdörtgen)</span>
-        </div>
+        {settings['ad_left_top_status'] === 'active' && settings['ad_left_top_image'] ? (
+          <a href={settings['ad_left_top_link'] || '#'} target="_blank" rel="noopener noreferrer" class="block w-full h-64 rounded-xl overflow-hidden shadow-sm hover:opacity-95 transition border border-gray-250 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <img src={settings['ad_left_top_image']} alt="Sponsorlu Reklam" class="w-full h-full object-cover" />
+          </a>
+        ) : settings['google_sidebar_ad'] ? (
+          <div class="w-full h-64 flex items-center justify-center overflow-hidden rounded-xl bg-white dark:bg-gray-900 border dark:border-gray-800" set:html={settings['google_sidebar_ad']} />
+        ) : (
+          <div class="w-full h-64 bg-gray-50 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-700">
+            <span class="text-gray-400 text-xs font-semibold flex items-center gap-1"><i class="fas fa-ad"></i> Reklam Alanı (Dik)</span>
+          </div>
+        )}
         
         <!-- Kendi Kategorisinden İçerikler -->
         <div class="bg-white dark:bg-gray-900 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
@@ -114,9 +124,17 @@ const currentUrl = Astro.url.href;
         </div>
         
         <!-- Alt Kare Reklam -->
-        <div class="w-full aspect-square bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-400 dark:border-gray-600">
-          <span class="text-gray-500 text-sm font-medium">Reklam Alanı (Kare)</span>
-        </div>
+        {settings['ad_left_bottom_status'] === 'active' && settings['ad_left_bottom_image'] ? (
+          <a href={settings['ad_left_bottom_link'] || '#'} target="_blank" rel="noopener noreferrer" class="block w-full aspect-square rounded-xl overflow-hidden shadow-sm hover:opacity-95 transition border border-gray-250 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <img src={settings['ad_left_bottom_image']} alt="Sponsorlu Reklam" class="w-full h-full object-cover" />
+          </a>
+        ) : settings['google_sidebar_ad'] ? (
+          <div class="w-full aspect-square flex items-center justify-center overflow-hidden rounded-xl bg-white dark:bg-gray-900 border dark:border-gray-800" set:html={settings['google_sidebar_ad']} />
+        ) : (
+          <div class="w-full aspect-square bg-gray-50 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-700">
+            <span class="text-gray-400 text-xs font-semibold flex items-center gap-1"><i class="fas fa-ad"></i> Reklam Alanı (Kare)</span>
+          </div>
+        )}
       </aside>
 
       <!-- ORTA ALAN: ANA İÇERİK -->
@@ -268,9 +286,17 @@ const currentUrl = Astro.url.href;
       <!-- SAĞ SIDEBAR: Farklı Kategoriler & Reklamlar -->
       <aside class="w-full lg:w-72 flex-shrink-0 space-y-8 order-3">
         <!-- Üst Dikdörtgen Reklam -->
-        <div class="w-full h-64 bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-400 dark:border-gray-600">
-          <span class="text-gray-500 text-sm font-medium">Reklam Alanı (Dikdörtgen)</span>
-        </div>
+        {settings['ad_right_top_status'] === 'active' && settings['ad_right_top_image'] ? (
+          <a href={settings['ad_right_top_link'] || '#'} target="_blank" rel="noopener noreferrer" class="block w-full h-64 rounded-xl overflow-hidden shadow-sm hover:opacity-95 transition border border-gray-250 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <img src={settings['ad_right_top_image']} alt="Sponsorlu Reklam" class="w-full h-full object-cover" />
+          </a>
+        ) : settings['google_sidebar_ad'] ? (
+          <div class="w-full h-64 flex items-center justify-center overflow-hidden rounded-xl bg-white dark:bg-gray-900 border dark:border-gray-800" set:html={settings['google_sidebar_ad']} />
+        ) : (
+          <div class="w-full h-64 bg-gray-50 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-700">
+            <span class="text-gray-400 text-xs font-semibold flex items-center gap-1"><i class="fas fa-ad"></i> Reklam Alanı (Dik)</span>
+          </div>
+        )}
         
         <!-- Farklı Kategorilerden İçerikler -->
         <div class="bg-white dark:bg-gray-900 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
@@ -291,9 +317,17 @@ const currentUrl = Astro.url.href;
         </div>
         
         <!-- Alt Kare Reklam -->
-        <div class="w-full aspect-square bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-400 dark:border-gray-600">
-          <span class="text-gray-500 text-sm font-medium">Reklam Alanı (Kare)</span>
-        </div>
+        {settings['ad_right_bottom_status'] === 'active' && settings['ad_right_bottom_image'] ? (
+          <a href={settings['ad_right_bottom_link'] || '#'} target="_blank" rel="noopener noreferrer" class="block w-full aspect-square rounded-xl overflow-hidden shadow-sm hover:opacity-95 transition border border-gray-250 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <img src={settings['ad_right_bottom_image']} alt="Sponsorlu Reklam" class="w-full h-full object-cover" />
+          </a>
+        ) : settings['google_sidebar_ad'] ? (
+          <div class="w-full aspect-square flex items-center justify-center overflow-hidden rounded-xl bg-white dark:bg-gray-900 border dark:border-gray-800" set:html={settings['google_sidebar_ad']} />
+        ) : (
+          <div class="w-full aspect-square bg-gray-50 dark:bg-gray-800 rounded-xl flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-700">
+            <span class="text-gray-400 text-xs font-semibold flex items-center gap-1"><i class="fas fa-ad"></i> Reklam Alanı (Kare)</span>
+          </div>
+        )}
       </aside>
 
     </div>
