@@ -790,6 +790,10 @@ const mainImageUrl = product.image_url || null;
       
       document.addEventListener('astro:before-swap', () => {
         document.removeEventListener('keydown', handleEscape);
+        const dataEl = document.getElementById('product-interactive-data');
+        if (dataEl) {
+          dataEl.removeAttribute('data-initialized');
+        }
       }, { once: true });
       
       // Currency formatter
@@ -1085,11 +1089,6 @@ const mainImageUrl = product.image_url || null;
     }
 
     // Safe execution registry for both direct load and Astro transition contexts
-    if (document.readyState !== 'loading') {
-      initProductDetails();
-    } else {
-      document.addEventListener('DOMContentLoaded', initProductDetails);
-    }
     document.addEventListener('astro:page-load', initProductDetails);
   </script>
 </BaseLayout>
