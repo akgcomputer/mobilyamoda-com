@@ -98,6 +98,7 @@ if (Astro.request.method === 'POST') {
     const customer_email = formData.get('customer_email') as string;
     const customer_phone = formData.get('customer_phone') as string;
     const shipping_address = formData.get('shipping_address') as string;
+    const billing_address = (formData.get('billing_address') as string) || shipping_address;
     const payment_method = formData.get('payment_method') as string; // havale, kapida_nakit, kapida_pos, kredi_karti, banka_kredisi
     
     if (!customer_name || !customer_email || !customer_phone || !shipping_address || !payment_method) {
@@ -200,7 +201,7 @@ if (Astro.request.method === 'POST') {
       customer_email,
       customer_phone,
       shipping_address,
-      billing_address: shipping_address,
+      billing_address,
       subtotal,
       shipping_fee: 0,
       tax: 0,
@@ -307,6 +308,7 @@ if (Astro.request.method === 'POST') {
           <input type="hidden" name="cart_data" id="cartDataInput" value="" />
           <input type="hidden" name="payment_method" id="paymentMethodInput" value={paymentMethods[0].id} />
           <input type="hidden" name="coupon_code" id="couponCodeInput" value="" />
+          <input type="hidden" name="billing_address" id="billingAddressInput" value="" />
           
           <!-- Sol: Sepet Ürünleri + Teslimat Bilgileri -->
           <div class="lg:w-2/3 space-y-8">
@@ -1003,8 +1005,162 @@ if (Astro.request.method === 'POST') {
         });
       }
 
-      // Initial render
+      // Profile Synchronization Logic for registered users
+      function setupProfileSync() {
+        const phoneInput = document.querySelector('input[name="customer_phone"]') as HTMLInputElement | null;
+        const addressTextarea = document.querySelector('textarea[name="shipping_address"]') as HTMLTextAreaElement | null;
+        const billingAddressInput = document.getElementById('billingAddressInput') as HTMLInputElement | null;
+        
+        if (!phoneInput || !addressTextarea) return;
+
+        // Parse profile addresses
+        let profileAddresses = [];
+        try {
+          profileAddresses = JSON.parse(localStorage.getItem('laflaf_profile_addresses') || '[]');
+        } catch(e) {}
+
+        // Parse profile phones
+        let profilePhones = [];
+        try {
+          profilePhones = JSON.parse(localStorage.getItem('laflaf_profile_phones') || '[]');
+        } catch(e) {}
+
+        // Sync helper for billing address
+        const syncBillingAddress = () => {
+          if (!billingAddressInput) return;
+          
+          let addresses = [];
+          try {
+            addresses = JSON.parse(localStorage.getItem('laflaf_profile_addresses') || '[]');
+          } catch(e) {}
+          
+          if (addresses.length > 0) {
+            const billingId = localStorage.getItem('laflaf_profile_billing_address_id') || '';
+            const foundBilling = addresses.find((a: any) => a.id.toString() === billingId);
+            if (foundBilling) {
+              billingAddressInput.value = foundBilling.text;
+            } else {
+              billingAddressInput.value = addresses[0].text;
+            }
+          } else {
+            billingAddressInput.value = addressTextarea.value;
+          }
+        };
+
+        // 1. Phone synchronization
+        if (profilePhones && profilePhones.length > 0) {
+          // Remove old one if exists to prevent duplicates and stale listeners
+          const oldPhoneSelect = document.getElementById('profilePhoneSelectWrapper');
+          if (oldPhoneSelect) oldPhoneSelect.remove();
+
+          // Create a select dropdown wrapper above the input
+          const wrapper = document.createElement('div');
+          wrapper.id = 'profilePhoneSelectWrapper';
+          wrapper.className = 'mb-3';
+          wrapper.innerHTML = `
+            <label class="block text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">
+              <i class="fas fa-id-card-alt mr-1"></i> Profilinizden Telefon Seçin
+            </label>
+            <select id="profilePhoneSelect" class="w-full border border-purple-300 dark:border-purple-800 rounded-lg px-3 py-2 bg-purple-50 dark:bg-purple-950/20 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none text-sm font-semibold">
+            </select>
+          `;
+          phoneInput.parentNode?.insertBefore(wrapper, phoneInput);
+          const phoneSelect = document.getElementById('profilePhoneSelect') as HTMLSelectElement | null;
+
+          if (phoneSelect) {
+            profilePhones.forEach((p: any) => {
+              const opt = document.createElement('option');
+              opt.value = p.number;
+              opt.textContent = `${p.name} (${p.number})`;
+              phoneSelect.appendChild(opt);
+            });
+
+            // Set input value to first phone's number
+            phoneInput.value = profilePhones[0].number;
+            // Force read-only and uneditable styles
+            phoneInput.readOnly = true;
+            phoneInput.classList.add('bg-gray-150', 'dark:bg-gray-800/80', 'text-gray-500', 'cursor-not-allowed', 'border-purple-200');
+            phoneInput.classList.remove('bg-gray-50');
+
+            // Add change listener
+            phoneSelect.addEventListener('change', (e: any) => {
+              phoneInput.value = e.target.value;
+            });
+          }
+        } else {
+          // If no profile phones exist, restore default state
+          const oldPhoneSelect = document.getElementById('profilePhoneSelectWrapper');
+          if (oldPhoneSelect) oldPhoneSelect.remove();
+          phoneInput.readOnly = false;
+          phoneInput.classList.remove('bg-gray-150', 'dark:bg-gray-800/80', 'text-gray-500', 'cursor-not-allowed', 'border-purple-200');
+          phoneInput.classList.add('bg-gray-50');
+        }
+
+        // 2. Address synchronization
+        if (profileAddresses && profileAddresses.length > 0) {
+          // Remove old one if exists
+          const oldAddressSelect = document.getElementById('profileAddressSelectWrapper');
+          if (oldAddressSelect) oldAddressSelect.remove();
+
+          const wrapper = document.createElement('div');
+          wrapper.id = 'profileAddressSelectWrapper';
+          wrapper.className = 'mb-3';
+          wrapper.innerHTML = `
+            <label class="block text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">
+              <i class="fas fa-map-marked-alt mr-1"></i> Profilinizden Adres Seçin
+            </label>
+            <select id="profileAddressSelect" class="w-full border border-purple-300 dark:border-purple-800 rounded-lg px-3 py-2 bg-purple-50 dark:bg-purple-950/20 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none text-sm font-semibold">
+            </select>
+          `;
+          addressTextarea.parentNode?.insertBefore(wrapper, addressTextarea);
+          const addressSelect = document.getElementById('profileAddressSelect') as HTMLSelectElement | null;
+
+          if (addressSelect) {
+            profileAddresses.forEach((a: any) => {
+              const opt = document.createElement('option');
+              opt.value = a.text;
+              opt.textContent = a.name;
+              addressSelect.appendChild(opt);
+            });
+
+            // Set textarea value to first address
+            addressTextarea.value = profileAddresses[0].text;
+            // Force read-only
+            addressTextarea.readOnly = true;
+            addressTextarea.classList.add('bg-gray-150', 'dark:bg-gray-800/80', 'text-gray-500', 'cursor-not-allowed', 'border-purple-200');
+            addressTextarea.classList.remove('bg-gray-50');
+
+            // Add change listener
+            addressSelect.addEventListener('change', (e: any) => {
+              addressTextarea.value = e.target.value;
+              syncBillingAddress();
+            });
+          }
+        } else {
+          // If no profile addresses exist, restore default state
+          const oldAddressSelect = document.getElementById('profileAddressSelectWrapper');
+          if (oldAddressSelect) oldAddressSelect.remove();
+          addressTextarea.readOnly = false;
+          addressTextarea.classList.remove('bg-gray-150', 'dark:bg-gray-800/80', 'text-gray-500', 'cursor-not-allowed', 'border-purple-200');
+          addressTextarea.classList.add('bg-gray-50');
+        }
+
+        // Initialize billing address synchronization
+        syncBillingAddress();
+
+        // Listen for manual changes to shipping address (visitor mode)
+        addressTextarea.addEventListener('input', () => {
+          if (!localStorage.getItem('laflaf_profile_addresses')) {
+            if (billingAddressInput) {
+              billingAddressInput.value = addressTextarea.value;
+            }
+          }
+        });
+      }
+
+      // Initial render and sync
       renderCart();
+      setupProfileSync();
     }
 
     function checkAndClearCartOnThankYou() {
