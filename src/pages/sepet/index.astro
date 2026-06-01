@@ -1,110 +1,547 @@
 ---
 // src/pages/sepet/index.astro
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getSettings } from '../../lib/db';
+import { createOrder, getCouponByCode, getSettings, getUsers } from '../../lib/db';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
-const settings = (await getSettings(dbBinding)) || {};
 
+const safeParseFloat = (val: any) => {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  let str = val.toString().replace(/[₺$€\s]/g, '');
+  if (str.includes('.') && str.includes(',')) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (str.includes(',')) {
+    const parts = str.split(',');
+    if (parts[1] && parts[1].length === 3) {
+      str = str.replace(/,/g, '');
+    } else {
+      str = str.replace(',', '.');
+    }
+  } else if (str.includes('.')) {
+    const parts = str.split('.');
+    if (parts[1] && parts[1].length === 3) {
+      str = str.replace(/\./g, '');
+    }
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+};
+
+let basari = '';
+let hata = '';
+
+// Load settings
+const settings = (await getSettings(dbBinding)) || {};
+const havaleActive = settings.payment_havale_active === '1';
+const havaleIbanName = settings.payment_havale_iban_name || 'Laflaf Teknoloji A.Ş.';
+const havaleIbanNo = settings.payment_havale_iban_no || 'TR00 0000 0000 0000 0000 0000 00';
+
+const kapidaNakitActive = settings.payment_kapida_nakit_active === '1';
+const kapidaPosActive = settings.payment_kapida_pos_active === '1';
+
+const krediKartiActive = settings.payment_kredi_karti_active === '1';
+const krediKrediActive = settings.payment_kredi_kredi_active === '1';
+
+// Build active payment methods list for forms
+const paymentMethods = [];
+if (havaleActive) {
+  paymentMethods.push({ id: 'havale', title: 'Havale / EFT', icon: 'fa-university' });
+}
+if (kapidaNakitActive) {
+  paymentMethods.push({ id: 'kapida_nakit', title: 'Kapıda Ödeme (Nakit)', icon: 'fa-money-bill-wave' });
+}
+if (kapidaPosActive) {
+  paymentMethods.push({ id: 'kapida_pos', title: 'Kapıda Ödeme (POS)', icon: 'fa-credit-card' });
+}
+if (krediKartiActive) {
+  paymentMethods.push({ id: 'kredi_karti', title: 'Kredi Kartı', icon: 'fa-credit-card' });
+}
+if (krediKrediActive) {
+  paymentMethods.push({ id: 'banka_kredisi', title: 'Alışveriş Kredisi', icon: 'fa-hand-holding-usd' });
+}
+
+// Fallback to havale if nothing is enabled
+if (paymentMethods.length === 0) {
+  paymentMethods.push({ id: 'havale', title: 'Havale / EFT', icon: 'fa-university' });
+}
+
+// Authentication Check: Fetch active user details
 const isLoggedIn = Astro.cookies.has('user_session');
-const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
+let activeUser: any = null;
+
+if (isLoggedIn) {
+  const sessionData = Astro.cookies.get('user_session')?.json();
+  if (sessionData && sessionData.id) {
+    const users = await getUsers(dbBinding);
+    activeUser = users.find(u => u.id === sessionData.id) || null;
+  }
+}
+
+let newOrder: any = null;
+
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const cartDataStr = formData.get('cart_data') as string;
+    
+    if (!cartDataStr) {
+      throw new Error("Sepet verisi bulunamadı.");
+    }
+    
+    const cartData = JSON.parse(cartDataStr);
+    if (!Array.isArray(cartData) || cartData.length === 0) {
+      throw new Error("Sepetiniz boş.");
+    }
+    
+    const customer_name = formData.get('customer_name') as string;
+    const customer_email = formData.get('customer_email') as string;
+    const customer_phone = formData.get('customer_phone') as string;
+    const shipping_address = formData.get('shipping_address') as string;
+    const payment_method = formData.get('payment_method') as string; // havale, kapida_nakit, kapida_pos, kredi_karti, banka_kredisi
+    
+    if (!customer_name || !customer_email || !customer_phone || !shipping_address || !payment_method) {
+      throw new Error("Lütfen zorunlu alanları doldurun.");
+    }
+
+    // Validation for Credit Card details if Kredi Kartı chosen
+    if (payment_method === 'kredi_karti') {
+      const ccName = formData.get('cc_name') as string;
+      const ccNumber = formData.get('cc_number') as string;
+      const ccExpire = formData.get('cc_expire') as string;
+      const ccCvv = formData.get('cc_cvv') as string;
+      
+      if (!ccName || !ccNumber || !ccExpire || !ccCvv) {
+        throw new Error("Lütfen kredi kartı bilgilerinizi eksiksiz giriniz.");
+      }
+    }
+
+    let subtotal = 0;
+    const orderItems = cartData.map(item => {
+      const itemPrice = safeParseFloat(item.price);
+      const itemQty = parseInt(item.qty as any) || 1;
+      const itemTotal = itemQty * itemPrice;
+      subtotal += itemTotal;
+      return {
+        product_id: item.product_id,
+        variant_id: item.variant_id || null,
+        product_name: item.name,
+        variant_name: item.variant_name || null,
+        quantity: itemQty,
+        unit_price: itemPrice,
+        total_price: itemTotal
+      };
+    });
+
+    // Campaign discount calculation
+    let campaign_discount = 0;
+    if (settings.campaign_settings) {
+      try {
+        const campaign = JSON.parse(settings.campaign_settings);
+        if (campaign && campaign.active) {
+          if (campaign.type === 'percentage') {
+            const pct = parseFloat(campaign.value) || 0;
+            campaign_discount = subtotal * (pct / 100);
+          } else if (campaign.type === 'fixed') {
+            const amount = parseFloat(campaign.value) || 0;
+            campaign_discount = Math.min(subtotal, amount);
+          } else if (campaign.type === 'bogo') {
+            const buyQty = parseInt(campaign.bogo_buy_qty) || 3;
+            const getQty = parseInt(campaign.bogo_get_qty) || 1;
+            const totalQty = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+            if (totalQty >= buyQty) {
+              const flatPrices: number[] = [];
+              orderItems.forEach(item => {
+                for (let i = 0; i < item.quantity; i++) {
+                  flatPrices.push(item.unit_price);
+                }
+              });
+              flatPrices.sort((a, b) => a - b);
+              const freeCount = Math.floor(totalQty / buyQty) * getQty;
+              for (let i = 0; i < Math.min(freeCount, flatPrices.length); i++) {
+                campaign_discount += flatPrices[i];
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Campaign settings error in server post:", e);
+      }
+    }
+
+    const coupon_code = formData.get('coupon_code') as string;
+    let coupon_discount = 0;
+    let final_coupon_code = null;
+
+    const remainingAfterCampaign = Math.max(0, subtotal - campaign_discount);
+
+    if (coupon_code) {
+      const coupon = await getCouponByCode(coupon_code, dbBinding);
+      if (coupon && coupon.status === 'aktif' && (!coupon.min_cart_amount || remainingAfterCampaign >= Number(coupon.min_cart_amount))) {
+        const discountValue = Number(coupon.discount_value) || 0;
+        if (coupon.discount_type === 'percentage') {
+          coupon_discount = remainingAfterCampaign * (discountValue / 100);
+        } else {
+          coupon_discount = discountValue;
+        }
+        if (coupon_discount > remainingAfterCampaign) {
+          coupon_discount = remainingAfterCampaign;
+        }
+        final_coupon_code = coupon.code;
+      }
+    }
+
+    const discount_amount = campaign_discount + coupon_discount;
+    const total_amount = subtotal - discount_amount;
+
+    const orderData = {
+      user_id: activeUser ? activeUser.id : null, // Save registered user ID if authenticated
+      customer_name,
+      customer_email,
+      customer_phone,
+      shipping_address,
+      billing_address: shipping_address,
+      subtotal,
+      shipping_fee: 0,
+      tax: 0,
+      discount_amount,
+      coupon_code: final_coupon_code,
+      total_amount,
+      payment_method,
+      status: 'bekliyor',
+      notes: null
+    };
+
+    newOrder = await createOrder(orderData, orderItems, dbBinding);
+    if (newOrder) {
+      basari = `Siparişiniz #LAF${newOrder.id} numarası ile başarıyla alınmıştır. Bizi tercih ettiğiniz için teşekkür ederiz!`;
+    } else {
+      throw new Error("Sipariş oluşturulamadı.");
+    }
+  } catch (err: any) {
+    console.error("Single Page Checkout POST Error:", err);
+    hata = err.message || "İşlem sırasında bir hata oluştu.";
+  }
+}
 ---
 
-<BaseLayout title="Sepetim | Laflaf E-Ticaret">
+<BaseLayout title="Güvenli Ödeme & Sepetim | Laflaf E-Ticaret">
   <div id="cart-campaign-data" 
        class="hidden" 
        data-campaign={settings.campaign_settings || '{}'}>
   </div>
   
   <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
-    <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
-      <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white">Alışveriş Sepetim</h1>
-      <p class="text-gray-500 dark:text-gray-400 mt-1">Siparişinizi tamamlamadan önce sepetinizi inceleyin.</p>
-    </div>
-
-    <div id="emptyCartMessage" class="hidden text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
-      <i class="fas fa-shopping-cart text-6xl text-gray-300 dark:text-gray-600 mb-6 block"></i>
-      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sepetiniz Boş</h2>
-      <p class="text-gray-500 mb-6">Şu an sepetinizde hiç ürün bulunmuyor.</p>
-      <a href="/urunler" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5">Alışverişe Başla</a>
-    </div>
-
-    <div id="cartContent" class="hidden flex flex-col lg:flex-row gap-8">
-      
-      <!-- Sol: Sepet Ürünleri -->
-      <div class="lg:w-2/3">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <ul id="cartItemsList" class="divide-y divide-gray-200 dark:divide-gray-700">
-            <!-- JS tarafından doldurulacak -->
+    {basari ? (
+      <!-- Teşekkür Panel -->
+      <div class="max-w-2xl mx-auto text-center py-20 bg-white dark:bg-gray-800 rounded-3xl p-8 border border-gray-150 dark:border-gray-700 shadow-md">
+        <div class="w-24 h-24 bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-sm">
+          <i class="fas fa-check animate-bounce"></i>
+        </div>
+        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-4 font-outfit">Siparişiniz Alındı!</h1>
+        <p class="text-lg text-gray-600 dark:text-gray-400 mb-8 leading-relaxed">{basari}</p>
+        <div class="p-6 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-200 dark:border-gray-700 mb-8 text-left">
+          <h3 class="font-bold text-gray-900 dark:text-white mb-3 text-sm uppercase tracking-wider flex items-center gap-2">
+            <i class="fas fa-tasks text-orange-500"></i> Sonraki Adımlar
+          </h3>
+          <ul class="list-none text-gray-600 dark:text-gray-400 space-y-2.5 text-sm">
+            <li class="flex items-start gap-2.5">
+              <i class="fas fa-envelope text-orange-500 mt-1"></i>
+              <span>Sipariş detaylarınız e-posta adresinize gönderilmiştir.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <i class="fas fa-truck text-orange-500 mt-1"></i>
+              <span>Siparişiniz onaylandığında ve kargoya verildiğinde sizi bilgilendireceğiz.</span>
+            </li>
+            {newOrder && newOrder.payment_method === 'havale' && (
+              <li class="flex flex-col gap-1 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/50 rounded-xl mt-3 text-xs">
+                <span class="font-bold text-blue-800 dark:text-blue-400"><i class="fas fa-info-circle mr-1"></i> Önemli Havale Bilgisi:</span>
+                <span>Ödemenizi <strong>{havaleIbanNo}</strong> numaralı IBAN hesabımıza <strong>{havaleIbanName}</strong> adına açıklama kısmına <strong>#LAF{newOrder.id}</strong> sipariş kodunuzu ekleyerek gönderiniz.</span>
+              </li>
+            )}
           </ul>
         </div>
+        <a href="/" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5">Alışverişe Dön</a>
+        
+        <script is:inline define:vars={{ newOrderId: newOrder?.id }}>
+          localStorage.removeItem('laflaf_cart');
+          localStorage.removeItem('laflaf_coupon');
+          window.dispatchEvent(new Event('cart_updated'));
+
+          if (newOrderId) {
+            let myOrders = [];
+            try { myOrders = JSON.parse(localStorage.getItem('laflaf_my_orders') || '[]'); } catch(e){}
+            if (!myOrders.includes(newOrderId)) {
+              myOrders.push(newOrderId);
+              localStorage.setItem('laflaf_my_orders', JSON.stringify(myOrders));
+            }
+          }
+        </script>
       </div>
-
-      <!-- Sağ: Sipariş Özeti -->
-      <div class="lg:w-1/3">
-        <div class="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 sticky top-24">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">Sipariş Özeti</h2>
-          
-          <!-- Kampanya Bildirimi -->
-          <div id="cartCampaignAlert" class="hidden mb-4 p-3 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-350 border border-rose-200 dark:border-rose-900/50 rounded-xl text-xs font-semibold flex items-start gap-2">
-            <i class="fas fa-bullhorn mt-0.5 text-sm animate-bounce"></i>
-            <div>
-              <div id="cartCampaignAlertName" class="font-bold">Aktif Kampanya</div>
-              <div id="cartCampaignAlertDesc" class="opacity-95 text-[11px] mt-0.5"></div>
-            </div>
-          </div>
-
-          <div class="space-y-4 mb-6 text-gray-600 dark:text-gray-300">
-            <div class="flex justify-between">
-              <span>Ara Toplam</span>
-              <span id="subtotalDisplay" class="font-medium text-gray-900 dark:text-white">0,00 ₺</span>
-            </div>
-            <div id="campaignDiscountRow" class="flex justify-between text-rose-600 dark:text-rose-400 font-semibold">
-              <span id="campaignNameDisplay">Kampanya İndirimi</span>
-              <span id="campaignDiscountDisplay" class="text-gray-400 dark:text-gray-500 font-bold">YOK</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Kargo Ücreti</span>
-              <span id="shippingDisplay" class="font-medium text-gray-900 dark:text-white">Ücretsiz</span>
-            </div>
-          </div>
-          <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
-            <div class="flex gap-2 mb-2">
-              <input type="text" id="couponInput" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="İndirim Kodu">
-              <button type="button" id="applyCouponBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition dark:bg-gray-600 dark:hover:bg-gray-500">Uygula</button>
-            </div>
-            <div id="couponMessage" class="text-xs hidden mb-4"></div>
-            
-            <div id="discountRow" class="flex justify-between text-green-600 dark:text-green-400 font-semibold text-sm mt-4">
-              <span>Kupon İndirimi <span id="couponCodeDisplay" class="text-xs font-normal opacity-85"></span></span>
-              <span id="discountDisplay" class="text-gray-400 dark:text-gray-500 font-bold">YOK</span>
-            </div>
-          </div>
-          
-          <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-8">
-            <div class="flex justify-between items-center">
-              <span class="text-lg font-bold text-gray-900 dark:text-white">Toplam</span>
-              <span id="totalDisplay" class="text-2xl font-extrabold text-orange-600">0,00 ₺</span>
-            </div>
-          </div>
-          
-          <a href={checkoutUrl} class="block w-full bg-orange-600 hover:bg-orange-700 text-white text-center font-bold py-4 px-6 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5 text-lg">
-            Siparişi Tamamla <i class="fas fa-arrow-right ml-2"></i>
-          </a>
-          
-          <div class="mt-4 flex items-center justify-center gap-4 text-gray-400">
-            <i class="fab fa-cc-visa text-2xl"></i>
-            <i class="fab fa-cc-mastercard text-2xl"></i>
-            <i class="fas fa-truck text-xl"></i>
-          </div>
+    ) : (
+      <>
+        <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
+          <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white font-outfit">Güvenli Ödeme & Sepetim</h1>
+          <p class="text-gray-500 dark:text-gray-400 mt-1">Sipariş bilgilerinizi sepetinizle birlikte tek ekranda tamamlayın.</p>
         </div>
-      </div>
 
-    </div>
+        {hata && (
+          <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-3 animate-pulse">
+            <i class="fas fa-exclamation-circle text-xl"></i>
+            <span>{hata}</span>
+          </div>
+        )}
+
+        <div id="emptyCartMessage" class="hidden text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+          <i class="fas fa-shopping-cart text-6xl text-gray-300 dark:text-gray-600 mb-6 block"></i>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sepetiniz Boş</h2>
+          <p class="text-gray-500 mb-6">Şu an sepetinizde hiç ürün bulunmuyor.</p>
+          <a href="/urunler" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5">Alışverişe Başla</a>
+        </div>
+
+        <form method="POST" id="checkoutForm" class="hidden flex-col lg:flex-row gap-8" data-default-method={paymentMethods[0].id}>
+          <input type="hidden" name="cart_data" id="cartDataInput" value="" />
+          <input type="hidden" name="payment_method" id="paymentMethodInput" value={paymentMethods[0].id} />
+          <input type="hidden" name="coupon_code" id="couponCodeInput" value="" />
+          
+          <!-- Sol: Sepet Ürünleri + Teslimat Bilgileri -->
+          <div class="lg:w-2/3 space-y-8">
+            <!-- Sepet Ürünleri Listesi -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div class="p-6 border-b border-gray-150 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 font-outfit">
+                  <i class="fas fa-shopping-basket text-orange-500"></i> Sepetteki Ürünler
+                </h3>
+              </div>
+              <ul id="cartItemsList" class="divide-y divide-gray-200 dark:divide-gray-700">
+                <!-- JS tarafından doldurulacak -->
+              </ul>
+            </div>
+
+            <!-- Kişisel Bilgiler -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 font-outfit">
+                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">1</span>
+                Kişisel Bilgiler {isLoggedIn ? "(Üye Alışverişi)" : "(Ziyaretçi Alışverişi)"}
+              </h2>
+              
+              {isLoggedIn ? (
+                <div class="mb-4 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 border border-purple-200/50">
+                  <i class="fas fa-user-check"></i>
+                  <span>Kayıtlı üye olarak alışveriş yapıyorsunuz. Bilgileriniz otomatik dolduruldu.</span>
+                </div>
+              ) : (
+                <div class="mb-4 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 border border-gray-200">
+                  <i class="fas fa-user-clock"></i>
+                  <span>Ziyaretçi olarak alışveriş yapıyorsunuz. Detayları giriniz.</span>
+                </div>
+              )}
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Ad Soyad *</label>
+                  <input type="text" name="customer_name" required value={activeUser ? activeUser.name : ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Örn: Ahmet Yılmaz" />
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">E-Posta Adresi *</label>
+                  <input type="email" name="customer_email" required value={activeUser ? activeUser.email : ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Örn: ahmet@example.com" />
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Telefon *</label>
+                  <input type="tel" name="customer_phone" required value={activeUser ? activeUser.phone : ''} class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Örn: 0555 123 4567" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Teslimat Adresi -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 font-outfit">
+                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">2</span>
+                Teslimat Adresi
+              </h2>
+              <div>
+                <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-300">Açık Adres *</label>
+                <textarea name="shipping_address" required rows="3" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Mahalle, Sokak, Apartman No, İlçe, İl">{activeUser ? activeUser.address : ''}</textarea>
+              </div>
+            </div>
+
+            <!-- Ödeme Yöntemi -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 font-outfit">
+                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">3</span>
+                Ödeme Yöntemi
+              </h2>
+              
+              <!-- Tab Headers -->
+              <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-6 border-b border-gray-200 dark:border-gray-700 pb-2">
+                {paymentMethods.map((m, index) => (
+                  <button 
+                    type="button" 
+                    class={`pay-tab-btn px-2 py-3 text-xs md:text-sm transition flex flex-col items-center justify-center font-bold border-b-2 ${index === 0 ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'}`} 
+                    data-target={m.id}
+                  >
+                    <i class={`fas ${m.icon} mb-1.5 text-base md:text-lg`}></i> 
+                    <span class="text-center">{m.title}</span>
+                  </button>
+                ))}
+              </div>
+
+              <!-- Tab Contents -->
+              {havaleActive && (
+                <div id="tab-havale" class="pay-tab-content block">
+                  <div class="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-5 rounded-xl text-sm text-blue-800 dark:text-blue-300">
+                    <p class="font-bold mb-3 text-base"><i class="fas fa-university text-blue-500 mr-1"></i> Banka Hesap Bilgilerimiz:</p>
+                    <p class="mb-1"><strong>Alıcı:</strong> {havaleIbanName}</p>
+                    <p class="mb-2"><strong>IBAN:</strong> <span class="font-mono bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded text-xs select-all">{havaleIbanNo}</span></p>
+                    <p class="mt-3 text-xs italic opacity-90 border-t border-blue-200/50 pt-2"><i class="fas fa-info-circle mr-1"></i> Ödemenizi yaptıktan sonra siparişiniz onaylanarak kargoya verilecektir.</p>
+                  </div>
+                </div>
+              )}
+
+              {kapidaNakitActive && (
+                <div id="tab-kapida_nakit" class="pay-tab-content hidden">
+                  <div class="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 p-5 rounded-xl text-sm text-orange-800 dark:text-orange-300 flex items-start gap-3">
+                    <i class="fas fa-money-bill-wave text-2xl mt-1 text-orange-500"></i>
+                    <div>
+                      <p class="font-bold mb-1">Kapıda Nakit Ödeme</p>
+                      <p class="leading-relaxed">Siparişinizi teslim alırken kargo görevlisine nakit olarak ödeme yapabilirsiniz. Kapıda ödeme hizmet bedeli yansıtılmamaktadır.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {kapidaPosActive && (
+                <div id="tab-kapida_pos" class="pay-tab-content hidden">
+                  <div class="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 p-5 rounded-xl text-sm text-orange-800 dark:text-orange-300 flex items-start gap-3">
+                    <i class="fas fa-credit-card text-2xl mt-1 text-orange-500"></i>
+                    <div>
+                      <p class="font-bold mb-1">Kapıda Kredi Kartı / POS ile Ödeme</p>
+                      <p class="leading-relaxed">Siparişinizi teslim alırken kargo görevlisine kredi kartı veya banka kartı ile kapıda ödeme yapabilirsiniz. Kapıda ödeme hizmet bedeli yansıtılmamaktadır.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {krediKartiActive && (
+                <div id="tab-kredi_karti" class="pay-tab-content hidden">
+                  <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700">
+                    <div class="mb-5 flex justify-between items-center">
+                      <div>
+                        <h3 class="font-bold text-gray-900 dark:text-white mb-1">Güvenli Kredi Kartı Ödemesi</h3>
+                        <p class="text-xs text-gray-500">Kart bilgilerinizi girerek siparişinizi 3D Secure güvencesiyle tamamlayabilirsiniz.</p>
+                      </div>
+                      <div class="flex gap-1 text-gray-400 text-xl">
+                        <i class="fab fa-cc-visa"></i>
+                        <i class="fab fa-cc-mastercard"></i>
+                      </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Kart Sahibi Adı Soyadı</label>
+                        <input type="text" name="cc_name" id="cc_name" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:border-orange-500" placeholder="Ad Soyad" />
+                      </div>
+                      <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Kart Numarası</label>
+                        <input type="text" name="cc_number" id="cc_number" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:border-orange-500" placeholder="0000 0000 0000 0000" maxlength="19" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Son Kullanma (AA/YY)</label>
+                        <input type="text" name="cc_expire" id="cc_expire" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:border-orange-500" placeholder="AA/YY" maxlength="5" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Güvenlik Kodu (CVC/CVV)</label>
+                        <input type="text" name="cc_cvv" id="cc_cvv" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm outline-none focus:border-orange-500" placeholder="123" maxlength="3" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {krediKrediActive && (
+                <div id="tab-banka_kredisi" class="pay-tab-content hidden">
+                  <div class="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 p-5 rounded-xl text-sm text-purple-800 dark:text-purple-300">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-base font-outfit">
+                      <i class="fas fa-hand-holding-usd text-lg text-purple-500"></i> Alışveriş Kredisi ile Ödeme
+                    </h3>
+                    <p class="leading-relaxed">Anlaşmalı bankalarımız aracılığıyla 36 aya varan vade seçenekleriyle alışveriş kredisi başvurusu yapabilirsiniz.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <!-- Sağ: Sipariş Özeti -->
+          <div class="lg:w-1/3">
+            <div class="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 sticky top-24 shadow-sm">
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6 font-outfit">Sipariş Özeti</h2>
+              
+              <!-- Kampanya Bildirimi -->
+              <div id="cartCampaignAlert" class="hidden mb-4 p-3 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-350 border border-rose-200 dark:border-rose-900/50 rounded-xl text-xs font-semibold flex items-start gap-2 border-dashed">
+                <i class="fas fa-bullhorn mt-0.5 text-sm animate-bounce text-rose-600"></i>
+                <div>
+                  <div id="cartCampaignAlertName" class="font-bold">Aktif Kampanya</div>
+                  <div id="cartCampaignAlertDesc" class="opacity-95 text-[11px] mt-0.5"></div>
+                </div>
+              </div>
+
+              <div class="space-y-4 mb-6 text-gray-600 dark:text-gray-300 text-sm">
+                <div class="flex justify-between">
+                  <span>Ara Toplam</span>
+                  <span id="subtotalDisplay" class="font-medium text-gray-900 dark:text-white">0,00 ₺</span>
+                </div>
+                <div id="campaignDiscountRow" class="flex justify-between text-rose-600 dark:text-rose-400 font-semibold animate-fade-in">
+                  <span id="campaignNameDisplay">Kampanya İndirimi</span>
+                  <span id="campaignDiscountDisplay" class="text-gray-400 dark:text-gray-500 font-bold">YOK</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Kargo Ücreti</span>
+                  <span id="shippingDisplay" class="font-medium text-gray-900 dark:text-white">Ücretsiz</span>
+                </div>
+              </div>
+              
+              <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+                <div class="flex gap-2 mb-2">
+                  <input type="text" id="couponInput" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="İndirim Kodu">
+                  <button type="button" id="applyCouponBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition dark:bg-gray-600 dark:hover:bg-gray-500">Uygula</button>
+                </div>
+                <div id="couponMessage" class="text-xs hidden mb-4"></div>
+                
+                <div id="discountRow" class="flex justify-between text-green-600 dark:text-green-400 font-semibold text-sm mt-4">
+                  <span>Kupon İndirimi <span id="couponCodeDisplay" class="text-xs font-normal opacity-85"></span></span>
+                  <span id="discountDisplay" class="text-gray-400 dark:text-gray-500 font-bold">YOK</span>
+                </div>
+              </div>
+              
+              <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-8">
+                <div class="flex justify-between items-center">
+                  <span class="text-lg font-bold text-gray-900 dark:text-white font-outfit">Toplam</span>
+                  <span id="totalDisplay" class="text-2xl font-extrabold text-orange-600 font-outfit">0,00 ₺</span>
+                </div>
+              </div>
+              
+              <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white text-center font-bold py-4 px-6 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5 text-lg flex items-center justify-center gap-2 font-outfit">
+                <i class="fas fa-lock"></i> Siparişi Onayla
+              </button>
+              
+              <div class="mt-4 flex items-center justify-center gap-4 text-gray-400">
+                <i class="fab fa-cc-visa text-2xl"></i>
+                <i class="fab fa-cc-mastercard text-2xl"></i>
+                <i class="fas fa-truck text-xl"></i>
+              </div>
+            </div>
+          </div>
+        </form>
+      </>
+    )}
   </div>
 
   <script>
-    document.addEventListener('astro:page-load', () => {
+    function initCartCheckout() {
+      const form = document.getElementById('checkoutForm');
+      const emptyCartMessage = document.getElementById('emptyCartMessage');
+      if (!form || !emptyCartMessage) return;
+
       const formatMoney = (amount: number, currency = '₺') => {
         return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ' + currency;
       };
@@ -137,6 +574,24 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]');
       } catch(e) {}
 
+      // If cart empty, display empty message
+      if (cart.length === 0) {
+        emptyCartMessage.classList.remove('hidden');
+        form.classList.add('hidden');
+        form.classList.remove('flex');
+        return;
+      }
+
+      emptyCartMessage.classList.add('hidden');
+      form.classList.remove('hidden');
+      form.classList.add('flex');
+
+      // Populate hidden inputs
+      const cartDataInput = document.getElementById('cartDataInput') as HTMLInputElement | null;
+      if (cartDataInput) {
+        cartDataInput.value = JSON.stringify(cart);
+      }
+
       // Parse campaign settings
       let campaignSettings: any = null;
       try {
@@ -151,26 +606,24 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         console.error("Cart Campaign parse error:", e);
       }
 
-      const emptyCartMessage = document.getElementById('emptyCartMessage');
-      const cartContent = document.getElementById('cartContent');
       const cartItemsList = document.getElementById('cartItemsList');
       const subtotalDisplay = document.getElementById('subtotalDisplay');
       const totalDisplay = document.getElementById('totalDisplay');
 
-      if (!cartItemsList || !emptyCartMessage || !cartContent || !subtotalDisplay || !totalDisplay) return;
+      if (!cartItemsList || !subtotalDisplay || !totalDisplay) return;
 
       function renderCart() {
-        if (!cartItemsList || !emptyCartMessage || !cartContent || !subtotalDisplay || !totalDisplay) return;
+        if (!cartItemsList || !subtotalDisplay || !totalDisplay || !form || !emptyCartMessage) return;
         if (cart.length === 0) {
           emptyCartMessage.classList.remove('hidden');
-          cartContent.classList.add('hidden');
-          cartContent.classList.remove('flex');
+          form.classList.add('hidden');
+          form.classList.remove('flex');
           return;
         }
 
         emptyCartMessage.classList.add('hidden');
-        cartContent.classList.remove('hidden');
-        cartContent.classList.add('flex');
+        form.classList.remove('hidden');
+        form.classList.add('flex');
 
         cartItemsList.innerHTML = '';
         let subtotal = 0;
@@ -187,12 +640,10 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           const li = document.createElement('li');
           li.className = 'p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition';
           
-          // Product Image
           const imgHtml = item.image 
-            ? `<img src="${item.image}" class="w-24 h-24 object-cover rounded-lg shadow-sm" alt="${item.name}" />`
-            : `<div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400"><i class="fas fa-image text-2xl"></i></div>`;
+            ? `<img src="${item.image}" class="w-24 h-24 object-cover rounded-lg shadow-sm border border-gray-150 dark:border-gray-700" alt="${item.name}" />`
+            : `<div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 border border-gray-150 dark:border-gray-700"><i class="fas fa-image text-2xl"></i></div>`;
 
-          // Variant Info
           const variantHtml = item.variant_name ? `<div class="text-sm text-gray-500 mt-1">Seçenek: <span class="font-medium text-gray-700 dark:text-gray-300">${item.variant_name}</span></div>` : '';
 
           let campaignBadgeHtml = '';
@@ -224,7 +675,7 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
               <div class="text-orange-600 font-bold mt-2">${formatMoney(itemPrice, itemCurrency)} <span class="text-xs text-gray-400 font-normal">/ ${item.unit}</span></div>
             </div>
             <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-              <div class="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+              <div class="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
                 <button type="button" class="qty-btn minus w-8 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition" data-index="${index}"><i class="fas fa-minus text-xs"></i></button>
                 <input type="number" value="${item.qty}" min="1" readonly class="w-12 h-10 text-center font-bold border-0 bg-transparent focus:ring-0 p-0 text-sm dark:text-white" />
                 <button type="button" class="qty-btn plus w-8 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition" data-index="${index}"><i class="fas fa-plus text-xs"></i></button>
@@ -232,7 +683,7 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
               <div class="text-right sm:w-28">
                 <div class="font-extrabold text-gray-900 dark:text-white">${formatMoney(itemTotal, itemCurrency)}</div>
               </div>
-              <button class="remove-btn text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition" data-index="${index}" title="Kaldır">
+              <button type="button" class="remove-btn text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition" data-index="${index}" title="Kaldır">
                 <i class="fas fa-trash"></i>
               </button>
             </div>
@@ -240,34 +691,20 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           cartItemsList.appendChild(li);
         });
 
+        // Update hidden cart input on every render
+        if (cartDataInput) {
+          cartDataInput.value = JSON.stringify(cart);
+        }
+
         subtotalDisplay.textContent = formatMoney(subtotal, cartCurrency);
 
         // --- Campaign Discount Calculation ---
         let campaignDiscount = 0;
-        const cartCampaignAlert = document.getElementById('cartCampaignAlert');
-        const cartCampaignAlertName = document.getElementById('cartCampaignAlertName');
-        const cartCampaignAlertDesc = document.getElementById('cartCampaignAlertDesc');
         const campaignDiscountRow = document.getElementById('campaignDiscountRow');
         const campaignNameDisplay = document.getElementById('campaignNameDisplay');
         const campaignDiscountDisplay = document.getElementById('campaignDiscountDisplay');
 
         if (campaignSettings && campaignSettings.active) {
-          // Display Alert Banner
-          if (cartCampaignAlert && cartCampaignAlertName && cartCampaignAlertDesc) {
-            cartCampaignAlert.classList.remove('hidden');
-            cartCampaignAlertName.textContent = campaignSettings.name || 'Aktif Kampanya!';
-            let desc = '';
-            if (campaignSettings.type === 'percentage') {
-              desc = `Tüm alışverişlerinizde anında %${campaignSettings.value} indirim fırsatı!`;
-            } else if (campaignSettings.type === 'fixed') {
-              desc = `Tüm alışverişlerinizde anında ${campaignSettings.value} ₺ indirim fırsatı!`;
-            } else if (campaignSettings.type === 'bogo') {
-              desc = `${campaignSettings.bogo_buy_qty} Alana ${campaignSettings.bogo_get_qty} Bedava! (Sepetteki en ucuz ürün(ler) ücretsiz sayılacaktır)`;
-            }
-            cartCampaignAlertDesc.textContent = desc;
-          }
-
-          // Calculate Discount Value
           if (campaignSettings.type === 'percentage') {
             const pct = parseFloat(campaignSettings.value) || 0;
             campaignDiscount = subtotal * (pct / 100);
@@ -293,7 +730,6 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
             }
           }
 
-          // Render Row
           if (campaignDiscount > 0 && campaignDiscountRow && campaignNameDisplay && campaignDiscountDisplay) {
             campaignNameDisplay.textContent = 'Kampanya (' + (campaignSettings.name || 'Aktif Kampanya') + ')';
             campaignDiscountDisplay.textContent = '-' + formatMoney(campaignDiscount, cartCurrency);
@@ -306,7 +742,6 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
             campaignDiscountDisplay.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
           }
         } else {
-          if (cartCampaignAlert) cartCampaignAlert.classList.add('hidden');
           if (campaignDiscountDisplay && campaignNameDisplay) {
             campaignNameDisplay.textContent = 'Kampanya';
             campaignDiscountDisplay.textContent = 'YOK';
@@ -315,7 +750,7 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           }
         }
         
-        // --- Coupon Discount Calculation (Applied on remaining total or subtotal) ---
+        // --- Coupon Discount Calculation ---
         let couponDiscount = 0;
         let appliedCoupon: any = null;
         try { appliedCoupon = JSON.parse(localStorage.getItem('laflaf_coupon') || 'null'); } catch(e){}
@@ -323,32 +758,49 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         const discountRow = document.getElementById('discountRow');
         const couponCodeDisplay = document.getElementById('couponCodeDisplay');
         const discountDisplay = document.getElementById('discountDisplay');
+        const couponCodeInput = document.getElementById('couponCodeInput') as HTMLInputElement | null;
 
         const remainingAfterCampaign = Math.max(0, subtotal - campaignDiscount);
 
         if (appliedCoupon && discountDisplay && couponCodeDisplay) {
-          if (appliedCoupon.type === 'percentage') {
-            couponDiscount = remainingAfterCampaign * (appliedCoupon.value / 100);
+          const minCartAmount = parseFloat(appliedCoupon.min_cart_amount) || 0;
+          if (remainingAfterCampaign >= minCartAmount) {
+            if (appliedCoupon.type === 'percentage') {
+              couponDiscount = remainingAfterCampaign * (appliedCoupon.value / 100);
+            } else {
+              couponDiscount = appliedCoupon.value;
+            }
+            if (couponDiscount > remainingAfterCampaign) couponDiscount = remainingAfterCampaign;
+            
+            couponCodeDisplay.textContent = `(${appliedCoupon.code})`;
+            discountDisplay.textContent = '-' + formatMoney(couponDiscount, cartCurrency);
+            discountDisplay.classList.remove('text-gray-400', 'dark:text-gray-500', 'font-bold');
+            discountDisplay.classList.add('text-green-600', 'dark:text-green-400');
+            if (couponCodeInput) {
+              couponCodeInput.value = appliedCoupon.code;
+            }
           } else {
-            couponDiscount = appliedCoupon.value;
+            couponCodeDisplay.textContent = '';
+            discountDisplay.textContent = 'YOK';
+            discountDisplay.classList.remove('text-green-600', 'dark:text-green-400');
+            discountDisplay.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
+            if (couponCodeInput) {
+              couponCodeInput.value = '';
+            }
           }
-          if (couponDiscount > remainingAfterCampaign) couponDiscount = remainingAfterCampaign;
-          
-          couponCodeDisplay.textContent = `(${appliedCoupon.code})`;
-          discountDisplay.textContent = '-' + formatMoney(couponDiscount, cartCurrency);
-          discountDisplay.classList.remove('text-gray-400', 'dark:text-gray-500', 'font-bold');
-          discountDisplay.classList.add('text-green-600', 'dark:text-green-400');
         } else if (discountDisplay && couponCodeDisplay) {
           couponCodeDisplay.textContent = '';
           discountDisplay.textContent = 'YOK';
           discountDisplay.classList.remove('text-green-600', 'dark:text-green-400');
           discountDisplay.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
+          if (couponCodeInput) {
+            couponCodeInput.value = '';
+          }
         }
 
         const total = remainingAfterCampaign - couponDiscount;
         totalDisplay.textContent = formatMoney(total > 0 ? total : 0, cartCurrency);
         
-        // Update badge if any
         window.dispatchEvent(new Event('cart_updated'));
       }
 
@@ -372,7 +824,6 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
             item.qty++;
           }
           
-          // Dynamic wholesale discount calculation if base_price and wholesale_prices exist
           if (item.base_price !== undefined) {
             const basePrice = safeParseFloat(item.base_price);
             const wholesaleRules = item.wholesale_prices || [];
@@ -411,7 +862,6 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           let subtotal = 0;
           cart.forEach(item => subtotal += (safeParseFloat(item.price) * item.qty));
 
-          // Compute remaining subtotal for coupon limit check
           let campaignDiscount = 0;
           if (campaignSettings && campaignSettings.active) {
             if (campaignSettings.type === 'percentage') {
@@ -467,7 +917,6 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         });
       }
 
-      // If coupon exists, show message
       try { 
         const existing = JSON.parse(localStorage.getItem('laflaf_coupon') || 'null');
         if(existing && couponInput && couponMessage) {
@@ -477,8 +926,89 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         }
       } catch(e){}
 
+      // Tabs Logic
+      const tabBtns = document.querySelectorAll('.pay-tab-btn');
+      const tabContents = document.querySelectorAll('.pay-tab-content');
+      const paymentMethodInput = document.getElementById('paymentMethodInput') as HTMLInputElement | null;
+
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', (e: any) => {
+          tabBtns.forEach(b => {
+            b.classList.remove('border-orange-500', 'text-orange-600');
+            b.classList.add('border-transparent', 'text-gray-500');
+          });
+          tabContents.forEach(c => {
+            c.classList.add('hidden');
+            c.classList.remove('block');
+          });
+
+          const target = e.currentTarget;
+          target.classList.remove('border-transparent', 'text-gray-500');
+          target.classList.add('border-orange-500', 'text-orange-600');
+          
+          const targetId = target.getAttribute('data-target');
+          const contentEl = document.getElementById('tab-' + targetId);
+          if (contentEl) {
+            contentEl.classList.remove('hidden');
+            contentEl.classList.add('block');
+          }
+          
+          if (paymentMethodInput) {
+            paymentMethodInput.value = targetId;
+          }
+        });
+      });
+
+      // Format Credit Card inputs dynamically
+      const ccNumber = document.getElementById('cc_number') as HTMLInputElement | null;
+      if (ccNumber) {
+        ccNumber.addEventListener('input', (e: any) => {
+          let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+          let matches = v.match(/\d{4,16}/g);
+          let match = matches && matches[0] || '';
+          let parts = [];
+
+          for (let i=0, len=match.length; i<len; i+=4) {
+            parts.push(match.substring(i, i+4));
+          }
+
+          if (parts.length > 0) {
+            e.target.value = parts.join(' ');
+          } else {
+            e.target.value = v;
+          }
+        });
+      }
+
+      const ccExpire = document.getElementById('cc_expire') as HTMLInputElement | null;
+      if (ccExpire) {
+        ccExpire.addEventListener('input', (e: any) => {
+          let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+          if (v.length >= 2) {
+            e.target.value = v.substring(0, 2) + '/' + v.substring(2, 4);
+          } else {
+            e.target.value = v;
+          }
+        });
+      }
+
+      const ccCvv = document.getElementById('cc_cvv') as HTMLInputElement | null;
+      if (ccCvv) {
+        ccCvv.addEventListener('input', (e: any) => {
+          e.target.value = e.target.value.replace(/[^0-9]/gi, '');
+        });
+      }
+
       // Initial render
       renderCart();
-    });
+    }
+
+    // Safe execution registry for both direct load and Astro view transition contexts
+    if (document.readyState !== 'loading') {
+      initCartCheckout();
+    } else {
+      document.addEventListener('DOMContentLoaded', initCartCheckout);
+    }
+    document.addEventListener('astro:page-load', initCartCheckout);
   </script>
 </BaseLayout>
