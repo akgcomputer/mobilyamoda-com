@@ -1992,15 +1992,35 @@ export async function getCouponByCode(code: string, db?: any): Promise<Coupon | 
 export async function createCoupon(couponData: any, db?: any): Promise<boolean> {
   const now = new Date().toISOString();
   if (db) {
-    await db.prepare("INSERT INTO coupons (code, discount_type, discount_value, min_cart_amount, status, createdAt) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(couponData.code, couponData.discount_type, couponData.discount_value, couponData.min_cart_amount || 0, couponData.status || 'aktif', now).run();
+    await db.prepare("INSERT INTO coupons (code, discount_type, discount_value, min_cart_amount, max_uses, valid_until, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(
+        couponData.code, 
+        couponData.discount_type, 
+        couponData.discount_value, 
+        couponData.min_cart_amount || 0, 
+        couponData.max_uses !== undefined && couponData.max_uses !== '' ? parseInt(couponData.max_uses) : null,
+        couponData.valid_until || null,
+        couponData.status || 'aktif', 
+        now
+      ).run();
     return true;
   }
   const local = await getLocalDb();
   if (local) {
     if (!local.data.coupons) local.data.coupons = [];
     const newId = local.data.coupons.length > 0 ? Math.max(...local.data.coupons.map((c:any) => c.id)) + 1 : 1;
-    local.data.coupons.push({ id: newId, ...couponData, used_count: 0, createdAt: now });
+    local.data.coupons.push({ 
+      id: newId, 
+      code: couponData.code,
+      discount_type: couponData.discount_type,
+      discount_value: couponData.discount_value,
+      min_cart_amount: couponData.min_cart_amount || 0,
+      max_uses: couponData.max_uses !== undefined && couponData.max_uses !== '' ? parseInt(couponData.max_uses) : null,
+      valid_until: couponData.valid_until || null,
+      used_count: 0, 
+      status: couponData.status || 'aktif', 
+      createdAt: now 
+    });
     await saveLocalDb(local);
     return true;
   }

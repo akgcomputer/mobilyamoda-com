@@ -1,12 +1,21 @@
 ---
 // src/pages/sepet/index.astro
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getSettings } from '../../lib/db';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const settings = (await getSettings(dbBinding)) || {};
 
 const isLoggedIn = Astro.cookies.has('user_session');
 const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
 ---
 
 <BaseLayout title="Sepetim | Laflaf E-Ticaret">
+  <div id="cart-campaign-data" 
+       class="hidden" 
+       data-campaign={settings.campaign_settings || '{}'}>
+  </div>
+  
   <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
     <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
       <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white">Alışveriş Sepetim</h1>
@@ -36,10 +45,23 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         <div class="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 sticky top-24">
           <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">Sipariş Özeti</h2>
           
+          <!-- Kampanya Bildirimi -->
+          <div id="cartCampaignAlert" class="hidden mb-4 p-3 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-350 border border-rose-200 dark:border-rose-900/50 rounded-xl text-xs font-semibold flex items-start gap-2">
+            <i class="fas fa-bullhorn mt-0.5 text-sm animate-bounce"></i>
+            <div>
+              <div id="cartCampaignAlertName" class="font-bold">Aktif Kampanya</div>
+              <div id="cartCampaignAlertDesc" class="opacity-95 text-[11px] mt-0.5"></div>
+            </div>
+          </div>
+
           <div class="space-y-4 mb-6 text-gray-600 dark:text-gray-300">
             <div class="flex justify-between">
               <span>Ara Toplam</span>
               <span id="subtotalDisplay" class="font-medium text-gray-900 dark:text-white">0,00 ₺</span>
+            </div>
+            <div id="campaignDiscountRow" class="flex justify-between hidden text-rose-600 font-semibold">
+              <span id="campaignNameDisplay">Kampanya İndirimi</span>
+              <span id="campaignDiscountDisplay">-0 ₺</span>
             </div>
             <div class="flex justify-between">
               <span>Kargo Ücreti</span>
@@ -115,6 +137,20 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]');
       } catch(e) {}
 
+      // Parse campaign settings
+      let campaignSettings: any = null;
+      try {
+        const campaignEl = document.getElementById('cart-campaign-data');
+        if (campaignEl) {
+          const rawSettings = JSON.parse(campaignEl.getAttribute('data-campaign') || '{}');
+          if (rawSettings.campaign_settings) {
+            campaignSettings = JSON.parse(rawSettings.campaign_settings);
+          }
+        }
+      } catch (e) {
+        console.error("Cart Campaign parse error:", e);
+      }
+
       const emptyCartMessage = document.getElementById('emptyCartMessage');
       const cartContent = document.getElementById('cartContent');
       const cartItemsList = document.getElementById('cartItemsList');
@@ -138,12 +174,14 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
 
         cartItemsList.innerHTML = '';
         let subtotal = 0;
+        let totalItemsQty = 0;
         const cartCurrency = cart[0]?.currency || '₺';
 
         cart.forEach((item, index) => {
           const itemPrice = safeParseFloat(item.price);
           const itemTotal = itemPrice * item.qty;
           subtotal += itemTotal;
+          totalItemsQty += item.qty;
           const itemCurrency = item.currency || '₺';
 
           const li = document.createElement('li');
@@ -182,8 +220,73 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         });
 
         subtotalDisplay.textContent = formatMoney(subtotal, cartCurrency);
+
+        // --- Campaign Discount Calculation ---
+        let campaignDiscount = 0;
+        const cartCampaignAlert = document.getElementById('cartCampaignAlert');
+        const cartCampaignAlertName = document.getElementById('cartCampaignAlertName');
+        const cartCampaignAlertDesc = document.getElementById('cartCampaignAlertDesc');
+        const campaignDiscountRow = document.getElementById('campaignDiscountRow');
+        const campaignNameDisplay = document.getElementById('campaignNameDisplay');
+        const campaignDiscountDisplay = document.getElementById('campaignDiscountDisplay');
+
+        if (campaignSettings && campaignSettings.active) {
+          // Display Alert Banner
+          if (cartCampaignAlert && cartCampaignAlertName && cartCampaignAlertDesc) {
+            cartCampaignAlert.classList.remove('hidden');
+            cartCampaignAlertName.textContent = campaignSettings.name || 'Aktif Kampanya!';
+            let desc = '';
+            if (campaignSettings.type === 'percentage') {
+              desc = `Tüm alışverişlerinizde anında %${campaignSettings.value} indirim fırsatı!`;
+            } else if (campaignSettings.type === 'fixed') {
+              desc = `Tüm alışverişlerinizde anında ${campaignSettings.value} ₺ indirim fırsatı!`;
+            } else if (campaignSettings.type === 'bogo') {
+              desc = `${campaignSettings.bogo_buy_qty} Alana ${campaignSettings.bogo_get_qty} Bedava! (Sepetteki en ucuz ürün(ler) ücretsiz sayılacaktır)`;
+            }
+            cartCampaignAlertDesc.textContent = desc;
+          }
+
+          // Calculate Discount Value
+          if (campaignSettings.type === 'percentage') {
+            const pct = parseFloat(campaignSettings.value) || 0;
+            campaignDiscount = subtotal * (pct / 100);
+          } else if (campaignSettings.type === 'fixed') {
+            const amount = parseFloat(campaignSettings.value) || 0;
+            campaignDiscount = Math.min(subtotal, amount);
+          } else if (campaignSettings.type === 'bogo') {
+            const buyQty = parseInt(campaignSettings.bogo_buy_qty) || 3;
+            const getQty = parseInt(campaignSettings.bogo_get_qty) || 1;
+            if (totalItemsQty >= buyQty) {
+              const flatPrices = [];
+              cart.forEach(item => {
+                const price = safeParseFloat(item.price);
+                for (let i = 0; i < item.qty; i++) {
+                  flatPrices.push(price);
+                }
+              });
+              flatPrices.sort((a, b) => a - b);
+              const freeCount = Math.floor(totalItemsQty / buyQty) * getQty;
+              for (let i = 0; i < Math.min(freeCount, flatPrices.length); i++) {
+                campaignDiscount += flatPrices[i];
+              }
+            }
+          }
+
+          // Render Row
+          if (campaignDiscount > 0 && campaignDiscountRow && campaignNameDisplay && campaignDiscountDisplay) {
+            campaignDiscountRow.classList.remove('hidden');
+            campaignNameDisplay.textContent = campaignSettings.name || 'Kampanya İndirimi';
+            campaignDiscountDisplay.textContent = '-' + formatMoney(campaignDiscount, cartCurrency);
+          } else if (campaignDiscountRow) {
+            campaignDiscountRow.classList.add('hidden');
+          }
+        } else {
+          if (cartCampaignAlert) cartCampaignAlert.classList.add('hidden');
+          if (campaignDiscountRow) campaignDiscountRow.classList.add('hidden');
+        }
         
-        let discountAmount = 0;
+        // --- Coupon Discount Calculation (Applied on remaining total or subtotal) ---
+        let couponDiscount = 0;
         let appliedCoupon: any = null;
         try { appliedCoupon = JSON.parse(localStorage.getItem('laflaf_coupon') || 'null'); } catch(e){}
 
@@ -191,22 +294,24 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
         const couponCodeDisplay = document.getElementById('couponCodeDisplay');
         const discountDisplay = document.getElementById('discountDisplay');
 
+        const remainingAfterCampaign = Math.max(0, subtotal - campaignDiscount);
+
         if (appliedCoupon && discountRow && couponCodeDisplay && discountDisplay) {
           if (appliedCoupon.type === 'percentage') {
-            discountAmount = subtotal * (appliedCoupon.value / 100);
+            couponDiscount = remainingAfterCampaign * (appliedCoupon.value / 100);
           } else {
-            discountAmount = appliedCoupon.value;
+            couponDiscount = appliedCoupon.value;
           }
-          if (discountAmount > subtotal) discountAmount = subtotal;
+          if (couponDiscount > remainingAfterCampaign) couponDiscount = remainingAfterCampaign;
           
           discountRow.classList.remove('hidden');
           couponCodeDisplay.textContent = appliedCoupon.code;
-          discountDisplay.textContent = '-' + formatMoney(discountAmount, cartCurrency);
+          discountDisplay.textContent = '-' + formatMoney(couponDiscount, cartCurrency);
         } else if (discountRow) {
           discountRow.classList.add('hidden');
         }
 
-        const total = subtotal - discountAmount;
+        const total = remainingAfterCampaign - couponDiscount;
         totalDisplay.textContent = formatMoney(total > 0 ? total : 0, cartCurrency);
         
         // Update badge if any
@@ -272,11 +377,38 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           let subtotal = 0;
           cart.forEach(item => subtotal += (safeParseFloat(item.price) * item.qty));
 
+          // Compute remaining subtotal for coupon limit check
+          let campaignDiscount = 0;
+          if (campaignSettings && campaignSettings.active) {
+            if (campaignSettings.type === 'percentage') {
+              campaignDiscount = subtotal * (parseFloat(campaignSettings.value) || 0) / 100;
+            } else if (campaignSettings.type === 'fixed') {
+              campaignDiscount = Math.min(subtotal, parseFloat(campaignSettings.value) || 0);
+            } else if (campaignSettings.type === 'bogo') {
+              const buyQty = parseInt(campaignSettings.bogo_buy_qty) || 3;
+              const getQty = parseInt(campaignSettings.bogo_get_qty) || 1;
+              let totalItemsQty = cart.reduce((sum, item) => sum + item.qty, 0);
+              if (totalItemsQty >= buyQty) {
+                const flatPrices = [];
+                cart.forEach(item => {
+                  const price = safeParseFloat(item.price);
+                  for (let i = 0; i < item.qty; i++) flatPrices.push(price);
+                });
+                flatPrices.sort((a, b) => a - b);
+                const freeCount = Math.floor(totalItemsQty / buyQty) * getQty;
+                for (let i = 0; i < Math.min(freeCount, flatPrices.length); i++) {
+                  campaignDiscount += flatPrices[i];
+                }
+              }
+            }
+          }
+          const remainingSubtotal = Math.max(0, subtotal - campaignDiscount);
+
           try {
             const res = await fetch('/api/validate-coupon', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code, cart_amount: subtotal })
+              body: JSON.stringify({ code, cart_amount: remainingSubtotal })
             });
             const data = await res.json();
 

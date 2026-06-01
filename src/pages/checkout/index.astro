@@ -132,24 +132,65 @@ if (Astro.request.method === 'POST') {
       };
     });
 
+    // Campaign discount calculation
+    let campaign_discount = 0;
+    if (settings.campaign_settings) {
+      try {
+        const campaign = JSON.parse(settings.campaign_settings);
+        if (campaign && campaign.active) {
+          if (campaign.type === 'percentage') {
+            const pct = parseFloat(campaign.value) || 0;
+            campaign_discount = subtotal * (pct / 100);
+          } else if (campaign.type === 'fixed') {
+            const amount = parseFloat(campaign.value) || 0;
+            campaign_discount = Math.min(subtotal, amount);
+          } else if (campaign.type === 'bogo') {
+            const buyQty = parseInt(campaign.bogo_buy_qty) || 3;
+            const getQty = parseInt(campaign.bogo_get_qty) || 1;
+            const totalQty = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+            if (totalQty >= buyQty) {
+              const flatPrices: number[] = [];
+              orderItems.forEach(item => {
+                for (let i = 0; i < item.quantity; i++) {
+                  flatPrices.push(item.unit_price);
+                }
+              });
+              flatPrices.sort((a, b) => a - b);
+              const freeCount = Math.floor(totalQty / buyQty) * getQty;
+              for (let i = 0; i < Math.min(freeCount, flatPrices.length); i++) {
+                campaign_discount += flatPrices[i];
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Campaign settings error in server post:", e);
+      }
+    }
+
     const coupon_code = formData.get('coupon_code') as string;
-    let discount_amount = 0;
+    let coupon_discount = 0;
     let final_coupon_code = null;
+
+    const remainingAfterCampaign = Math.max(0, subtotal - campaign_discount);
 
     if (coupon_code) {
       const coupon = await getCouponByCode(coupon_code, dbBinding);
-      if (coupon && coupon.status === 'aktif' && (!coupon.min_cart_amount || subtotal >= Number(coupon.min_cart_amount))) {
+      if (coupon && coupon.status === 'aktif' && (!coupon.min_cart_amount || remainingAfterCampaign >= Number(coupon.min_cart_amount))) {
         const discountValue = Number(coupon.discount_value) || 0;
         if (coupon.discount_type === 'percentage') {
-          discount_amount = subtotal * (discountValue / 100);
+          coupon_discount = remainingAfterCampaign * (discountValue / 100);
         } else {
-          discount_amount = discountValue;
+          coupon_discount = discountValue;
         }
-        if (discount_amount > subtotal) discount_amount = subtotal;
+        if (coupon_discount > remainingAfterCampaign) {
+          coupon_discount = remainingAfterCampaign;
+        }
         final_coupon_code = coupon.code;
       }
     }
 
+    const discount_amount = campaign_discount + coupon_discount;
     const total_amount = subtotal - discount_amount;
 
     const orderData = {
@@ -186,6 +227,11 @@ if (Astro.request.method === 'POST') {
 ---
 
 <BaseLayout title="Ödeme ve Teslimat | Laflaf E-Ticaret">
+  <div id="cart-campaign-data" 
+       class="hidden" 
+       data-campaign={settings.campaign_settings || '{}'}>
+  </div>
+
   <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
     
     {basari ? (
@@ -426,6 +472,10 @@ if (Astro.request.method === 'POST') {
                   <span>Ara Toplam</span>
                   <span id="coSubtotal" class="font-medium text-gray-900 dark:text-white">0 ₺</span>
                 </div>
+                <div id="coCampaignDiscountRow" class="flex justify-between hidden text-rose-600 font-semibold">
+                  <span id="coCampaignNameDisplay">Kampanya İndirimi</span>
+                  <span id="coCampaignDiscount" class="font-medium">-0 ₺</span>
+                </div>
                 <div id="coDiscountRow" class="flex justify-between hidden text-green-600 font-semibold">
                   <span>İndirim (<span id="coCouponDisplay"></span>)</span>
                   <span id="coDiscount" class="font-medium">-0 ₺</span>
@@ -547,7 +597,59 @@ if (Astro.request.method === 'POST') {
         const coSubtotal = document.getElementById('coSubtotal');
         if (coSubtotal) coSubtotal.textContent = formatMoney(subtotal, cartCurrency);
         
-        let discountAmount = 0;
+        let campaign_discount = 0;
+        const campaignDataEl = document.getElementById('cart-campaign-data');
+        if (campaignDataEl) {
+          try {
+            const campaign = JSON.parse(campaignDataEl.getAttribute('data-campaign') || '{}');
+            if (campaign && campaign.active) {
+              if (campaign.type === 'percentage') {
+                const pct = parseFloat(campaign.value) || 0;
+                campaign_discount = subtotal * (pct / 100);
+              } else if (campaign.type === 'fixed') {
+                const amount = parseFloat(campaign.value) || 0;
+                campaign_discount = Math.min(subtotal, amount);
+              } else if (campaign.type === 'bogo') {
+                const buyQty = parseInt(campaign.bogo_buy_qty) || 3;
+                const getQty = parseInt(campaign.bogo_get_qty) || 1;
+                const totalQty = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 1), 0);
+                if (totalQty >= buyQty) {
+                  const flatPrices: number[] = [];
+                  cart.forEach(item => {
+                    const price = safeParseFloat(item.price);
+                    const qty = parseInt(item.qty) || 1;
+                    for (let i = 0; i < qty; i++) {
+                      flatPrices.push(price);
+                    }
+                  });
+                  flatPrices.sort((a, b) => a - b);
+                  const freeCount = Math.floor(totalQty / buyQty) * getQty;
+                  for (let i = 0; i < Math.min(freeCount, flatPrices.length); i++) {
+                    campaign_discount += flatPrices[i];
+                  }
+                }
+              }
+              
+              if (campaign_discount > 0) {
+                const coCampaignDiscountRow = document.getElementById('coCampaignDiscountRow');
+                const coCampaignNameDisplay = document.getElementById('coCampaignNameDisplay');
+                const coCampaignDiscount = document.getElementById('coCampaignDiscount');
+                if (coCampaignDiscountRow && coCampaignDiscount) {
+                  coCampaignDiscountRow.classList.remove('hidden');
+                  if (coCampaignNameDisplay && campaign.name) {
+                    coCampaignNameDisplay.textContent = campaign.name;
+                  }
+                  coCampaignDiscount.textContent = '-' + formatMoney(campaign_discount, cartCurrency);
+                }
+              }
+            }
+          } catch(e) {
+            console.error("Client campaign calculation error:", e);
+          }
+        }
+
+        const remainingAfterCampaign = Math.max(0, subtotal - campaign_discount);
+        let coupon_discount = 0;
         let appliedCoupon: any = null;
         try { appliedCoupon = JSON.parse(localStorage.getItem('laflaf_coupon') || 'null'); } catch(e){}
 
@@ -557,22 +659,30 @@ if (Astro.request.method === 'POST') {
         const couponCodeInput = document.getElementById('couponCodeInput') as HTMLInputElement | null;
 
         if (appliedCoupon && coDiscountRow && coCouponDisplay && coDiscount) {
-          if (appliedCoupon.type === 'percentage') {
-            discountAmount = subtotal * (appliedCoupon.value / 100);
+          const minCartAmount = parseFloat(appliedCoupon.min_cart_amount) || 0;
+          if (remainingAfterCampaign >= minCartAmount) {
+            if (appliedCoupon.type === 'percentage') {
+              coupon_discount = remainingAfterCampaign * (appliedCoupon.value / 100);
+            } else {
+              coupon_discount = appliedCoupon.value;
+            }
+            if (coupon_discount > remainingAfterCampaign) coupon_discount = remainingAfterCampaign;
+            
+            coDiscountRow.classList.remove('hidden');
+            coCouponDisplay.textContent = appliedCoupon.code;
+            coDiscount.textContent = '-' + formatMoney(coupon_discount, cartCurrency);
+            if (couponCodeInput) {
+              couponCodeInput.value = appliedCoupon.code;
+            }
           } else {
-            discountAmount = appliedCoupon.value;
-          }
-          if (discountAmount > subtotal) discountAmount = subtotal;
-          
-          coDiscountRow.classList.remove('hidden');
-          coCouponDisplay.textContent = appliedCoupon.code;
-          coDiscount.textContent = '-' + formatMoney(discountAmount, cartCurrency);
-          if (couponCodeInput) {
-            couponCodeInput.value = appliedCoupon.code;
+            coDiscountRow.classList.add('hidden');
+            if (couponCodeInput) {
+              couponCodeInput.value = '';
+            }
           }
         }
 
-        const total = subtotal - discountAmount;
+        const total = subtotal - campaign_discount - coupon_discount;
         const coTotal = document.getElementById('coTotal');
         if (coTotal) coTotal.textContent = formatMoney(total > 0 ? total : 0, cartCurrency);
 
