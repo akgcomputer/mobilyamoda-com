@@ -47,7 +47,7 @@ if (Astro.request.method === 'POST') {
 }
 
 // Load settings
-const settings = await getSettings(dbBinding);
+const settings = (await getSettings(dbBinding)) || {};
 const havaleActive = settings.payment_havale_active === '1';
 const havaleIbanName = settings.payment_havale_iban_name || '';
 const havaleIbanNo = settings.payment_havale_iban_no || '';

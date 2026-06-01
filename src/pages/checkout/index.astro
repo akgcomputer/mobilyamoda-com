@@ -31,7 +31,7 @@ let basari = '';
 let hata = '';
 
 // Load Payment settings
-const settings = await getSettings(dbBinding);
+const settings = (await getSettings(dbBinding)) || {};
 const havaleActive = settings.payment_havale_active === '1';
 const havaleIbanName = settings.payment_havale_iban_name || 'Laflaf Teknoloji A.Ş.';
 const havaleIbanNo = settings.payment_havale_iban_no || 'TR00 0000 0000 0000 0000 0000 00';

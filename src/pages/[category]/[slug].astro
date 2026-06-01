@@ -1,7 +1,7 @@
 ---
 // [slug].astro - Tekil İçerik Görünümü
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getPostBySlug, getPosts, getCommentsByPost } from '../../lib/db';
+import { getPostBySlug, getPosts, getCommentsByPost, createComment } from '../../lib/db';
 
 const slug = Astro.params.slug;
 const dbBinding = Astro.locals.runtime?.env?.DB;
@@ -9,6 +9,41 @@ const post = await getPostBySlug(slug as string, dbBinding);
 
 if (!post) {
   return Astro.redirect('/');
+}
+
+let commentSuccess = false;
+let commentError = '';
+
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const action = formData.get('action') as string;
+    
+    if (action === 'comment') {
+      const author_name = formData.get('author_name') as string;
+      const author_email = formData.get('author_email') as string;
+      const content = formData.get('content') as string;
+      const robotCheck = formData.get('robotCheck') as string;
+      
+      if (!author_name || !content) {
+        throw new Error("Ad Soyad ve Yorum alanları zorunludur.");
+      }
+      if (robotCheck !== 'on') {
+        throw new Error("Lütfen robot olmadığınızı doğrulayın.");
+      }
+      
+      await createComment({
+        post_id: post.id,
+        author_name,
+        author_email,
+        content
+      }, dbBinding);
+      
+      commentSuccess = true;
+    }
+  } catch (err: any) {
+    commentError = err.message || 'Yorum gönderilirken bir hata oldu.';
+  }
 }
 
 // Tüm içerikleri çekip benzer ve farklı kategoridekileri ayıralım
@@ -175,28 +210,37 @@ const currentUrl = Astro.url.href;
           <!-- Yorum Formu -->
           <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-10">
             <h4 class="font-semibold mb-4">Bir Yorum Bırakın</h4>
-            <form id="commentForm" class="space-y-4">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-medium mb-1">Ad Soyad</label>
-                  <input type="text" required class="w-full px-4 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none" placeholder="Adınız Soyadınız">
+            
+            {commentError && (
+              <div class="p-4 bg-red-100 text-red-700 rounded-lg mb-4 font-semibold">{commentError}</div>
+            )}
+            
+            {commentSuccess ? (
+              <div class="p-4 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-semibold"><i class="fas fa-check-circle mr-2"></i>Yorumunuz başarıyla gönderildi! Yönetici onayından sonra yayınlanacaktır.</div>
+            ) : (
+              <form method="POST" id="commentForm" class="space-y-4">
+                <input type="hidden" name="action" value="comment" />
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Ad Soyad *</label>
+                    <input type="text" name="author_name" required class="w-full px-4 py-2.5 border rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none dark:text-white" placeholder="Adınız Soyadınız">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">E-posta (Gizli kalacak)</label>
+                    <input type="email" name="author_email" class="w-full px-4 py-2.5 border rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none dark:text-white" placeholder="ornek@email.com">
+                  </div>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium mb-1">E-posta (Gizli kalacak)</label>
-                  <input type="email" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none" placeholder="ornek@email.com">
+                  <label class="block text-sm font-medium mb-1">Yorumunuz *</label>
+                  <textarea name="content" required rows="4" class="w-full px-4 py-2.5 border rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none dark:text-white" placeholder="Düşüncelerinizi paylaşın..."></textarea>
                 </div>
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Yorumunuz</label>
-                <textarea required rows="4" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 focus:border-purple-500 focus:outline-none" placeholder="Düşüncelerinizi paylaşın..."></textarea>
-              </div>
-              <div class="flex items-center gap-2">
-                <input type="checkbox" id="robotCheck" required class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
-                <label for="robotCheck" class="text-sm">Ben robot değilim</label>
-              </div>
-              <button type="submit" class="bg-purple-600 text-white px-6 py-2.5 rounded-lg hover:bg-purple-700 transition font-medium">Yorumu Gönder</button>
-            </form>
-            <div id="commentSuccess" class="hidden mt-4 p-4 bg-green-100 text-green-700 rounded-lg">Yorumunuz başarıyla gönderildi! Onaylandıktan sonra yayınlanacaktır.</div>
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" name="robotCheck" id="robotCheck" required class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
+                  <label for="robotCheck" class="text-sm cursor-pointer select-none">Ben robot değilim</label>
+                </div>
+                <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg transition font-medium">Yorumu Gönder</button>
+              </form>
+            )}
           </div>
 
           <!-- Yorumlar Listesi (Veritabanından çekilen) -->
@@ -297,15 +341,5 @@ const currentUrl = Astro.url.href;
       } catch(e) {
         console.error('Beğeni kaydedilemedi:', e);
       }
-    });
-
-    // Yorum Formu
-    const commentForm = document.getElementById('commentForm');
-    const commentSuccess = document.getElementById('commentSuccess');
-    
-    commentForm?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      commentForm.classList.add('hidden');
-      commentSuccess?.classList.remove('hidden');
     });
 </script>
