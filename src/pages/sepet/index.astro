@@ -59,9 +59,9 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
               <span>Ara Toplam</span>
               <span id="subtotalDisplay" class="font-medium text-gray-900 dark:text-white">0,00 ₺</span>
             </div>
-            <div id="campaignDiscountRow" class="flex justify-between hidden text-rose-600 font-semibold">
+            <div id="campaignDiscountRow" class="flex justify-between text-rose-600 dark:text-rose-400 font-semibold">
               <span id="campaignNameDisplay">Kampanya İndirimi</span>
-              <span id="campaignDiscountDisplay">-0 ₺</span>
+              <span id="campaignDiscountDisplay" class="text-gray-400 dark:text-gray-500 font-bold">YOK</span>
             </div>
             <div class="flex justify-between">
               <span>Kargo Ücreti</span>
@@ -75,9 +75,9 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
             </div>
             <div id="couponMessage" class="text-xs hidden mb-4"></div>
             
-            <div id="discountRow" class="flex justify-between hidden text-green-600 font-medium text-sm mt-4">
-              <span>İndirim (<span id="couponCodeDisplay"></span>)</span>
-              <span id="discountDisplay">-0,00 ₺</span>
+            <div id="discountRow" class="flex justify-between text-green-600 dark:text-green-400 font-semibold text-sm mt-4">
+              <span>Kupon İndirimi <span id="couponCodeDisplay" class="text-xs font-normal opacity-85"></span></span>
+              <span id="discountDisplay" class="text-gray-400 dark:text-gray-500 font-bold">YOK</span>
             </div>
           </div>
           
@@ -195,11 +195,32 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           // Variant Info
           const variantHtml = item.variant_name ? `<div class="text-sm text-gray-500 mt-1">Seçenek: <span class="font-medium text-gray-700 dark:text-gray-300">${item.variant_name}</span></div>` : '';
 
+          let campaignBadgeHtml = '';
+          if (campaignSettings && campaignSettings.active) {
+            let desc = '';
+            if (campaignSettings.type === 'percentage') {
+              desc = `%${campaignSettings.value} İndirim Fırsatı!`;
+            } else if (campaignSettings.type === 'fixed') {
+              desc = `${campaignSettings.value} ₺ İndirim Fırsatı!`;
+            } else if (campaignSettings.type === 'bogo') {
+              desc = `${campaignSettings.bogo_buy_qty} Alana ${campaignSettings.bogo_get_qty} Bedava!`;
+            }
+            campaignBadgeHtml = `
+              <div class="mt-2 flex flex-col items-start gap-1">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded animate-pulse">
+                  <i class="fas fa-bullhorn text-[9px]"></i> Kampanya Var!
+                </span>
+                <span class="text-[11px] text-rose-500 dark:text-rose-400 font-semibold">${desc}</span>
+              </div>
+            `;
+          }
+
           li.innerHTML = `
             ${imgHtml}
             <div class="flex-1">
               <h3 class="text-lg font-bold text-gray-900 dark:text-white line-clamp-2">${item.name}</h3>
               ${variantHtml}
+              ${campaignBadgeHtml}
               <div class="text-orange-600 font-bold mt-2">${formatMoney(itemPrice, itemCurrency)} <span class="text-xs text-gray-400 font-normal">/ ${item.unit}</span></div>
             </div>
             <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
@@ -274,15 +295,24 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
 
           // Render Row
           if (campaignDiscount > 0 && campaignDiscountRow && campaignNameDisplay && campaignDiscountDisplay) {
-            campaignDiscountRow.classList.remove('hidden');
-            campaignNameDisplay.textContent = campaignSettings.name || 'Kampanya İndirimi';
+            campaignNameDisplay.textContent = 'Kampanya (' + (campaignSettings.name || 'Aktif Kampanya') + ')';
             campaignDiscountDisplay.textContent = '-' + formatMoney(campaignDiscount, cartCurrency);
-          } else if (campaignDiscountRow) {
-            campaignDiscountRow.classList.add('hidden');
+            campaignDiscountDisplay.classList.remove('text-gray-400', 'dark:text-gray-500', 'font-bold');
+            campaignDiscountDisplay.classList.add('text-rose-600', 'dark:text-rose-400');
+          } else if (campaignDiscountDisplay && campaignNameDisplay) {
+            campaignNameDisplay.textContent = 'Kampanya';
+            campaignDiscountDisplay.textContent = 'YOK';
+            campaignDiscountDisplay.classList.remove('text-rose-600', 'dark:text-rose-400');
+            campaignDiscountDisplay.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
           }
         } else {
           if (cartCampaignAlert) cartCampaignAlert.classList.add('hidden');
-          if (campaignDiscountRow) campaignDiscountRow.classList.add('hidden');
+          if (campaignDiscountDisplay && campaignNameDisplay) {
+            campaignNameDisplay.textContent = 'Kampanya';
+            campaignDiscountDisplay.textContent = 'YOK';
+            campaignDiscountDisplay.classList.remove('text-rose-600', 'dark:text-rose-400');
+            campaignDiscountDisplay.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
+          }
         }
         
         // --- Coupon Discount Calculation (Applied on remaining total or subtotal) ---
@@ -296,7 +326,7 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
 
         const remainingAfterCampaign = Math.max(0, subtotal - campaignDiscount);
 
-        if (appliedCoupon && discountRow && couponCodeDisplay && discountDisplay) {
+        if (appliedCoupon && discountDisplay && couponCodeDisplay) {
           if (appliedCoupon.type === 'percentage') {
             couponDiscount = remainingAfterCampaign * (appliedCoupon.value / 100);
           } else {
@@ -304,11 +334,15 @@ const checkoutUrl = isLoggedIn ? '/checkout' : '/profil?redirect=checkout';
           }
           if (couponDiscount > remainingAfterCampaign) couponDiscount = remainingAfterCampaign;
           
-          discountRow.classList.remove('hidden');
-          couponCodeDisplay.textContent = appliedCoupon.code;
+          couponCodeDisplay.textContent = `(${appliedCoupon.code})`;
           discountDisplay.textContent = '-' + formatMoney(couponDiscount, cartCurrency);
-        } else if (discountRow) {
-          discountRow.classList.add('hidden');
+          discountDisplay.classList.remove('text-gray-400', 'dark:text-gray-500', 'font-bold');
+          discountDisplay.classList.add('text-green-600', 'dark:text-green-400');
+        } else if (discountDisplay && couponCodeDisplay) {
+          couponCodeDisplay.textContent = '';
+          discountDisplay.textContent = 'YOK';
+          discountDisplay.classList.remove('text-green-600', 'dark:text-green-400');
+          discountDisplay.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
         }
 
         const total = remainingAfterCampaign - couponDiscount;

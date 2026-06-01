@@ -472,13 +472,13 @@ if (Astro.request.method === 'POST') {
                   <span>Ara Toplam</span>
                   <span id="coSubtotal" class="font-medium text-gray-900 dark:text-white">0 ₺</span>
                 </div>
-                <div id="coCampaignDiscountRow" class="flex justify-between hidden text-rose-600 font-semibold">
+                <div id="coCampaignDiscountRow" class="flex justify-between text-rose-600 dark:text-rose-400 font-semibold">
                   <span id="coCampaignNameDisplay">Kampanya İndirimi</span>
-                  <span id="coCampaignDiscount" class="font-medium">-0 ₺</span>
+                  <span id="coCampaignDiscount" class="text-gray-400 dark:text-gray-500 font-bold">YOK</span>
                 </div>
-                <div id="coDiscountRow" class="flex justify-between hidden text-green-600 font-semibold">
-                  <span>İndirim (<span id="coCouponDisplay"></span>)</span>
-                  <span id="coDiscount" class="font-medium">-0 ₺</span>
+                <div id="coDiscountRow" class="flex justify-between text-green-600 dark:text-green-400 font-semibold">
+                  <span>Kupon İndirimi <span id="coCouponDisplay" class="text-xs font-normal opacity-85"></span></span>
+                  <span id="coDiscount" class="text-gray-400 dark:text-gray-500 font-bold">YOK</span>
                 </div>
                 <div class="flex justify-between">
                   <span>Kargo Ücreti</span>
@@ -509,9 +509,14 @@ if (Astro.request.method === 'POST') {
 
   {!basari && (
     <script>
-      document.addEventListener('astro:page-load', () => {
+      function initCheckout() {
         const form = document.getElementById('checkoutForm');
         if (!form) return;
+        
+        // Prevent double execution on same frame
+        if ((window as any).__checkout_initialized) return;
+        (window as any).__checkout_initialized = true;
+
         const defaultMethod = form.getAttribute('data-default-method') || 'havale';
 
         // Load cart data
@@ -561,6 +566,20 @@ if (Astro.request.method === 'POST') {
           cartDataInput.value = JSON.stringify(cart);
         }
 
+        // Parse campaign settings for badge display
+        let campaignSettings: any = null;
+        const campaignDataEl = document.getElementById('cart-campaign-data');
+        if (campaignDataEl) {
+          try {
+            const rawSettings = JSON.parse(campaignDataEl.getAttribute('data-campaign') || '{}');
+            if (rawSettings.campaign_settings) {
+              campaignSettings = JSON.parse(rawSettings.campaign_settings);
+            } else {
+              campaignSettings = rawSettings;
+            }
+          } catch(e) {}
+        }
+
         // Render Summary
         const summaryItemsContainer = document.getElementById('checkoutSummaryItems');
         if (!summaryItemsContainer) return;
@@ -581,13 +600,34 @@ if (Astro.request.method === 'POST') {
             ? `<img src="${item.image}" class="w-12 h-12 object-cover rounded border border-gray-250 dark:border-gray-600" />`
             : `<div class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400"><i class="fas fa-image"></i></div>`;
           
+          let campaignBadgeHtml = '';
+          if (campaignSettings && campaignSettings.active) {
+            let desc = '';
+            if (campaignSettings.type === 'percentage') {
+              desc = `%${campaignSettings.value} İndirim`;
+            } else if (campaignSettings.type === 'fixed') {
+              desc = `${campaignSettings.value} ₺ İndirim`;
+            } else if (campaignSettings.type === 'bogo') {
+              desc = `${campaignSettings.bogo_buy_qty} Alana ${campaignSettings.bogo_get_qty} Bedava!`;
+            }
+            campaignBadgeHtml = `
+              <div class="mt-1 flex items-center gap-1.5 flex-wrap">
+                <span class="inline-flex items-center gap-0.5 px-1 py-0.2 text-[8px] font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-150 dark:border-rose-900/35 rounded animate-pulse">
+                  Kampanya Var!
+                </span>
+                <span class="text-[9px] text-rose-500 font-semibold">${desc}</span>
+              </div>
+            `;
+          }
+
           div.innerHTML = `
             ${imgHtml}
             <div class="flex-1">
               <div class="font-bold text-gray-900 dark:text-white line-clamp-1">${item.name}</div>
               <div class="text-xs text-gray-500">${item.variant_name ? item.variant_name + ' | ' : ''}${itemQty} Adet</div>
+              ${campaignBadgeHtml}
             </div>
-            <div class="font-bold text-gray-900 dark:text-white">
+            <div class="font-bold text-gray-900 dark:text-white whitespace-nowrap">
               ${formatMoney(itemTotal, itemCurrency)}
             </div>
           `;
@@ -598,53 +638,64 @@ if (Astro.request.method === 'POST') {
         if (coSubtotal) coSubtotal.textContent = formatMoney(subtotal, cartCurrency);
         
         let campaign_discount = 0;
-        const campaignDataEl = document.getElementById('cart-campaign-data');
-        if (campaignDataEl) {
-          try {
-            const campaign = JSON.parse(campaignDataEl.getAttribute('data-campaign') || '{}');
-            if (campaign && campaign.active) {
-              if (campaign.type === 'percentage') {
-                const pct = parseFloat(campaign.value) || 0;
-                campaign_discount = subtotal * (pct / 100);
-              } else if (campaign.type === 'fixed') {
-                const amount = parseFloat(campaign.value) || 0;
-                campaign_discount = Math.min(subtotal, amount);
-              } else if (campaign.type === 'bogo') {
-                const buyQty = parseInt(campaign.bogo_buy_qty) || 3;
-                const getQty = parseInt(campaign.bogo_get_qty) || 1;
-                const totalQty = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 1), 0);
-                if (totalQty >= buyQty) {
-                  const flatPrices: number[] = [];
-                  cart.forEach(item => {
-                    const price = safeParseFloat(item.price);
-                    const qty = parseInt(item.qty) || 1;
-                    for (let i = 0; i < qty; i++) {
-                      flatPrices.push(price);
-                    }
-                  });
-                  flatPrices.sort((a, b) => a - b);
-                  const freeCount = Math.floor(totalQty / buyQty) * getQty;
-                  for (let i = 0; i < Math.min(freeCount, flatPrices.length); i++) {
-                    campaign_discount += flatPrices[i];
-                  }
+        if (campaignSettings && campaignSettings.active) {
+          if (campaignSettings.type === 'percentage') {
+            const pct = parseFloat(campaignSettings.value) || 0;
+            campaign_discount = subtotal * (pct / 100);
+          } else if (campaignSettings.type === 'fixed') {
+            const amount = parseFloat(campaignSettings.value) || 0;
+            campaign_discount = Math.min(subtotal, amount);
+          } else if (campaignSettings.type === 'bogo') {
+            const buyQty = parseInt(campaignSettings.bogo_buy_qty) || 3;
+            const getQty = parseInt(campaignSettings.bogo_get_qty) || 1;
+            const totalQty = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 1), 0);
+            if (totalQty >= buyQty) {
+              const flatPrices: number[] = [];
+              cart.forEach(item => {
+                const price = safeParseFloat(item.price);
+                const qty = parseInt(item.qty) || 1;
+                for (let i = 0; i < qty; i++) {
+                  flatPrices.push(price);
                 }
-              }
-              
-              if (campaign_discount > 0) {
-                const coCampaignDiscountRow = document.getElementById('coCampaignDiscountRow');
-                const coCampaignNameDisplay = document.getElementById('coCampaignNameDisplay');
-                const coCampaignDiscount = document.getElementById('coCampaignDiscount');
-                if (coCampaignDiscountRow && coCampaignDiscount) {
-                  coCampaignDiscountRow.classList.remove('hidden');
-                  if (coCampaignNameDisplay && campaign.name) {
-                    coCampaignNameDisplay.textContent = campaign.name;
-                  }
-                  coCampaignDiscount.textContent = '-' + formatMoney(campaign_discount, cartCurrency);
-                }
+              });
+              flatPrices.sort((a, b) => a - b);
+              const freeCount = Math.floor(totalQty / buyQty) * getQty;
+              for (let i = 0; i < Math.min(freeCount, flatPrices.length); i++) {
+                campaign_discount += flatPrices[i];
               }
             }
-          } catch(e) {
-            console.error("Client campaign calculation error:", e);
+          }
+          
+          if (campaign_discount > 0) {
+            const coCampaignDiscountRow = document.getElementById('coCampaignDiscountRow');
+            const coCampaignNameDisplay = document.getElementById('coCampaignNameDisplay');
+            const coCampaignDiscount = document.getElementById('coCampaignDiscount');
+            if (coCampaignDiscountRow && coCampaignDiscount) {
+              if (coCampaignNameDisplay && campaignSettings.name) {
+                coCampaignNameDisplay.textContent = 'Kampanya (' + campaignSettings.name + ')';
+              }
+              coCampaignDiscount.textContent = '-' + formatMoney(campaign_discount, cartCurrency);
+              coCampaignDiscount.classList.remove('text-gray-400', 'dark:text-gray-500', 'font-bold');
+              coCampaignDiscount.classList.add('text-rose-600', 'dark:text-rose-400');
+            }
+          } else {
+            const coCampaignNameDisplay = document.getElementById('coCampaignNameDisplay');
+            const coCampaignDiscount = document.getElementById('coCampaignDiscount');
+            if (coCampaignNameDisplay && coCampaignDiscount) {
+              coCampaignNameDisplay.textContent = 'Kampanya';
+              coCampaignDiscount.textContent = 'YOK';
+              coCampaignDiscount.classList.remove('text-rose-600', 'dark:text-rose-400');
+              coCampaignDiscount.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
+            }
+          }
+        } else {
+          const coCampaignNameDisplay = document.getElementById('coCampaignNameDisplay');
+          const coCampaignDiscount = document.getElementById('coCampaignDiscount');
+          if (coCampaignNameDisplay && coCampaignDiscount) {
+            coCampaignNameDisplay.textContent = 'Kampanya';
+            coCampaignDiscount.textContent = 'YOK';
+            coCampaignDiscount.classList.remove('text-rose-600', 'dark:text-rose-400');
+            coCampaignDiscount.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
           }
         }
 
@@ -658,7 +709,7 @@ if (Astro.request.method === 'POST') {
         const coDiscount = document.getElementById('coDiscount');
         const couponCodeInput = document.getElementById('couponCodeInput') as HTMLInputElement | null;
 
-        if (appliedCoupon && coDiscountRow && coCouponDisplay && coDiscount) {
+        if (appliedCoupon && coDiscount && coCouponDisplay) {
           const minCartAmount = parseFloat(appliedCoupon.min_cart_amount) || 0;
           if (remainingAfterCampaign >= minCartAmount) {
             if (appliedCoupon.type === 'percentage') {
@@ -668,18 +719,27 @@ if (Astro.request.method === 'POST') {
             }
             if (coupon_discount > remainingAfterCampaign) coupon_discount = remainingAfterCampaign;
             
-            coDiscountRow.classList.remove('hidden');
-            coCouponDisplay.textContent = appliedCoupon.code;
+            coCouponDisplay.textContent = `(${appliedCoupon.code})`;
             coDiscount.textContent = '-' + formatMoney(coupon_discount, cartCurrency);
+            coDiscount.classList.remove('text-gray-400', 'dark:text-gray-500', 'font-bold');
+            coDiscount.classList.add('text-green-600', 'dark:text-green-400');
             if (couponCodeInput) {
               couponCodeInput.value = appliedCoupon.code;
             }
           } else {
-            coDiscountRow.classList.add('hidden');
+            coCouponDisplay.textContent = '';
+            coDiscount.textContent = 'YOK';
+            coDiscount.classList.remove('text-green-600', 'dark:text-green-400');
+            coDiscount.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
             if (couponCodeInput) {
               couponCodeInput.value = '';
             }
           }
+        } else if (coDiscount && coCouponDisplay) {
+          coCouponDisplay.textContent = '';
+          coDiscount.textContent = 'YOK';
+          coDiscount.classList.remove('text-green-600', 'dark:text-green-400');
+          coDiscount.classList.add('text-gray-400', 'dark:text-gray-500', 'font-bold');
         }
 
         const total = subtotal - campaign_discount - coupon_discount;
@@ -773,6 +833,18 @@ if (Astro.request.method === 'POST') {
             e.target.value = e.target.value.replace(/[^0-9]/gi, '');
           });
         }
+      }
+
+      // Safe script registration for both refresh and Astro transition states
+      if (document.readyState !== 'loading') {
+        initCheckout();
+      } else {
+        document.addEventListener('DOMContentLoaded', initCheckout);
+      }
+      document.addEventListener('astro:page-load', () => {
+        // Clear flag to force fresh state on view transitions
+        (window as any).__checkout_initialized = false;
+        initCheckout();
       });
     </script>
   )}
