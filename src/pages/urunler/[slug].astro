@@ -630,19 +630,16 @@ const mainImageUrl = product.image_url || null;
 
   </div>
 
-  <div id="product-interactive-data" 
-       class="hidden" 
-       data-product={productJson} 
-       data-main-image={mainImageUrl} 
-       data-video={videoUrl} 
-       data-gallery={JSON.stringify(gallery)}>
-  </div>
+  <div id="product-interactive-data" class="hidden" data-product={productJson} data-video={videoUrl}></div>
 
-  <!-- Script: Dinamik Fiyat, Mini Sepet ve Carousel Galeri -->
   <script>
-    document.addEventListener('astro:page-load', () => {
+    function initProductDetails() {
       const dataEl = document.getElementById('product-interactive-data');
       if (!dataEl) return;
+      
+      // Prevent double execution on same frame
+      if ((window as any).__product_initialized) return;
+      (window as any).__product_initialized = true;
 
       const getPathname = (url: string | null) => {
         if (!url) return '';
@@ -714,7 +711,7 @@ const mainImageUrl = product.image_url || null;
           }
           if (mainVideo && item.url) {
             let embedUrl = item.url;
-            const match = item.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+            const match = (typeof item.url === 'string') ? item.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/) : null;
             if (match && match[1]) {
               embedUrl = 'https://www.youtube.com/embed/' + match[1] + '?autoplay=1';
             }
@@ -788,13 +785,13 @@ const mainImageUrl = product.image_url || null;
       document.addEventListener('astro:before-swap', () => {
         document.removeEventListener('keydown', handleEscape);
       }, { once: true });
-
+      
       // Currency formatter
       const formatMoney = (amount: number) => {
         return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ' + (product.currency || '₺');
       };
 
-      // --- Quantity and Cart Logic (Only if elements exist) ---
+      // --- Quantity and Cart Logic ---
       const qtyInput = document.getElementById('qtyInput') as HTMLInputElement | null;
       const qtyMinus = document.getElementById('qtyMinus');
       const qtyPlus = document.getElementById('qtyPlus');
@@ -819,7 +816,6 @@ const mainImageUrl = product.image_url || null;
         
         // Check Wholesale Overrides
         if (wholesalePrices.length > 0) {
-          // Sort descending by min_qty to find the highest applied tier
           const sortedWP = [...wholesalePrices].sort((a,b) => parseInt(b.min_qty) - parseInt(a.min_qty));
           for(let wp of sortedWP) {
             if (currentQty >= parseInt(wp.min_qty)) {
@@ -829,16 +825,13 @@ const mainImageUrl = product.image_url || null;
           }
         }
 
-        // Add Variant specific price if it overrides or adds
         let unitPriceBeforeDiscount = basePrice;
         if (selectedVariant && selectedVariant.price) {
           unitPriceBeforeDiscount = parseFloat(selectedVariant.price as any) || basePrice;
         }
 
-        // Apply discount
         let finalUnitPrice = unitPriceBeforeDiscount * (1 - appliedDiscount / 100);
 
-        // Update UI
         displayPrice.textContent = formatMoney(finalUnitPrice);
         totalPriceEl.textContent = formatMoney(finalUnitPrice * currentQty);
 
@@ -863,7 +856,6 @@ const mainImageUrl = product.image_url || null;
       });
 
       qtyPlus?.addEventListener('click', () => {
-        // Check variant stock limit
         if (selectedVariant && currentQty >= selectedVariant.stock) {
           alert('Bu varyasyon için maksimum stok miktarına ulaştınız.');
           return;
@@ -885,40 +877,33 @@ const mainImageUrl = product.image_url || null;
         updatePrice();
       });
 
-      // Variant Selection (Always attach click handlers if variant buttons exist)
+      // Variant Selection
       variantBtns.forEach(btn => {
         btn.addEventListener('click', (e: any) => {
-          // Remove active class from all
           variantBtns.forEach(b => {
             b.classList.remove('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
             b.classList.add('border-gray-300', 'dark:border-gray-600');
           });
           
-          // Add active to clicked
           const target = e.currentTarget;
           target.classList.remove('border-gray-300', 'dark:border-gray-600');
           target.classList.add('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
           
-          // Update selected Variant
           const vId = parseInt(target.getAttribute('data-id'));
           selectedVariant = variants.find((v: any) => v.id === vId);
           
-          // Image change if variant has specific image
           const vImage = target.getAttribute('data-image');
           if (vImage && vImage !== 'null') {
-            // Find the index of variant image in the mediaItems and slide to it
             const mediaIndex = mediaItems.findIndex((item) => getPathname(item.url) === getPathname(vImage));
             if (mediaIndex !== -1) {
               showMedia(mediaIndex);
             } else if (mainImage) {
-              // If not in gallery, set it directly on main cover
               mainImage.src = vImage;
               if (mainVideo) mainVideo.classList.add('hidden');
               mainImage.classList.remove('hidden');
             }
           }
 
-          // Adjust qty if it exceeds new variant stock
           if (selectedVariant && currentQty > selectedVariant.stock) {
             currentQty = selectedVariant.stock;
             if (qtyInput) qtyInput.value = String(currentQty);
@@ -928,7 +913,7 @@ const mainImageUrl = product.image_url || null;
         });
       });
 
-      // Add to Cart Logic (Local Storage)
+      // Add to Cart Logic
       const handleAddToCart = (redirect = false) => {
         let cart = [];
         try { cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]'); } catch(e) {}
@@ -966,7 +951,6 @@ const mainImageUrl = product.image_url || null;
         const existingIdx = cart.findIndex((item: any) => item.id === cartItem.id);
         if (existingIdx !== -1) {
           cart[existingIdx].qty += currentQty;
-          // recalculate price
           let newTotalQty = cart[existingIdx].qty;
           let newBasePrice = cart[existingIdx].base_price || parseFloat(product.price as any) || 0;
           if (selectedVariant && selectedVariant.price) newBasePrice = parseFloat(selectedVariant.price);
@@ -992,7 +976,7 @@ const mainImageUrl = product.image_url || null;
         window.dispatchEvent(new Event('cart_updated'));
 
         if (redirect) {
-          window.location.href = '/checkout';
+          window.location.href = '/sepet';
         } else if (addToCartBtn) {
           const originalText = addToCartBtn.innerHTML;
           addToCartBtn.innerHTML = '<i class="fas fa-check"></i> Eklendi!';
@@ -1016,7 +1000,7 @@ const mainImageUrl = product.image_url || null;
         buyNowBtn.addEventListener('click', () => handleAddToCart(true));
       }
 
-      // Initial price calculation on page load
+      // Initial price calculation
       updatePrice();
 
       // Favorites Logic
@@ -1051,6 +1035,17 @@ const mainImageUrl = product.image_url || null;
           updateFavIcon();
         });
       }
+    }
+
+    // Safe execution registry for both direct load and Astro transition contexts
+    if (document.readyState !== 'loading') {
+      initProductDetails();
+    } else {
+      document.addEventListener('DOMContentLoaded', initProductDetails);
+    }
+    document.addEventListener('astro:page-load', () => {
+      (window as any).__product_initialized = false;
+      initProductDetails();
     });
   </script>
 </BaseLayout>

@@ -234,7 +234,7 @@ if (Astro.request.method === 'POST') {
   <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
     {basari ? (
       <!-- Teşekkür Panel -->
-      <div class="max-w-2xl mx-auto text-center py-20 bg-white dark:bg-gray-800 rounded-3xl p-8 border border-gray-150 dark:border-gray-700 shadow-md">
+      <div id="thank-you-panel" data-order-id={newOrder?.id} class="max-w-2xl mx-auto text-center py-20 bg-white dark:bg-gray-800 rounded-3xl p-8 border border-gray-150 dark:border-gray-700 shadow-md">
         <div class="w-24 h-24 bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-sm">
           <i class="fas fa-check animate-bounce"></i>
         </div>
@@ -262,21 +262,6 @@ if (Astro.request.method === 'POST') {
           </ul>
         </div>
         <a href="/" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5">Alışverişe Dön</a>
-        
-        <script is:inline define:vars={{ newOrderId: newOrder?.id }}>
-          localStorage.removeItem('laflaf_cart');
-          localStorage.removeItem('laflaf_coupon');
-          window.dispatchEvent(new Event('cart_updated'));
-
-          if (newOrderId) {
-            let myOrders = [];
-            try { myOrders = JSON.parse(localStorage.getItem('laflaf_my_orders') || '[]'); } catch(e){}
-            if (!myOrders.includes(newOrderId)) {
-              myOrders.push(newOrderId);
-              localStorage.setItem('laflaf_my_orders', JSON.stringify(myOrders));
-            }
-          }
-        </script>
       </div>
     ) : (
       <>
@@ -1014,12 +999,55 @@ if (Astro.request.method === 'POST') {
       renderCart();
     }
 
+    function checkAndClearCartOnThankYou() {
+      const thankYouPanel = document.getElementById('thank-you-panel');
+      if (thankYouPanel) {
+        try {
+          localStorage.removeItem('laflaf_cart');
+          localStorage.removeItem('laflaf_coupon');
+          
+          // Direct DOM update to guarantee cart badge clears immediately
+          const badge = document.getElementById('headerCartBadge');
+          if (badge) {
+            badge.classList.add('opacity-0');
+            badge.textContent = '0';
+          }
+          
+          // Dispatch event immediately and with small timeouts to beat race conditions
+          window.dispatchEvent(new Event('cart_updated'));
+          setTimeout(() => {
+            window.dispatchEvent(new Event('cart_updated'));
+          }, 100);
+          setTimeout(() => {
+            window.dispatchEvent(new Event('cart_updated'));
+          }, 300);
+          
+          const newOrderId = thankYouPanel.getAttribute('data-order-id');
+          if (newOrderId) {
+            let myOrders = [];
+            try { myOrders = JSON.parse(localStorage.getItem('laflaf_my_orders') || '[]'); } catch(e){}
+            if (!myOrders.includes(newOrderId)) {
+              myOrders.push(newOrderId);
+              localStorage.setItem('laflaf_my_orders', JSON.stringify(myOrders));
+            }
+          }
+        } catch(e) {
+          console.error("Cart clear error:", e);
+        }
+      }
+    }
+
+    function runAllCartLogic() {
+      checkAndClearCartOnThankYou();
+      initCartCheckout();
+    }
+
     // Safe execution registry for both direct load and Astro view transition contexts
     if (document.readyState !== 'loading') {
-      initCartCheckout();
+      runAllCartLogic();
     } else {
-      document.addEventListener('DOMContentLoaded', initCartCheckout);
+      document.addEventListener('DOMContentLoaded', runAllCartLogic);
     }
-    document.addEventListener('astro:page-load', initCartCheckout);
+    document.addEventListener('astro:page-load', runAllCartLogic);
   </script>
 </BaseLayout>
