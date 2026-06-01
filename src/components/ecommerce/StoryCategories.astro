@@ -3,7 +3,7 @@ import { getCategories } from '../../lib/db';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 const categories = await getCategories(dbBinding, 'product');
-const anaKategoriler = categories.filter(c => !c.parent_id);
+const anaKategoriler = categories.filter(c => !c.parent_id).slice(0, 9);
 ---
 
 {anaKategoriler.length > 0 && (
@@ -13,7 +13,7 @@ const anaKategoriler = categories.filter(c => !c.parent_id);
       
       {anaKategoriler.map((kat) => (
         <a 
-          href={`/urunler/${kat.slug}`} 
+          href={`/urunler?kategori=${kat.slug}`} 
           class="flex flex-col items-center gap-2 group min-w-[80px] snap-center cursor-pointer transition-transform hover:scale-105"
         >
           <!-- Çerçeve / Yuvarlak Görsel (Story Tarzı) -->

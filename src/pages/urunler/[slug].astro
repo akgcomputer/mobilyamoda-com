@@ -124,6 +124,17 @@ const mainImageUrl = product.image_url || null;
         </li>
       </ol>
     </nav>
+    
+    <!-- Yenileme Bilgi Paneli -->
+    <div class="mb-8 p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/50 rounded-xl text-xs text-orange-800 dark:text-orange-300 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+      <div class="flex items-center gap-2">
+        <i class="fas fa-info-circle text-sm animate-bounce text-orange-500"></i>
+        <span>Eğer sayfayı göremiyorsanız sayfayı yenileyebilirsiniz veya sağdaki butona basabilirsiniz:</span>
+      </div>
+      <button type="button" onclick="window.location.reload()" class="bg-orange-600 hover:bg-orange-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow transition-transform hover:-translate-y-0.5 flex items-center gap-1.5 active:scale-95">
+        <i class="fas fa-sync-alt"></i> Yenile
+      </button>
+    </div>
 
     {basari && (
       <div class="p-4 mb-6 text-sm text-green-800 rounded-lg bg-green-50 dark:bg-gray-800 dark:text-green-400 border border-green-200">
@@ -638,7 +649,7 @@ const mainImageUrl = product.image_url || null;
 
   <div id="product-interactive-data" class="hidden" data-product={productJson} data-video={videoUrl}></div>
 
-  <script>
+  <script is:inline>
     function initProductDetails() {
       const dataEl = document.getElementById('product-interactive-data');
       if (!dataEl) return;
@@ -647,7 +658,7 @@ const mainImageUrl = product.image_url || null;
       if (dataEl.getAttribute('data-initialized') === 'true') return;
       dataEl.setAttribute('data-initialized', 'true');
 
-      const getPathname = (url: string | null) => {
+      const getPathname = (url) => {
         if (!url) return '';
         try {
           return new URL(url, window.location.origin).pathname;
@@ -667,17 +678,17 @@ const mainImageUrl = product.image_url || null;
       const videoUrl = (rawVideoUrl === 'null' || rawVideoUrl === 'undefined') ? null : rawVideoUrl;
       
       // Elements
-      const mainImage = document.getElementById('mainImage') as any;
-      const mainVideo = document.getElementById('mainVideo') as any;
+      const mainImage = document.getElementById('mainImage');
+      const mainVideo = document.getElementById('mainVideo');
       const prevMediaBtn = document.getElementById('prevMediaBtn');
       const nextMediaBtn = document.getElementById('nextMediaBtn');
       const variantModal = document.getElementById('variantModal');
-      const variantModalImage = document.getElementById('variantModalImage') as any;
+      const variantModalImage = document.getElementById('variantModalImage');
       const closeVariantModalBtn = document.getElementById('closeVariantModalBtn');
       
       // --- Carousel Galeri Logic ---
       let currentMediaIndex = 0;
-      const mediaItems: any[] = [];
+      const mediaItems = [];
       const thumbBtns = document.querySelectorAll('.thumb-btn');
       
       thumbBtns.forEach((btn) => {
@@ -691,7 +702,7 @@ const mainImageUrl = product.image_url || null;
         }
       });
 
-      function showMedia(index: number) {
+      function showMedia(index) {
         if (mediaItems.length === 0) return;
         
         // Infinite loop navigation
@@ -769,7 +780,7 @@ const mainImageUrl = product.image_url || null;
       }
 
       // Close modal when clicking outside the modal content
-      variantModal?.addEventListener('click', (e: any) => {
+      variantModal?.addEventListener('click', (e) => {
         if (e.target === variantModal) {
           variantModal.classList.add('hidden');
         }
@@ -781,7 +792,7 @@ const mainImageUrl = product.image_url || null;
       });
 
       // Close modal with Escape key
-      const handleEscape = (e: any) => {
+      const handleEscape = (e) => {
         if (e.key === 'Escape' && variantModal) {
           variantModal.classList.add('hidden');
         }
@@ -797,12 +808,12 @@ const mainImageUrl = product.image_url || null;
       }, { once: true });
       
       // Currency formatter
-      const formatMoney = (amount: number) => {
+      const formatMoney = (amount) => {
         return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) + ' ' + (product.currency || '₺');
       };
 
       // --- Quantity and Cart Logic ---
-      const qtyInput = document.getElementById('qtyInput') as HTMLInputElement | null;
+      const qtyInput = document.getElementById('qtyInput');
       const qtyMinus = document.getElementById('qtyMinus');
       const qtyPlus = document.getElementById('qtyPlus');
       const displayPrice = document.getElementById('displayPrice');
@@ -813,7 +824,7 @@ const mainImageUrl = product.image_url || null;
 
       const variants = Array.isArray(product.variants) ? product.variants : [];
       const wholesalePrices = Array.isArray(product.wholesalePrices) ? product.wholesalePrices : [];
-      const minOrderQty = parseInt(product.minOrderQty as any) || 1;
+      const minOrderQty = parseInt(product.minOrderQty) || 1;
 
       let currentQty = minOrderQty;
       let selectedVariant = null; // Do not select a variant by default!
@@ -822,7 +833,7 @@ const mainImageUrl = product.image_url || null;
       const warningArea = document.getElementById('productWarningArea');
       const warningText = document.getElementById('productWarningText');
 
-      const showWarning = (msg: string) => {
+      const showWarning = (msg) => {
         if (warningArea && warningText) {
           warningText.textContent = msg;
           warningArea.classList.remove('hidden');
@@ -838,7 +849,7 @@ const mainImageUrl = product.image_url || null;
       // Calculate Price
       const updatePrice = () => {
         if (!displayPrice || !totalPriceEl) return;
-        let basePrice = parseFloat(product.price as any) || 0;
+        let basePrice = parseFloat(product.price) || 0;
         let appliedDiscount = 0;
         
         // Check Wholesale Overrides
@@ -854,7 +865,7 @@ const mainImageUrl = product.image_url || null;
 
         let unitPriceBeforeDiscount = basePrice;
         if (selectedVariant && selectedVariant.price) {
-          unitPriceBeforeDiscount = parseFloat(selectedVariant.price as any) || basePrice;
+          unitPriceBeforeDiscount = parseFloat(selectedVariant.price) || basePrice;
         }
 
         let finalUnitPrice = unitPriceBeforeDiscount * (1 - appliedDiscount / 100);
@@ -896,7 +907,7 @@ const mainImageUrl = product.image_url || null;
         updatePrice();
       });
 
-      qtyInput?.addEventListener('change', (e: any) => {
+      qtyInput?.addEventListener('change', (e) => {
         let val = parseInt(e.target.value);
         if (isNaN(val) || val < minOrderQty) {
           val = minOrderQty;
@@ -915,7 +926,7 @@ const mainImageUrl = product.image_url || null;
 
       // Variant Selection
       variantBtns.forEach(btn => {
-        btn.addEventListener('click', (e: any) => {
+        btn.addEventListener('click', (e) => {
           clearWarning(); // Clear missing variant warning
           variantBtns.forEach(b => {
             b.classList.remove('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
@@ -927,7 +938,7 @@ const mainImageUrl = product.image_url || null;
           target.classList.add('border-orange-500', 'bg-orange-50', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400');
           
           const vId = parseInt(target.getAttribute('data-id'));
-          selectedVariant = variants.find((v: any) => v.id === vId);
+          selectedVariant = variants.find((v) => v.id === vId);
           
           const vImage = target.getAttribute('data-image');
           if (vImage && vImage !== 'null') {
@@ -969,7 +980,7 @@ const mainImageUrl = product.image_url || null;
         let cart = [];
         try { cart = JSON.parse(localStorage.getItem('laflaf_cart') || '[]'); } catch(e) {}
 
-        let price = parseFloat(product.price as any) || 0;
+        let price = parseFloat(product.price) || 0;
         if (selectedVariant && selectedVariant.price) { price = parseFloat(selectedVariant.price); }
         
         let discount = 0;
@@ -999,11 +1010,11 @@ const mainImageUrl = product.image_url || null;
           currency: product.currency || '₺'
         };
 
-        const existingIdx = cart.findIndex((item: any) => item.id === cartItem.id);
+        const existingIdx = cart.findIndex((item) => item.id === cartItem.id);
         if (existingIdx !== -1) {
           cart[existingIdx].qty += currentQty;
           let newTotalQty = cart[existingIdx].qty;
-          let newBasePrice = cart[existingIdx].base_price || parseFloat(product.price as any) || 0;
+          let newBasePrice = cart[existingIdx].base_price || parseFloat(product.price) || 0;
           if (selectedVariant && selectedVariant.price) newBasePrice = parseFloat(selectedVariant.price);
           let wholesaleRules = cart[existingIdx].wholesale_prices || wholesalePrices;
           let newDiscount = 0;
@@ -1058,7 +1069,7 @@ const mainImageUrl = product.image_url || null;
       const favBtn = document.getElementById('favBtn');
       const updateFavIcon = () => {
         if (!favBtn) return;
-        let favs: any[] = [];
+        let favs = [];
         try { favs = JSON.parse(localStorage.getItem('laflaf_favs') || '[]'); } catch(e){}
         if (favs.includes(product.id)) {
           favBtn.innerHTML = '<i class="fas fa-heart text-xl"></i>';
@@ -1070,7 +1081,7 @@ const mainImageUrl = product.image_url || null;
 
       if (favBtn) {
         favBtn.addEventListener('click', () => {
-          let favs: any[] = [];
+          let favs = [];
           try { favs = JSON.parse(localStorage.getItem('laflaf_favs') || '[]'); } catch(e){}
           
           const countSpan = document.getElementById('likeCountDisplay');
@@ -1088,7 +1099,10 @@ const mainImageUrl = product.image_url || null;
       }
     }
 
-    // Safe execution registry for both direct load and Astro transition contexts
+    // Call directly for instant evaluation on inserts/swaps
+    initProductDetails();
+
+    // Register safe execution registry for Astro transition contexts
     document.addEventListener('astro:page-load', initProductDetails);
   </script>
 </BaseLayout>

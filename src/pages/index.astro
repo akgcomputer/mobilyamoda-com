@@ -35,7 +35,53 @@ const showBlog = ['blog', 'mixed1', 'mixed2a', 'mixed2b'].includes(siteMode);
 const showEcommerce = ['ecommerce', 'mixed1', 'mixed2b', 'mixed2c'].includes(siteMode);
 const showCorporate = ['corporate', 'mixed1', 'mixed2a', 'mixed2c'].includes(siteMode);
 
-const corporatePage = showCorporate ? await getPageBySlug('ana-sayfa', dbBinding) : null;
+let corporatePage = null;
+if (showCorporate) {
+  corporatePage = await getPageBySlug('kurumsal-ana-sayfa', dbBinding);
+  if (!corporatePage) {
+    const { createPage } = await import('../lib/db');
+    await createPage({
+      title: 'Kurumsal Ana Sayfa',
+      slug: 'kurumsal-ana-sayfa',
+      section1: `
+        <div class="space-y-6">
+          <h2 class="text-3xl font-extrabold font-outfit text-gray-900 dark:text-white">Vizyonumuz & Değerlerimiz</h2>
+          <p class="text-gray-600 dark:text-gray-300 leading-relaxed text-lg">Yenilikçi ve sürdürülebilir kurumsal çözümler sunarak sektörde fark yaratmayı amaçlıyoruz. Müşteri memnuniyetini en üst düzeyde tutmak en temel vizyonumuzdur.</p>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
+            <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm">
+              <div class="w-12 h-12 bg-orange-100 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-xl flex items-center justify-center text-xl mb-4"><i class="fas fa-gem"></i></div>
+              <h3 class="font-bold text-gray-900 dark:text-white mb-2">Üstün Kalite</h3>
+              <p class="text-sm text-gray-500">Tüm kurumsal süreçlerimizde en yüksek kalite standartlarını tavizsiz uyguluyoruz.</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm">
+              <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center text-xl mb-4"><i class="fas fa-lightbulb"></i></div>
+              <h3 class="font-bold text-gray-900 dark:text-white mb-2">İnovasyon</h3>
+              <p class="text-sm text-gray-500">Modern ve yaratıcı fikirlerle iş modelinizi bir sonraki seviyeye taşıyoruz.</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm">
+              <div class="w-12 h-12 bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400 rounded-xl flex items-center justify-center text-xl mb-4"><i class="fas fa-handshake"></i></div>
+              <h3 class="font-bold text-gray-900 dark:text-white mb-2">Güvenilirlik</h3>
+              <p class="text-sm text-gray-500">Sözlerimize sadık kalarak şeffaf ve dürüst iş ortaklıkları kuruyoruz.</p>
+            </div>
+          </div>
+        </div>
+      `,
+      hero_image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200',
+      hero_slogan: 'Güvenilir ve Sürdürülebilir Kurumsal Hizmetler',
+      hero_button_text: 'Hizmetlerimizi Keşfedin',
+      hero_button_link: '#vizyon',
+      metaTitle: 'Kurumsal Ana Sayfa - Laflaf',
+      metaDescription: 'Laflaf kurumsal ana sayfası.'
+    }, dbBinding);
+    corporatePage = await getPageBySlug('kurumsal-ana-sayfa', dbBinding);
+  }
+}
+
+// En yenilerden: Son 20 üründen rastgele 10 tanesi
+const latestProductsPool = dbProducts.slice(0, 20);
+const random10Products = [...latestProductsPool]
+  .sort(() => Math.random() - 0.5)
+  .slice(0, 10);
 
 // Gerçek içerikler
 const initialContents = dbPosts.map(p => ({
@@ -145,8 +191,55 @@ const borderColors = [
   {showCorporate && (
     <>
       {corporatePage ? (
-        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div set:html={corporatePage.section1 || corporatePage.section3 || corporatePage.section6 || '<p>Kurumsal sayfa boş.</p>'} class="prose dark:prose-invert max-w-none"></div>
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16">
+          {/* Parallax Hero Banner */}
+          {(corporatePage.hero_image || corporatePage.hero_slogan) && (
+            <div class="relative min-h-[460px] flex items-center justify-center rounded-3xl overflow-hidden shadow-xl border border-gray-100 dark:border-gray-800">
+              <div class="absolute inset-0 bg-cover bg-center" style={`background-image: url('${corporatePage.hero_image || 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200'}')`}></div>
+              <div class="absolute inset-0 bg-gray-950/60 backdrop-blur-[1px]"></div>
+              <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none"></div>
+              
+              <div class="relative z-10 max-w-4xl mx-auto text-center px-6 py-12 space-y-6">
+                {corporatePage.hero_slogan && (
+                  <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-white font-outfit leading-tight drop-shadow-md">
+                    {corporatePage.hero_slogan}
+                  </h1>
+                )}
+                {corporatePage.hero_button_text && (
+                  <div class="pt-4">
+                    <a 
+                      href={corporatePage.hero_button_link || '#vizyon'} 
+                      class="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-purple-600 hover:shadow-lg hover:opacity-95 text-white font-bold px-8 py-4 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"
+                    >
+                      {corporatePage.hero_button_text} <i class="fas fa-arrow-right text-xs"></i>
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Section 1: Introduction / Hakkımızda */}
+          {corporatePage.section1 && (
+            <div class="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-8 sm:p-12 shadow-sm" id="vizyon">
+              <div set:html={corporatePage.section1} class="prose dark:prose-invert max-w-none prose-orange"></div>
+            </div>
+          )}
+
+          {/* Section 3: Services Showcase */}
+          {corporatePage.section3 && (
+            <div class="bg-gray-50 dark:bg-gray-900/50 rounded-3xl border border-gray-150 dark:border-gray-800 p-8 sm:p-12 shadow-sm">
+              <div set:html={corporatePage.section3} class="prose dark:prose-invert max-w-none prose-orange"></div>
+            </div>
+          )}
+
+          {/* Section 6: Contact / CTA Banner */}
+          {corporatePage.section6 && (
+            <div class="bg-gradient-to-br from-gray-900 to-purple-950 text-white rounded-3xl border border-white/10 p-8 sm:p-12 shadow-xl relative overflow-hidden">
+              <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none"></div>
+              <div set:html={corporatePage.section6} class="prose prose-invert max-w-none relative z-10"></div>
+            </div>
+          )}
         </div>
       ) : (
         <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center border-b border-gray-200 dark:border-gray-800">
@@ -155,8 +248,8 @@ const borderColors = [
             <span class="block text-gray-900 dark:text-white">Çok Yakında</span>
           </h1>
           <p class="max-w-2xl mx-auto text-base text-gray-500 sm:text-lg md:text-xl md:max-w-3xl mb-8">
-            Bu alan, Kurumsal Sayfa Tasarımcısı modülü tamamlandığında aktif olacaktır. Özel bloklarınızı buraya sürükleyip bırakabileceksiniz.<br><br>
-            <strong class="text-orange-500">İpucu:</strong> Admin panelindeki "Sabit Sayfalar" bölümünden URL (slug) adresi <code>ana-sayfa</code> olan bir sayfa oluşturursanız, bu uyarı yazısı kaybolur ve sayfanın içerisindeki metin (İçerik Blok 1) burada otomatik olarak gösterilir. Kurumsal tasarımınızı o sayfadan şekillendirebilirsiniz.
+            Bu alan, Kurumsal Sayfa Tasarımcısı modülü tamamlandığında aktif olacaktır.<br><br>
+            <strong class="text-orange-500">İpucu:</strong> Admin panelindeki "Sabit Sayfalar" bölümünden URL (slug) adresi <code>kurumsal-ana-sayfa</code> olan bir sayfa oluşturursanız, bu uyarı yazısı kaybolur ve sayfanın içerisindeki metin burada otomatik olarak gösterilir.
           </p>
         </div>
       )}
@@ -168,14 +261,18 @@ const borderColors = [
       <HeroSlider />
       <StoryCategories />
 
-      {dbProducts.length > 0 && (
-        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Yeni Ürünler</h2>
-            <a href="/urunler" class="text-orange-600 text-sm font-semibold hover:underline">Tümünü Gör</a>
+      {random10Products.length > 0 && (
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white font-outfit flex items-center gap-2">
+              <i class="fas fa-sparkles text-orange-500"></i> En yenilerden
+            </h2>
+            <a href="/urunler" class="text-orange-600 hover:text-orange-700 text-sm font-semibold flex items-center gap-1">
+              Tümünü Gör <i class="fas fa-chevron-right text-xs"></i>
+            </a>
           </div>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {dbProducts.slice(0, 5).map(product => (
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            {random10Products.map(product => (
               <ProductCard product={product} brands={dbBrands} />
             ))}
           </div>

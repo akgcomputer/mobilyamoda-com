@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import { getPages, deletePage } from '../../../lib/db';
+import { getPages, deletePage, createPage } from '../../../lib/db';
 
 const dbBinding = Astro.locals.runtime?.env?.DB;
 
@@ -15,17 +15,37 @@ if (Astro.request.method === 'POST') {
   if (action === 'delete') {
     const pageId = parseInt(formData.get('page_id') as string);
     if (pageId) {
-      const success = await deletePage(pageId, dbBinding);
-      if (success) {
-        successMsg = 'Sayfa başarıyla silindi.';
+      const allPages = await getPages(dbBinding);
+      const targetPage = allPages.find(p => p.id === pageId);
+      if (targetPage && targetPage.slug === 'kurumsal-ana-sayfa') {
+        errorMsg = 'Kurumsal Ana Sayfa silinemez!';
       } else {
-        errorMsg = 'Sayfa silinirken bir hata oluştu.';
+        const success = await deletePage(pageId, dbBinding);
+        if (success) {
+          successMsg = 'Sayfa başarıyla silindi.';
+        } else {
+          errorMsg = 'Sayfa silinirken bir hata oluştu.';
+        }
       }
     }
   }
 }
 
-const pages = await getPages(dbBinding);
+let pages = await getPages(dbBinding);
+const hasKurumsal = pages.some(p => p.slug === 'kurumsal-ana-sayfa');
+if (!hasKurumsal) {
+  await createPage({
+    title: 'Kurumsal Ana Sayfa',
+    slug: 'kurumsal-ana-sayfa',
+    section1: '<h2>Kurumsal Ana Sayfamıza Hoş Geldiniz</h2><p>Şirketimiz ve vizyonumuz hakkında detaylar...</p>',
+    hero_slogan: 'Güvenilir ve Sürdürülebilir Kurumsal Hizmetler',
+    hero_button_text: 'Daha Fazla Bilgi',
+    hero_button_link: '#detay',
+    metaTitle: 'Kurumsal Ana Sayfa - Laflaf',
+    metaDescription: 'Laflaf kurumsal ana sayfası.'
+  }, dbBinding);
+  pages = await getPages(dbBinding);
+}
 ---
 
 <BaseLayout title="Sabit Sayfalar - Admin" isAdmin={true}>
@@ -77,13 +97,17 @@ const pages = await getPages(dbBinding);
                   <a href={`/admin/pages/edit/${page.id}`} class="text-orange-500 hover:text-orange-700 p-2" title="Düzenle">
                     <i class="fas fa-edit"></i>
                   </a>
-                  <form method="POST" class="inline" onsubmit="return confirm('Bu sayfayı silmek istediğinize emin misiniz?');">
-                    <input type="hidden" name="action" value="delete" />
-                    <input type="hidden" name="page_id" value={page.id} />
-                    <button type="submit" class="text-red-500 hover:text-red-700 p-2" title="Sil">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </form>
+                  {page.slug !== 'kurumsal-ana-sayfa' ? (
+                    <form method="POST" class="inline" onsubmit="return confirm('Bu sayfayı silmek istediğinize emin misiniz?');">
+                      <input type="hidden" name="action" value="delete" />
+                      <input type="hidden" name="page_id" value={page.id} />
+                      <button type="submit" class="text-red-500 hover:text-red-700 p-2" title="Sil">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </form>
+                  ) : (
+                    <span class="inline-flex items-center gap-1 text-xs text-indigo-500 font-bold px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-250/20 shadow-sm" title="Bu sayfa kurumsal sistem sayfasıdır, silinemez."><i class="fas fa-lock text-[10px]"></i> Silinemez</span>
+                  )}
                 </td>
               </tr>
             ))

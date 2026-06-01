@@ -653,38 +653,35 @@ const isImg = (content: string) => content && (content.startsWith('http') || con
     };
     initQuill();
 
-    // 2. Dinamik Satır Ekleme İşlemleri
-    const addRow = (containerId, html) => {
-      const container = document.getElementById(containerId);
-      if(container) {
-        const div = document.createElement('div');
-        div.innerHTML = html;
-        container.appendChild(div.firstElementChild);
-      }
-    };
-
-    const addFeatureBtn = document.getElementById('add-feature-btn');
-    if (addFeatureBtn) {
-      addFeatureBtn.addEventListener('click', () => {
-        addRow('features-container', `
-          <div class="flex gap-2 feature-row">
-            <input type="text" name="feature_key[]" class="flex-1 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Özellik Adı" />
-            <input type="text" name="feature_val[]" class="flex-1 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Açıklaması" />
-            <button type="button" class="px-3 py-2 bg-red-100 text-red-600 rounded hover:bg-red-200 remove-btn"><i class="fas fa-trash"></i></button>
-          </div>
-        `);
+    // 2. Dinamik Satır Ekleme Olaylarının Delegasyonu (View Transitions ile Sorunsuz Uyumlu)
+    if (!window.adminProductEventsBound) {
+      window.adminProductEventsBound = true;
+      document.addEventListener('click', (e) => {
+        const target = e.target;
+        
+        // 1. Özellik Ekle
+        if (target.closest('#add-feature-btn')) {
+          const container = document.getElementById('features-container');
+          if (container) {
+            const div = document.createElement('div');
+            div.innerHTML = `
+              <div class="flex gap-2 feature-row">
+                <input type="text" name="feature_key[]" class="flex-1 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Özellik Adı" />
+                <input type="text" name="feature_val[]" class="flex-1 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Açıklaması" />
+                <button type="button" class="px-3 py-2 bg-red-100 text-red-600 rounded hover:bg-red-200 remove-btn"><i class="fas fa-trash"></i></button>
+              </div>
+            `;
+            container.appendChild(div.firstElementChild);
+          }
+        }
+        
+        // 2. Satır Sil
+        const removeBtn = target.closest('.remove-btn');
+        if (removeBtn) {
+          removeBtn.parentElement.remove();
+        }
       });
     }
   });
-
-  if (!window.productFormEventsBound) {
-    window.productFormEventsBound = true;
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('.remove-btn');
-      if(btn) {
-        btn.parentElement.remove();
-      }
-    });
-  }
   </script>
 </BaseLayout>

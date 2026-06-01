@@ -182,7 +182,8 @@ if (Astro.request.method === 'POST') {
       };
 
       const renderReturns = () => {
-        const list = getReturns();
+        const rawList = getReturns();
+        const list = Array.isArray(rawList) ? rawList : [];
         
         if (list.length === 0) {
           table.classList.add('hidden');
@@ -271,8 +272,16 @@ if (Astro.request.method === 'POST') {
 
     // Run all features securely
     function runAllShippingAdminLogic() {
-      initReturnShippingEditor();
-      initReturnsManager();
+      try {
+        initReturnShippingEditor();
+      } catch (e) {
+        console.error("Quill editor init failed:", e);
+      }
+      try {
+        initReturnsManager();
+      } catch (e) {
+        console.error("Returns manager init failed:", e);
+      }
     }
 
     document.addEventListener('astro:page-load', runAllShippingAdminLogic);
