@@ -24,6 +24,7 @@ const cards = [
   { title: 'Markalar', icon: 'fas fa-copyright', color: 'text-yellow-600', bg: 'bg-yellow-100', link: '/admin/ecommerce/brands' },
   { title: 'Kupon & Kampanyalar', icon: 'fas fa-ticket-alt', color: 'text-rose-600', bg: 'bg-rose-100', link: '/admin/ecommerce/campaigns' },
   { title: 'Ödeme Yöntemleri', icon: 'fas fa-credit-card', color: 'text-teal-600', bg: 'bg-teal-100', link: '/admin/ecommerce/settings/payment' },
+  { title: 'İade & Kargo Ayarları', icon: 'fas fa-shipping-fast', color: 'text-indigo-600', bg: 'bg-indigo-100', link: '/admin/ecommerce/shipping' },
 ];
 ---
 
@@ -65,69 +66,5 @@ const cards = [
       ))}
     </div>
 
-    <!-- İade ve Kargo Bilgilendirmesi Formu -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
-      <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-          <i class="fas fa-truck text-indigo-600 dark:text-indigo-400"></i>
-        </div>
-        <div>
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white">İade ve Kargo Bilgilendirmesi</h2>
-          <p class="text-sm text-gray-500">Tüm ürünlerin "İade ve Kargo" sekmesinde sabit olarak görünecek metni belirleyin.</p>
-        </div>
-      </div>
-      
-      <form method="POST">
-        <input type="hidden" name="return_shipping_info" id="returnShippingInput" value={returnShippingInfo} />
-        
-        <div class="mb-6">
-          <div id="editor-container" class="h-64 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-b-lg border-gray-300 dark:border-gray-600"></div>
-        </div>
-        
-        <button type="submit" onclick="document.getElementById('returnShippingInput').value = window.quill.root.innerHTML;" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-colors flex items-center gap-2">
-          <i class="fas fa-save"></i> Bilgileri Kaydet
-        </button>
-      </form>
-    </div>
   </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js" is:inline></script>
-  <script is:inline>
-    function initReturnShippingEditor() {
-      if (!document.getElementById('editor-container') || document.querySelector('.ql-toolbar')) return;
-      if (typeof Quill === 'undefined') {
-        setTimeout(initReturnShippingEditor, 100);
-        return;
-      }
-      
-      window.quill = new Quill('#editor-container', {
-        theme: 'snow',
-        placeholder: 'İade ve kargo koşullarınızı buraya yazabilirsiniz...',
-        modules: {
-          toolbar: [
-            ['bold', 'italic', 'underline', 'strike'],
-            ['blockquote'],
-            [{ 'header': 1 }, { 'header': 2 }],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'align': [] }],
-            ['link', 'clean']
-          ]
-        }
-      });
-      
-      const existingContent = document.getElementById('returnShippingInput').value;
-      if (existingContent) {
-        window.quill.root.innerHTML = existingContent;
-      }
-    }
-
-    document.addEventListener('astro:page-load', initReturnShippingEditor);
-    
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(initReturnShippingEditor, 100);
-    } else {
-      document.addEventListener('DOMContentLoaded', initReturnShippingEditor);
-    }
-  </script>
 </BaseLayout>

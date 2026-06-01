@@ -996,7 +996,7 @@ if (Astro.request.method === 'POST') {
 
           // Generate reference code
           const refCode = `LAF-REF-${activeOrderId}-${Date.now().toString().slice(-4)}`;
-          alert(`Tebrikler! İade/Değişim talebiniz başarıyla alınmıştır.\n\nÜrün: ${productName}\nİşlem: ${type === 'iade' ? 'Ürün İadesi' : 'Beden/Renk Değişimi'}\nMiktar: ${qty} Adet\nKargo Referans Kodunuz: ${refCode}\n\nİade veya değişim kargonuzu bu referans kodu ile en yakın kargo şubesinden ücretsiz gönderebilirsiniz. Süreç başlatıldı!`);
+          alert(`Tebrikler! İade/Değişim talebiniz başarıyla alınmıştır.\n\nÜrün: ${productName}\nİşlem: ${type === 'iade' ? 'Ürün İadesi' : 'Beden/Renk Değişimi'}\nMiktar: ${qty} Adet\n\nSüreç başlatıldı!`);
 
           // Save return request inside localStorage
           let returnList = [];
@@ -1031,7 +1031,7 @@ if (Astro.request.method === 'POST') {
         
         // Guest Checkout Card Click handler
         cardGuest?.addEventListener('click', () => {
-          window.location.href = '/checkout';
+          window.location.href = '/sepet';
         });
 
         // Toggling Active States
