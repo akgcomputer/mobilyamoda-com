@@ -637,9 +637,9 @@ const mainImageUrl = product.image_url || null;
       const dataEl = document.getElementById('product-interactive-data');
       if (!dataEl) return;
       
-      // Prevent double execution on same frame
-      if ((window as any).__product_initialized) return;
-      (window as any).__product_initialized = true;
+      // Prevent double execution on the same DOM element
+      if (dataEl.getAttribute('data-initialized') === 'true') return;
+      dataEl.setAttribute('data-initialized', 'true');
 
       const getPathname = (url: string | null) => {
         if (!url) return '';
@@ -1043,9 +1043,6 @@ const mainImageUrl = product.image_url || null;
     } else {
       document.addEventListener('DOMContentLoaded', initProductDetails);
     }
-    document.addEventListener('astro:page-load', () => {
-      (window as any).__product_initialized = false;
-      initProductDetails();
-    });
+    document.addEventListener('astro:page-load', initProductDetails);
   </script>
 </BaseLayout>
