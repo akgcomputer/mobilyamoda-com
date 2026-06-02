@@ -43,14 +43,9 @@ if (Astro.request.method === 'POST') {
     mesaj = 'Rol güncellendi';
   } else if (islem === 'durumGuncelle') {
     const id = parseInt(formData.get('id') as string);
-    const existingUsers = await getUsers(dbBinding);
-    const user = existingUsers.find(u => u.id === id);
-    if (user) {
-      const currentStatus = (user.status || 'pasif').toLowerCase().trim();
-      const newStatus = currentStatus === 'aktif' ? 'pasif' : 'aktif';
-      await updateUser(id, { status: newStatus }, dbBinding);
-      mesaj = 'Durum güncellendi';
-    }
+    const yeniDurum = formData.get('yeni_durum') as string;
+    await updateUser(id, { status: yeniDurum }, dbBinding);
+    mesaj = 'Durum güncellendi';
   }
 }
 
@@ -150,7 +145,6 @@ const kullanicilar = rawKullanicilar.map(k => {
               <th class="px-4 py-3 text-left">Kullanıcı</th>
               <th class="px-4 py-3 text-left">İletişim</th>
               <th class="px-4 py-3 text-left">Rol</th>
-              <th class="px-4 py-3 text-left">Durum</th>
               <th class="px-4 py-3 text-left">Kayıt</th>
               <th class="px-4 py-3 text-center">İşlem</th>
             </tr>
@@ -185,23 +179,32 @@ const kullanicilar = rawKullanicilar.map(k => {
                     </select>
                   </form>
                 </td>
-                <td class="px-4 py-3">
-                  <form method="POST" class="inline">
-                    <input type="hidden" name="islem" value="durumGuncelle" />
-                    <input type="hidden" name="id" value={k.id} />
-                    <button type="submit" class={`px-2 py-1 text-xs rounded-full ${k.status === 'aktif' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {k.status === 'aktif' ? 'Aktif' : 'Pasif'}
-                    </button>
-                  </form>
-                </td>
                 <td class="px-4 py-3 text-sm text-gray-500">{k.createdAt}</td>
                 <td class="px-4 py-3 text-center">
-                  <div class="flex justify-center gap-2">
-                    <button onclick={`profilModal({id: ${k.id}, ad: '${k.name.replace(/'/g, "\\'")}', email: '${k.email}', telefon: '${k.phone || '-'}', ip: '${k.ip || '-'}', rol: '${k.role}'})`} class="text-blue-600 hover:text-blue-800" title="Profil">👤</button>
+                  <div class="flex justify-center items-center gap-3">
+                    <!-- Durum Güncelleme (OK ve X butonları) -->
+                    <form method="POST" class="inline">
+                      <input type="hidden" name="islem" value="durumGuncelle" />
+                      <input type="hidden" name="id" value={k.id} />
+                      <div class="flex items-center gap-2">
+                        <!-- Yeşil Onay Butonu (Aktif yapar) -->
+                        <button type="submit" name="yeni_durum" value="aktif" class={`hover:scale-110 transition ${k.status === 'aktif' ? 'text-green-600 font-bold scale-110' : 'text-gray-400 opacity-55 hover:opacity-100 hover:text-green-500'}`} title="Aktif Yap">
+                          <i class="fas fa-check-circle text-lg"></i>
+                        </button>
+                        <!-- Kırmızı Kapat Butonu (Pasif yapar) -->
+                        <button type="submit" name="yeni_durum" value="pasif" class={`hover:scale-110 transition ${k.status === 'pasif' ? 'text-red-600 font-bold scale-110' : 'text-gray-400 opacity-55 hover:opacity-100 hover:text-red-500'}`} title="Pasif Yap">
+                          <i class="fas fa-times-circle text-lg"></i>
+                        </button>
+                      </div>
+                    </form>
+
+                    <span class="text-gray-300 dark:text-gray-600">|</span>
+
+                    <!-- Silme Butonu -->
                     <form method="POST" class="inline" onsubmit="return confirm('Kullanıcıyı silmek istediğinize emin misiniz?')">
                       <input type="hidden" name="islem" value="sil" />
                       <input type="hidden" name="id" value={k.id} />
-                      <button type="submit" class="text-red-600 hover:text-red-800" title="Sil">🗑️</button>
+                      <button type="submit" class="text-red-600 hover:text-red-800 transition hover:scale-115" title="Sil">🗑️</button>
                     </form>
                   </div>
                 </td>
@@ -212,55 +215,4 @@ const kullanicilar = rawKullanicilar.map(k => {
       </div>
     </div>
   </div>
-
-  <!-- Profil Modal -->
-  <div id="profilModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-      <h2 class="text-xl font-bold mb-4">Kullanıcı Profili</h2>
-      <div class="space-y-3">
-        <div>
-          <p class="text-sm text-gray-500">Ad Soyad</p>
-          <p id="profilAd" class="font-medium"></p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">E-posta</p>
-          <p id="profilEmail" class="font-medium"></p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Telefon</p>
-          <p id="profilTel" class="font-medium"></p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Rol</p>
-          <p id="profilRol" class="font-medium"></p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Son IP</p>
-          <p id="profilIp" class="font-mono text-sm"></p>
-        </div>
-        <div class="pt-4">
-          <button onclick="kapatProfilModal()" class="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700">Kapat</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    function profilModal(data) {
-      document.getElementById('profilAd').innerText = data.ad;
-      document.getElementById('profilEmail').innerText = data.email;
-      document.getElementById('profilTel').innerText = data.telefon || '-';
-      document.getElementById('profilRol').innerText = data.rol;
-      document.getElementById('profilIp').innerText = data.ip;
-      document.getElementById('profilModal').classList.remove('hidden');
-    }
-    function kapatProfilModal() {
-      document.getElementById('profilModal').classList.add('hidden');
-    }
-    
-    const profilModalDiv = document.getElementById('profilModal');
-    profilModalDiv?.addEventListener('click', (e) => {
-      if (e.target === profilModalDiv) kapatProfilModal();
-    });
-  </script>
 </BaseLayout>
