@@ -46,7 +46,9 @@ if (Astro.request.method === 'POST') {
     const existingUsers = await getUsers(dbBinding);
     const user = existingUsers.find(u => u.id === id);
     if (user) {
-      await updateUser(id, { status: user.status === 'aktif' ? 'pasif' : 'aktif' }, dbBinding);
+      const currentStatus = (user.status || 'pasif').toLowerCase().trim();
+      const newStatus = currentStatus === 'aktif' ? 'pasif' : 'aktif';
+      await updateUser(id, { status: newStatus }, dbBinding);
       mesaj = 'Durum güncellendi';
     }
   }
