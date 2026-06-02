@@ -52,7 +52,16 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const kullanicilar = await getUsers(dbBinding);
+const rawKullanicilar = await getUsers(dbBinding);
+const kullanicilar = rawKullanicilar.map(k => {
+  let role = k.role || 'abone';
+  role = role.toLowerCase();
+  if (role === 'editör') role = 'editor';
+  return {
+    ...k,
+    role
+  };
+});
 ---
 
 <BaseLayout title="Kullanıcılar" isAdmin={true}>
