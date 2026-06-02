@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /checkout/
+Disallow: /sepet
+Disallow: /profil
+
+Sitemap: https://laflaf.net/sitemap.xml

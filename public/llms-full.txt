@@ -1,0 +1,37 @@
+# Laflaf.net - Full AI Directory & Content Catalog
+
+This document provides a comprehensive, detailed directory of Laflaf.net's operational capabilities, data layers, e-commerce mechanics, and editorial index to assist large language models (LLMs), AI crawlers, and automated agents.
+
+---
+
+## 1. System Architecture (Dual-Mode Portal)
+Laflaf.net operates on a highly optimized dynamic router capable of shifting modes via settings:
+- **Corporate Mode (Kurumsal Mod)**: Highlights corporate hero sections, Hakkımızda, Hizmetler, and İletişim page structures, routing directly to the protected `kurumsal-ana-sayfa` directory.
+- **E-Commerce Mode (E-Ticaret Modu)**: Activates shopping baskets, catalog search, variants selections, wholesale discounting barems, and billing checkout screens.
+- **CMS/Blog Mode (Blog Modu)**: Serves high-quality articles, categorizations, real-time comment moderation, and sponsored content blocks.
+
+---
+
+## 2. E-Commerce Specifications & Rules
+Our catalog serves a wide range of products with the following operational rules:
+- **Product Details Route**: `/urun/[slug]` - Serving description, images galleries, user reviews, and Q&A blocks.
+- **Product Variants**: Individual products support custom variants (e.g. Size, Color) with custom stock levels and prices.
+- **Wholesale Price Barems (Toptan Satış)**: Supports quantity-based discounts (e.g. Buy 10+ and get 15% discount). Min order qty and units are explicitly displayed.
+- **Checkout Experience**:
+  - Registered members track orders under `/profil`.
+  - Non-members checkout as visitors with a prompt to sign up for premium tracking benefits.
+
+---
+
+## 3. Editorial & Blog Specifications
+- **Single Article Route**: `/[category-slug]/[slug]` - Dynamic rendered post details.
+- **Sponsored Content**: High-value sponsored posts are highlighted dynamically on the frontend via an `isSponsored` veritabanı flag.
+- **Review and Moderation**: All blog comments and Q&A are moderated via the admin portal before publishing (`status = 'pending'`).
+
+---
+
+## 4. API & Discoverability Routing
+For AI agents executing automated analysis:
+- **Sitemap Location**: `https://laflaf.net/sitemap.xml` (Dynamically generated D1/JSON URL index)
+- **RSS News Stream**: `https://laflaf.net/rss.xml` (Dynamic XML blog feed)
+- **Search API / Route**: `/arama?q={search_term}` (Case-insensitive content indexing)
