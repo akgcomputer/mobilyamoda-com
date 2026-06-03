@@ -97,11 +97,9 @@ const position = settings.fab_widget_position || 'right-bottom';
   .fab-wrapper {
     position: fixed;
     z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
     bottom: 24px;
+    width: 60px;
+    height: 60px;
   }
   
   .fab-wrapper.right-bottom {
@@ -128,6 +126,9 @@ const position = settings.fab_widget_position || 'right-bottom';
     font-size: 24px;
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
     outline: none;
+    position: absolute;
+    bottom: 0;
+    left: 0;
     z-index: 10000;
   }
   
@@ -150,6 +151,9 @@ const position = settings.fab_widget_position || 'right-bottom';
   
   /* Menu styling & animation */
   .fab-menu {
+    position: absolute;
+    bottom: 72px;
+    left: 7px; /* Centered relative to 60px main button: (60px - 46px)/2 = 7px */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -269,7 +273,9 @@ const position = settings.fab_widget_position || 'right-bottom';
     const mainIcon = fabMainBtn?.querySelector('.main-icon');
     const closeIcon = fabMainBtn?.querySelector('.close-icon');
     
-    if (fabMainBtn && fabWrapper) {
+    if (fabMainBtn && fabWrapper && !fabMainBtn.dataset.bound) {
+      fabMainBtn.dataset.bound = 'true';
+      
       fabMainBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const isOpen = fabWrapper.classList.toggle('open');
@@ -299,10 +305,4 @@ const position = settings.fab_widget_position || 'right-bottom';
   }
 
   document.addEventListener('astro:page-load', initFabWidget);
-  
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(initFabWidget, 100);
-  } else {
-    document.addEventListener('DOMContentLoaded', initFabWidget);
-  }
 </script>
