@@ -1560,7 +1560,7 @@ export async function createSlider(data: any, db?: any): Promise<EcommerceSlider
     const newId = local.data.ecommerce_sliders.length > 0 ? Math.max(...local.data.ecommerce_sliders.map((s:any)=>s.id)) + 1 : 1;
     const newSlider = { id: newId, ...data, createdAt: now };
     local.data.ecommerce_sliders.push(newSlider);
-    await saveLocalDb(local.data);
+    await saveLocalDb(local);
     return newSlider as EcommerceSlider;
   }
   return null;
@@ -1587,7 +1587,7 @@ export async function updateSlider(id: number, data: any, db?: any): Promise<Eco
     const idx = local.data.ecommerce_sliders.findIndex((s:any) => s.id === id);
     if (idx !== -1) {
       local.data.ecommerce_sliders[idx] = { ...local.data.ecommerce_sliders[idx], ...data };
-      await saveLocalDb(local.data);
+      await saveLocalDb(local);
       return local.data.ecommerce_sliders[idx];
     }
   }
@@ -1602,7 +1602,7 @@ export async function deleteSlider(id: number, db?: any): Promise<boolean> {
   const local = await getLocalDb();
   if (local && local.data.ecommerce_sliders) {
     local.data.ecommerce_sliders = local.data.ecommerce_sliders.filter((s:any) => s.id !== id);
-    await saveLocalDb(local.data);
+    await saveLocalDb(local);
     return true;
   }
   return false;
