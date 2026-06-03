@@ -7,6 +7,33 @@ const dbBinding = Astro.locals.runtime?.env?.DB;
 const mediaBinding = Astro.locals.runtime?.env?.MEDIA_BUCKET;
 const dbSettings = await getSettings(dbBinding);
 
+// Default social media structures
+const defaultSocials = [
+  { id: 'x', name: 'X (Twitter)', url: '', active: false },
+  { id: 'facebook', name: 'Facebook', url: '', active: false },
+  { id: 'instagram', name: 'Instagram', url: '', active: false },
+  { id: 'linkedin', name: 'LinkedIn', url: '', active: false },
+  { id: 'pinterest', name: 'Pinterest', url: '', active: false },
+  { id: 'youtube', name: 'YouTube', url: '', active: false },
+  { id: 'tiktok', name: 'TikTok', url: '', active: false },
+  { id: 'medium', name: 'Medium', url: '', active: false },
+  { id: 'whatsapp', name: 'WhatsApp', url: '', active: false },
+  { id: 'telegram', name: 'Telegram', url: '', active: false },
+  { id: 'phone', name: 'Telefon', url: '', active: false },
+  { id: 'email', name: 'E-Posta', url: '', active: false }
+];
+let dbSocials = [];
+try {
+  dbSocials = dbSettings.social_media_links ? JSON.parse(dbSettings.social_media_links) : [];
+} catch (e) {
+  console.error('Error parsing social_media_links', e);
+}
+// Merge database configuration with defaults so any new platform is represented
+const socialMediaLinks = defaultSocials.map(def => {
+  const dbVal = dbSocials.find((item: any) => item.id === def.id);
+  return dbVal ? { ...def, ...dbVal } : def;
+});
+
 let ayarlar = {
   site_title: dbSettings.site_title || 'Laflaf',
   site_description: dbSettings.site_description || 'Meraklı İçerikleri Keşfet',
@@ -41,7 +68,8 @@ let ayarlar = {
   fab_instagram_username: dbSettings.fab_instagram_username || '',
   fab_phone_number: dbSettings.fab_phone_number || '',
   fab_email_address: dbSettings.fab_email_address || '',
-  fab_widget_position: dbSettings.fab_widget_position || 'right-bottom'
+  fab_widget_position: dbSettings.fab_widget_position || 'right-bottom',
+  social_media_links: socialMediaLinks
 };
 
 let mesaj = '';
@@ -149,6 +177,33 @@ if (Astro.request.method === 'POST') {
       (ayarlar as any)[key] = val;
     }
     mesaj = 'İletişim Balonu (FAB) ayarları başarıyla kaydedildi';
+  } else if (action === 'save_social') {
+    const platforms = ['x', 'facebook', 'instagram', 'linkedin', 'pinterest', 'youtube', 'tiktok', 'medium', 'whatsapp', 'telegram', 'phone', 'email'];
+    const socialLinks = platforms.map(platform => {
+      const active = formData.get(`active_${platform}`) === 'true';
+      const url = formData.get(`url_${platform}`) as string || '';
+      return {
+        id: platform,
+        name: platform === 'x' ? 'X (Twitter)' : 
+              platform === 'facebook' ? 'Facebook' :
+              platform === 'instagram' ? 'Instagram' :
+              platform === 'linkedin' ? 'LinkedIn' :
+              platform === 'pinterest' ? 'Pinterest' :
+              platform === 'youtube' ? 'YouTube' :
+              platform === 'tiktok' ? 'TikTok' :
+              platform === 'medium' ? 'Medium' :
+              platform === 'whatsapp' ? 'WhatsApp' :
+              platform === 'telegram' ? 'Telegram' :
+              platform === 'phone' ? 'Telefon' :
+              platform === 'email' ? 'E-Posta' : platform,
+        url,
+        active
+      };
+    });
+    
+    await updateSetting('social_media_links', JSON.stringify(socialLinks), dbBinding);
+    ayarlar.social_media_links = socialLinks;
+    mesaj = 'Sosyal medya ayarları başarıyla kaydedildi';
   }
 }
 
@@ -175,6 +230,7 @@ if (urlParams.has('tab')) {
       <a href="/admin/settings?tab=popup" class={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${aktifSekme === 'popup' ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}>🎆 Pop-up</a>
       <a href="/admin/settings?tab=notifications" class={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${aktifSekme === 'notifications' ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}>🔔 Çerez & Bildirim</a>
       <a href="/admin/settings?tab=fab" class={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${aktifSekme === 'fab' ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}>💬 İletişim Balonu</a>
+      <a href="/admin/settings?tab=social" class={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${aktifSekme === 'social' ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}>📱 Sosyal Medya</a>
     </div>
 
     <!-- Tema Sekmesi -->
@@ -419,6 +475,72 @@ if (urlParams.has('tab')) {
         </div>
 
         <button type="submit" class="bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700 w-full md:w-auto shadow-md">Kaydet</button>
+      </form>
+    )}
+
+    <!-- Sosyal Medya Sekmesi -->
+    {aktifSekme === 'social' && (
+      <form method="POST" data-astro-reload class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
+        <input type="hidden" name="action" value="save_social" />
+        
+        <div class="border-b pb-4">
+          <h2 class="text-xl font-semibold">Sosyal Medya İkon Yönetimi</h2>
+          <p class="text-sm text-gray-500 mt-1">Sitenin üst menüsünde (Header) gösterilecek sosyal medya hesaplarınızı yönetin. 5'ten fazla aktif platform girildiğinde otomatik olarak "Daha Fazla (+)" ikonu görünür ve kullanıcıları tüm hesapların listelendiği sayfaya yönlendirir.</p>
+        </div>
+
+        <div class="space-y-4">
+          {ayarlar.social_media_links.map((item: any) => {
+            const bgClasses = {
+              x: 'bg-black text-white',
+              facebook: 'bg-[#1877F2] text-white',
+              instagram: 'bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white',
+              linkedin: 'bg-[#0A66C2] text-white',
+              pinterest: 'bg-[#BD081C] text-white',
+              youtube: 'bg-[#FF0000] text-white',
+              tiktok: 'bg-black text-white',
+              medium: 'bg-black text-white',
+              whatsapp: 'bg-[#25D366] text-white',
+              telegram: 'bg-[#0088cc] text-white',
+              phone: 'bg-emerald-500 text-white',
+              email: 'bg-red-500 text-white'
+            };
+            return (
+              <div class="flex flex-col md:flex-row md:items-center gap-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 md:w-1/4">
+                  <span class={`w-10 h-10 rounded-full flex items-center justify-center ${bgClasses[item.id] || 'bg-gray-500 text-white'}`}>
+                    {item.id === 'x' && <i class="fab fa-x-twitter"></i>}
+                    {item.id === 'facebook' && <i class="fab fa-facebook-f"></i>}
+                    {item.id === 'instagram' && <i class="fab fa-instagram"></i>}
+                    {item.id === 'linkedin' && <i class="fab fa-linkedin-in"></i>}
+                    {item.id === 'pinterest' && <i class="fab fa-pinterest-p"></i>}
+                    {item.id === 'youtube' && <i class="fab fa-youtube"></i>}
+                    {item.id === 'tiktok' && <i class="fab fa-tiktok"></i>}
+                    {item.id === 'medium' && <i class="fab fa-medium"></i>}
+                    {item.id === 'whatsapp' && <i class="fab fa-whatsapp"></i>}
+                    {item.id === 'telegram' && <i class="fab fa-telegram-plane"></i>}
+                    {item.id === 'phone' && <i class="fas fa-phone-alt"></i>}
+                    {item.id === 'email' && <i class="far fa-envelope"></i>}
+                  </span>
+                  <span class="font-semibold text-gray-800 dark:text-gray-200">{item.name}</span>
+                </div>
+                
+                <div class="flex-1">
+                  <input type="url" name={`url_${item.id}`} value={item.url} placeholder={item.id === 'phone' ? 'tel:+90...' : item.id === 'email' ? 'mailto:info@...' : 'https://...'} class="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:text-white" />
+                </div>
+                
+                <div class="flex items-center gap-2">
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name={`active_${item.id}`} value="true" checked={item.active} class="sr-only peer" />
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 dark:peer-focus:ring-orange-850 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-orange-500"></div>
+                    <span class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">Aktif</span>
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button type="submit" class="bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700 shadow-md">Sosyal Medya Ayarlarını Kaydet</button>
       </form>
     )}
 
