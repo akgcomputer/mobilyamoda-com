@@ -2,6 +2,7 @@
 import Header from '../components/Header.astro';
 import { getSettings } from '../lib/db';
 import { ViewTransitions } from 'astro:transitions';
+import FloatingContactWidget from '../components/FloatingContactWidget.astro';
 
 interface Props {
   title?: string;
@@ -538,5 +539,6 @@ const canSeeMedya = userRole === 'admin';
     }
     }); // end of astro:page-load
   </script>
+  {!isAdmin && <FloatingContactWidget />}
 </body>
 </html>

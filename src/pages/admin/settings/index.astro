@@ -33,7 +33,15 @@ let ayarlar = {
     { title: 'Ana Sayfa', url: '/' },
     { title: 'Yaşam', url: '/yasam' },
     { title: 'Teknoloji', url: '/teknoloji' }
-  ]
+  ],
+  fab_widget_active: dbSettings.fab_widget_active || 'false',
+  fab_active_channels: dbSettings.fab_active_channels ? JSON.parse(dbSettings.fab_active_channels) : [],
+  fab_whatsapp_number: dbSettings.fab_whatsapp_number || '',
+  fab_telegram_username: dbSettings.fab_telegram_username || '',
+  fab_instagram_username: dbSettings.fab_instagram_username || '',
+  fab_phone_number: dbSettings.fab_phone_number || '',
+  fab_email_address: dbSettings.fab_email_address || '',
+  fab_widget_position: dbSettings.fab_widget_position || 'right-bottom'
 };
 
 let mesaj = '';
@@ -123,6 +131,24 @@ if (Astro.request.method === 'POST') {
       (ayarlar as any)[key] = val;
     }
     mesaj = 'Tema ayarları başarıyla kaydedildi';
+  } else if (action === 'save_fab') {
+    const activeChannels = formData.getAll('active_channels[]') as string[];
+    const fieldsToSave = {
+      fab_widget_active: formData.get('fab_widget_active') ? 'true' : 'false',
+      fab_active_channels: JSON.stringify(activeChannels),
+      fab_whatsapp_number: formData.get('fab_whatsapp_number') as string || '',
+      fab_telegram_username: formData.get('fab_telegram_username') as string || '',
+      fab_instagram_username: formData.get('fab_instagram_username') as string || '',
+      fab_phone_number: formData.get('fab_phone_number') as string || '',
+      fab_email_address: formData.get('fab_email_address') as string || '',
+      fab_widget_position: formData.get('fab_widget_position') as string || 'right-bottom'
+    };
+
+    for (const [key, val] of Object.entries(fieldsToSave)) {
+      await updateSetting(key, val, dbBinding);
+      (ayarlar as any)[key] = val;
+    }
+    mesaj = 'İletişim Balonu (FAB) ayarları başarıyla kaydedildi';
   }
 }
 
@@ -148,6 +174,7 @@ if (urlParams.has('tab')) {
       <a href="/admin/settings?tab=menu" class={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${aktifSekme === 'menu' ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}>🍔 Menü</a>
       <a href="/admin/settings?tab=popup" class={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${aktifSekme === 'popup' ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}>🎆 Pop-up</a>
       <a href="/admin/settings?tab=notifications" class={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${aktifSekme === 'notifications' ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}>🔔 Çerez & Bildirim</a>
+      <a href="/admin/settings?tab=fab" class={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${aktifSekme === 'fab' ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}>💬 İletişim Balonu</a>
     </div>
 
     <!-- Tema Sekmesi -->
@@ -311,6 +338,87 @@ if (urlParams.has('tab')) {
         </div>
 
         <button type="submit" class="bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700">Kaydet</button>
+      </form>
+    )}
+
+    <!-- İletişim Balonu (FAB) Sekmesi -->
+    {aktifSekme === 'fab' && (
+      <form method="POST" data-astro-reload class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
+        <input type="hidden" name="action" value="save_fab" />
+        
+        <h2 class="text-lg font-semibold border-b pb-2">Çoklu İletişim Balonu (FAB) Ayarları</h2>
+        <p class="text-sm text-gray-500 mb-4">Sitenin sağ/sol alt köşesinde yer alacak iletişim balonunu ve aktif kanalları ayarlayın.</p>
+
+        <div class="space-y-4">
+          <label class="flex items-center gap-2 cursor-pointer bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 p-4 rounded-lg">
+            <input type="checkbox" name="fab_widget_active" value="true" checked={ayarlar.fab_widget_active === 'true'} class="w-5 h-5 rounded text-orange-600" />
+            <div>
+              <span class="font-bold text-orange-850 dark:text-orange-300">İletişim Balonunu Aktifleştir</span>
+              <p class="text-xs text-orange-600 dark:text-orange-400 mt-1">Bu ayar işaretlendiğinde iletişim balonu sitenin alt köşesinde görünecektir.</p>
+            </div>
+          </label>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-medium mb-1">Balon Konumu</label>
+              <select name="fab_widget_position" class="w-full px-3 py-2 border rounded dark:bg-gray-700">
+                <option value="right-bottom" selected={ayarlar.fab_widget_position === 'right-bottom'}>Sağ Alt Köşe (Önerilen)</option>
+                <option value="left-bottom" selected={ayarlar.fab_widget_position === 'left-bottom'}>Sol Alt Köşe</option>
+              </select>
+            </div>
+          </div>
+
+          <h3 class="font-bold text-sm border-b pt-4 pb-1">Aktif İletişim Kanalları</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- WhatsApp -->
+            <div class="space-y-2 border dark:border-gray-700 p-4 rounded-lg">
+              <label class="flex items-center gap-2 cursor-pointer font-semibold text-green-600 dark:text-green-400">
+                <input type="checkbox" name="active_channels[]" value="WhatsApp" checked={ayarlar.fab_active_channels.includes('WhatsApp')} class="w-4 h-4 rounded text-green-600" />
+                <i class="fab fa-whatsapp"></i> WhatsApp
+              </label>
+              <input type="text" name="fab_whatsapp_number" value={ayarlar.fab_whatsapp_number} class="w-full px-3 py-2 border rounded dark:bg-gray-700 text-sm" placeholder="Telefon numarası (örn: 905XXXXXXXXX)" />
+              <p class="text-xs text-gray-500">Telefon numarası ülke kodu ile birlikte boşluksuz yazılmalıdır.</p>
+            </div>
+
+            <!-- Telegram -->
+            <div class="space-y-2 border dark:border-gray-700 p-4 rounded-lg">
+              <label class="flex items-center gap-2 cursor-pointer font-semibold text-sky-600 dark:text-sky-400">
+                <input type="checkbox" name="active_channels[]" value="Telegram" checked={ayarlar.fab_active_channels.includes('Telegram')} class="w-4 h-4 rounded text-sky-600" />
+                <i class="fab fa-telegram-plane"></i> Telegram
+              </label>
+              <input type="text" name="fab_telegram_username" value={ayarlar.fab_telegram_username} class="w-full px-3 py-2 border rounded dark:bg-gray-700 text-sm" placeholder="Kullanıcı adı veya kanal linki (örn: kanaladi)" />
+            </div>
+
+            <!-- Instagram -->
+            <div class="space-y-2 border dark:border-gray-700 p-4 rounded-lg">
+              <label class="flex items-center gap-2 cursor-pointer font-semibold text-pink-600 dark:text-pink-400">
+                <input type="checkbox" name="active_channels[]" value="Instagram" checked={ayarlar.fab_active_channels.includes('Instagram')} class="w-4 h-4 rounded text-pink-600" />
+                <i class="fab fa-instagram"></i> Instagram
+              </label>
+              <input type="text" name="fab_instagram_username" value={ayarlar.fab_instagram_username} class="w-full px-3 py-2 border rounded dark:bg-gray-700 text-sm" placeholder="Instagram kullanıcı adı (örn: profiladi)" />
+            </div>
+
+            <!-- Telefon -->
+            <div class="space-y-2 border dark:border-gray-700 p-4 rounded-lg">
+              <label class="flex items-center gap-2 cursor-pointer font-semibold text-emerald-600 dark:text-emerald-400">
+                <input type="checkbox" name="active_channels[]" value="Telefon" checked={ayarlar.fab_active_channels.includes('Telefon')} class="w-4 h-4 rounded text-emerald-600" />
+                <i class="fas fa-phone-alt"></i> Telefon (Arama)
+              </label>
+              <input type="text" name="fab_phone_number" value={ayarlar.fab_phone_number} class="w-full px-3 py-2 border rounded dark:bg-gray-700 text-sm" placeholder="Aranacak numara (örn: +905XXXXXXXXX)" />
+            </div>
+
+            <!-- E-Posta -->
+            <div class="space-y-2 border dark:border-gray-700 p-4 rounded-lg md:col-span-2">
+              <label class="flex items-center gap-2 cursor-pointer font-semibold text-red-600 dark:text-red-400">
+                <input type="checkbox" name="active_channels[]" value="E-Posta" checked={ayarlar.fab_active_channels.includes('E-Posta')} class="w-4 h-4 rounded text-red-600" />
+                <i class="far fa-envelope"></i> E-Posta (Mail)
+              </label>
+              <input type="email" name="fab_email_address" value={ayarlar.fab_email_address} class="w-full px-3 py-2 border rounded dark:bg-gray-700 text-sm" placeholder="E-posta adresi (örn: info@firma.com.tr)" />
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700 w-full md:w-auto shadow-md">Kaydet</button>
       </form>
     )}
 
