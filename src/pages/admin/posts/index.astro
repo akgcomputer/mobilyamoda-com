@@ -79,6 +79,7 @@ const allPosts = dbPosts.map(p => ({
   status: p.status,
   isSponsored: !!p.isSponsored,
   category: p.category ? p.category.name : 'Genel',
+  categorySlug: p.category ? p.category.slug : 'genel',
   author: p.authorName || 'Bilinmiyor',
   tags: p.tags ? p.tags.split(',').map((t: string) => t.trim()) : [],
   viewCount: p.views || 0,
@@ -326,7 +327,12 @@ const statusLabels = {
                 ${post.image ? `<img src="${post.image}" class="w-full h-full object-cover rounded-lg">` : '<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>'}
               </div>
               <div>
-                <h3 class="font-medium text-gray-900 dark:text-white editable-title" data-id="${post.id}" data-title="${post.title.replace(/"/g, '&quot;')}">${post.title}</h3>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-medium text-gray-900 dark:text-white editable-title" data-id="${post.id}" data-title="${post.title.replace(/"/g, '&quot;')}">${post.title}</h3>
+                  <a href="/${post.categorySlug}/${post.slug}" target="_blank" class="text-orange-500 hover:text-orange-700 text-xs flex-shrink-0" title="Sitede Görüntüle">
+                    <i class="fas fa-external-link-alt"></i>
+                  </a>
+                </div>
                 <div class="flex flex-wrap gap-1 mt-1">
                   ${post.tags.slice(0, 2).map(t => `<span class="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-full">${t}</span>`).join('')}
                   ${post.tags.length > 2 ? `<span class="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-full">+${post.tags.length - 2}</span>` : ''}
