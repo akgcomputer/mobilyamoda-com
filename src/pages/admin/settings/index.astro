@@ -106,6 +106,23 @@ if (Astro.request.method === 'POST') {
     await updateSetting('menu_items', JSON.stringify(menuItems), dbBinding);
     ayarlar.menu_items = menuItems;
     mesaj = 'Menü ayarları başarıyla kaydedildi';
+  } else if (action === 'save_tema') {
+    const fieldsToSave = {
+      primary_color: formData.get('primary_color') as string,
+      header_bg: formData.get('header_bg') as string,
+      footer_bg: formData.get('footer_bg') as string,
+      text_color: formData.get('text_color') as string,
+      link_color: formData.get('link_color') as string,
+      border_color: formData.get('border_color') as string,
+      font_family: formData.get('font_family') as string,
+      font_size: formData.get('font_size') as string
+    };
+
+    for (const [key, val] of Object.entries(fieldsToSave)) {
+      await updateSetting(key, val, dbBinding);
+      (ayarlar as any)[key] = val;
+    }
+    mesaj = 'Tema ayarları başarıyla kaydedildi';
   }
 }
 
@@ -135,7 +152,7 @@ if (urlParams.has('tab')) {
 
     <!-- Tema Sekmesi -->
     {aktifSekme === 'tema' && (
-      <form method="POST" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
+      <form method="POST" data-astro-reload class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
         <input type="hidden" name="action" value="save_tema" />
         
         <h2 class="text-lg font-semibold border-b pb-2">Renk ve Font Ayarları</h2>
@@ -193,7 +210,7 @@ if (urlParams.has('tab')) {
 
     <!-- Genel Ayarlar Sekmesi -->
     {aktifSekme === 'general' && (
-      <form method="POST" enctype="multipart/form-data" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
+      <form method="POST" enctype="multipart/form-data" data-astro-reload class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
         <input type="hidden" name="action" value="save_general" />
         
         <h2 class="text-lg font-semibold border-b pb-2">Temel Ayarlar & SEO</h2>
@@ -243,7 +260,7 @@ if (urlParams.has('tab')) {
 
     <!-- Pop-up Sekmesi -->
     {aktifSekme === 'popup' && (
-      <form method="POST" enctype="multipart/form-data" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
+      <form method="POST" enctype="multipart/form-data" data-astro-reload class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
         <input type="hidden" name="action" value="save_popup" />
         
         <h2 class="text-lg font-semibold border-b pb-2">Pop-up Yapılandırması</h2>
@@ -270,7 +287,7 @@ if (urlParams.has('tab')) {
 
     <!-- Çerez ve Bildirim Sekmesi -->
     {aktifSekme === 'notifications' && (
-      <form method="POST" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
+      <form method="POST" data-astro-reload class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
         <input type="hidden" name="action" value="save_notifications" />
         
         <h2 class="text-lg font-semibold border-b pb-2">Çerez ve Tarayıcı Bildirimleri</h2>
@@ -307,7 +324,7 @@ if (urlParams.has('tab')) {
           </button>
         </div>
         
-        <form method="POST" class="space-y-6">
+        <form method="POST" data-astro-reload class="space-y-6">
           <input type="hidden" name="action" value="save_menu" />
           
           <div class="space-y-3" id="menuList">
