@@ -5,31 +5,7 @@ const mediaBinding = Astro.locals.runtime?.env?.MEDIA_BUCKET;
 let mediaFiles: any[] = [];
 let mesaj = '';
 
-if (Astro.request.method === 'POST') {
-  try {
-    const formData = await Astro.request.formData();
-    const action = formData.get('action') as string;
-    
-    if (action === 'delete' && mediaBinding) {
-      const fileName = formData.get('name') as string;
-      if (fileName) {
-        await mediaBinding.delete(fileName);
-        mesaj = 'Dosya başarıyla silindi.';
-      }
-    } else if (action === 'bulk_delete' && mediaBinding) {
-      const fileNames = formData.getAll('names[]');
-      if (fileNames && fileNames.length > 0) {
-        for (const name of fileNames) {
-          await mediaBinding.delete(name.toString());
-        }
-        mesaj = `${fileNames.length} dosya başarıyla silindi.`;
-      }
-    }
-  } catch (e) {
-    console.error('İşlem sırasında hata:', e);
-    mesaj = 'İşlem sırasında hata oluştu.';
-  }
-}
+// POST handles are now moved to dedicated API endpoint /api/media/delete.json
 
 if (mediaBinding) {
   try {
@@ -86,10 +62,7 @@ if (mediaBinding) {
         <i class="fas fa-trash"></i> <span id="bulkDeleteText">Seçilenleri Sil</span>
       </button>
       
-      <form id="bulkDeleteForm" method="POST" class="hidden">
-        <input type="hidden" name="action" value="bulk_delete" />
-        <div id="bulkDeleteInputs"></div>
-      </form>
+
     </div>
 
     <!-- Resim Grid -->
@@ -110,11 +83,9 @@ if (mediaBinding) {
               <span class="text-xs text-gray-500 font-semibold">{file.size}</span>
               <div class="flex gap-2">
                 <button type="button" onclick={`navigator.clipboard.writeText(window.location.origin + '${file.url}').then(()=>alert('Kopyalandı!'))`} class="text-indigo-500 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 p-1.5 rounded" title="URL Kopyala"><i class="fas fa-link"></i></button>
-                <form method="POST" onsubmit="return confirm('Silmek istediğinize emin misiniz?')" class="m-0 p-0">
-                  <input type="hidden" name="action" value="delete" />
-                  <input type="hidden" name="name" value={file.name} />
-                  <button type="submit" class="text-red-600 hover:text-red-800 bg-red-50 dark:bg-red-900/30 p-1.5 rounded" title="Sil"><i class="fas fa-trash"></i></button>
-                </form>
+                <button type="button" class="single-delete-btn text-red-600 hover:text-red-800 bg-red-50 dark:bg-red-900/30 p-1.5 rounded" data-name={file.name} title="Sil">
+                  <i class="fas fa-trash"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -194,10 +165,41 @@ if (mediaBinding) {
         });
       }
 
+      // --- Tekli Silme ---
+      const singleDeleteBtns = document.querySelectorAll('.single-delete-btn');
+      singleDeleteBtns.forEach(btn => {
+        if (!btn.dataset.bound) {
+          btn.dataset.bound = 'true';
+          btn.addEventListener('click', async () => {
+            const fileName = btn.getAttribute('data-name');
+            if (!fileName) return;
+            if (confirm('Silmek istediğinize emin misiniz?')) {
+              try {
+                const res = await fetch('/api/media/delete.json', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ name: fileName })
+                });
+                if (res.ok) {
+                  window.location.reload();
+                } else {
+                  const data = await res.json();
+                  alert(data.error || 'Silme işlemi başarısız oldu');
+                }
+              } catch (err) {
+                console.error(err);
+                alert('Silme sırasında bir hata oluştu');
+              }
+            }
+          });
+        }
+      });
+
       // --- Toplu Seçim ve Silme ---
       const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
       const bulkDeleteText = document.getElementById('bulkDeleteText');
-      const bulkDeleteForm = document.getElementById('bulkDeleteForm');
       const selectAllCheckbox = document.getElementById('selectAllCheckbox');
       const itemCheckboxes = document.querySelectorAll('.media-checkbox');
 
@@ -243,20 +245,34 @@ if (mediaBinding) {
 
       if (bulkDeleteBtn && !bulkDeleteBtn.dataset.bound) {
         bulkDeleteBtn.dataset.bound = 'true';
-        bulkDeleteBtn.addEventListener('click', () => {
+        bulkDeleteBtn.addEventListener('click', async () => {
           if (confirm('Seçili dosyaları kalıcı olarak silmek istediğinize emin misiniz?')) {
             const checked = document.querySelectorAll('.media-checkbox:checked');
-            const container = document.getElementById('bulkDeleteInputs');
-            if (container && bulkDeleteForm) {
-              container.innerHTML = '';
-              checked.forEach(cb => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'names[]';
-                input.value = cb.value;
-                container.appendChild(input);
+            const fileNames = Array.from(checked).map(cb => cb.value);
+            if (fileNames.length === 0) return;
+            
+            const btnText = bulkDeleteText ? bulkDeleteText.innerText : 'Siliniyor...';
+            if (bulkDeleteText) bulkDeleteText.innerText = 'Siliniyor...';
+            
+            try {
+              const res = await fetch('/api/media/delete.json', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ names: fileNames })
               });
-              bulkDeleteForm.submit();
+              if (res.ok) {
+                window.location.reload();
+              } else {
+                const data = await res.json();
+                alert(data.error || 'Toplu silme işlemi başarısız oldu');
+                if (bulkDeleteText) bulkDeleteText.innerText = btnText;
+              }
+            } catch (err) {
+              console.error(err);
+              alert('Silme sırasında bir hata oluştu');
+              if (bulkDeleteText) bulkDeleteText.innerText = btnText;
             }
           }
         });
