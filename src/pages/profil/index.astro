@@ -1076,12 +1076,7 @@ if (Astro.request.method === 'POST') {
       }
     }
     
-    // Bind securely to both view transitions and immediate DOM ready
+    // Bind securely to Astro view transitions (handles initial load and page changes)
     document.addEventListener('astro:page-load', initProfilePage);
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(initProfilePage, 50);
-    } else {
-      document.addEventListener('DOMContentLoaded', initProfilePage);
-    }
   </script>
 </BaseLayout>

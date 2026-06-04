@@ -335,16 +335,18 @@ const currentUrl = Astro.url.href;
 </BaseLayout>
 
 <script>
+  document.addEventListener('astro:page-load', () => {
     // Beğeni Butonu
     const likeBtn = document.getElementById('likeBtn');
     const btnLikeCount = document.getElementById('btnLikeCount');
     const likeCountText = document.getElementById('likeCountText');
     const postId = likeBtn?.dataset.id;
+    if (!likeBtn) return;
     
     let isLiked = false;
     try { isLiked = localStorage.getItem('liked_' + postId) === 'true'; } catch(e) {}
 
-    if (isLiked && likeBtn) {
+    if (isLiked) {
         likeBtn.classList.remove('from-orange-500', 'to-red-500', 'hover:shadow-lg', 'hover:scale-105');
         likeBtn.classList.add('bg-green-600', 'scale-100');
         likeBtn.setAttribute('disabled', 'true');
@@ -352,7 +354,7 @@ const currentUrl = Astro.url.href;
         if (span) span.textContent = 'Beğenildi!';
     }
 
-    likeBtn?.addEventListener('click', async () => {
+    likeBtn.addEventListener('click', async () => {
       if (!postId || isLiked) return;
       
       if (btnLikeCount) btnLikeCount.textContent = (parseInt(btnLikeCount.textContent || '0') + 1).toString();
@@ -376,4 +378,5 @@ const currentUrl = Astro.url.href;
         console.error('Beğeni kaydedilemedi:', e);
       }
     });
+  });
 </script>

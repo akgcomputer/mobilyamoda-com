@@ -1211,12 +1211,7 @@ if (Astro.request.method === 'POST') {
       initCartCheckout();
     }
 
-    // Safe execution registry for both direct load and Astro view transition contexts
-    if (document.readyState !== 'loading') {
-      runAllCartLogic();
-    } else {
-      document.addEventListener('DOMContentLoaded', runAllCartLogic);
-    }
+    // Safe execution registry for Astro view transitions (handles initial load and page changes)
     document.addEventListener('astro:page-load', runAllCartLogic);
   </script>
 </BaseLayout>
