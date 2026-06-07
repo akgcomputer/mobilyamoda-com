@@ -141,7 +141,7 @@ if (Astro.request.method === 'POST') {
       </div>
     )}
 
-    <form method="POST" enctype="multipart/form-data" class="space-y-8" id="pageForm">
+    <form method="POST" enctype="multipart/form-data" data-astro-reload class="space-y-8" id="pageForm">
       
       <!-- Başlık ve Slug -->
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -280,48 +280,66 @@ if (Astro.request.method === 'POST') {
     .dark .ql-snow .ql-picker { color: #d1d5db; }
   </style>
   <script is:inline>
-    const form = document.getElementById('pageForm');
-    
-    // Quill Customizations
-    const Link = Quill.import('formats/link');
-    class MyLink extends Link {
-      static create(value) {
-        if (value && typeof value === 'string') {
-          if (!value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('mailto:') && !value.startsWith('tel:') && !value.startsWith('/')) {
-            value = 'https://' + value;
+    function initQuill() {
+      const form = document.getElementById('pageForm');
+      const editor1El = document.getElementById('editor1');
+      const editor3El = document.getElementById('editor3');
+      const editor6El = document.getElementById('editor6');
+      
+      if (!editor1El || !editor3El || !editor6El || !form) return;
+      if (editor1El.classList.contains('ql-container')) return; // double init protection
+
+      // Quill Customizations
+      const Link = Quill.import('formats/link');
+      class MyLink extends Link {
+        static create(value) {
+          if (value && typeof value === 'string') {
+            if (!value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('mailto:') && !value.startsWith('tel:') && !value.startsWith('/')) {
+              value = 'https://' + value;
+            }
           }
+          return super.create(value);
         }
-        return super.create(value);
       }
+      Quill.register(MyLink, true);
+
+      const ColorStyle = Quill.import('attributors/style/color');
+      const BackgroundStyle = Quill.import('attributors/style/background');
+      Quill.register(ColorStyle, true);
+      Quill.register(BackgroundStyle, true);
+
+      const qOpts = {
+        theme: 'snow',
+        modules: { toolbar: [ 
+          [{ 'header': [1, 2, 3, false] }], 
+          ['bold', 'italic', 'underline', 'strike'], 
+          [{'list': 'ordered'}, {'list': 'bullet'}], 
+          ['link', 'image', 'video'], 
+          [{ 'color': [] }, { 'background': [] }],
+          ['clean'] 
+        ] },
+        placeholder: 'İçeriğinizi buraya yazın...'
+      };
+
+      const quill1 = new Quill('#editor1', qOpts);
+      const quill3 = new Quill('#editor3', qOpts);
+      const quill6 = new Quill('#editor6', qOpts);
+
+      form.addEventListener('submit', function() {
+        const hiddenSec1 = document.getElementById('hiddenSec1');
+        const hiddenSec3 = document.getElementById('hiddenSec3');
+        const hiddenSec6 = document.getElementById('hiddenSec6');
+        if (hiddenSec1) hiddenSec1.value = quill1.root.innerHTML === '<p><br></p>' ? '' : quill1.root.innerHTML;
+        if (hiddenSec3) hiddenSec3.value = quill3.root.innerHTML === '<p><br></p>' ? '' : quill3.root.innerHTML;
+        if (hiddenSec6) hiddenSec6.value = quill6.root.innerHTML === '<p><br></p>' ? '' : quill6.root.innerHTML;
+      });
     }
-    Quill.register(MyLink, true);
 
-    const ColorStyle = Quill.import('attributors/style/color');
-    const BackgroundStyle = Quill.import('attributors/style/background');
-    Quill.register(ColorStyle, true);
-    Quill.register(BackgroundStyle, true);
-
-    const qOpts = {
-      theme: 'snow',
-      modules: { toolbar: [ 
-        [{ 'header': [1, 2, 3, false] }], 
-        ['bold', 'italic', 'underline', 'strike'], 
-        [{'list': 'ordered'}, {'list': 'bullet'}], 
-        ['link', 'image', 'video'], 
-        [{ 'color': [] }, { 'background': [] }],
-        ['clean'] 
-      ] },
-      placeholder: 'İçeriğinizi buraya yazın...'
-    };
-
-    const quill1 = new Quill('#editor1', qOpts);
-    const quill3 = new Quill('#editor3', qOpts);
-    const quill6 = new Quill('#editor6', qOpts);
-
-    form?.addEventListener('submit', function() {
-      document.getElementById('hiddenSec1').value = quill1.root.innerHTML === '<p><br></p>' ? '' : quill1.root.innerHTML;
-      document.getElementById('hiddenSec3').value = quill3.root.innerHTML === '<p><br></p>' ? '' : quill3.root.innerHTML;
-      document.getElementById('hiddenSec6').value = quill6.root.innerHTML === '<p><br></p>' ? '' : quill6.root.innerHTML;
-    });
+    document.addEventListener('astro:page-load', initQuill);
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(initQuill, 100);
+    } else {
+      document.addEventListener('DOMContentLoaded', initQuill);
+    }
   </script>
 </BaseLayout>

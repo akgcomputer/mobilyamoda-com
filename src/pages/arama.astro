@@ -4,7 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 const query = Astro.url.searchParams.get('q') || '';
 ---
 
-<BaseLayout title={`"${query}" Arama Sonuçları | Laflaf`} description="Laflaf.net'te aradığınız her şeyi keşfedin.">
+<BaseLayout title={`"${query}" Arama Sonuçları`} description="Aradığınız her şeyi keşfedin.">
   <div class="min-h-[70vh]">
     <div class="max-w-4xl mx-auto mb-10 text-center">
       <h1 class="text-3xl md:text-5xl font-bold mb-6">Arama Sonuçları</h1>

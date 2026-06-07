@@ -98,7 +98,7 @@ if (!hasKurumsal) {
                     <i class="fas fa-edit"></i>
                   </a>
                   {page.slug !== 'kurumsal-ana-sayfa' ? (
-                    <form method="POST" class="inline" onsubmit="return confirm('Bu sayfayı silmek istediğinize emin misiniz?');">
+                    <form method="POST" data-astro-reload class="inline" onsubmit="return confirm('Bu sayfayı silmek istediğinize emin misiniz?');">
                       <input type="hidden" name="action" value="delete" />
                       <input type="hidden" name="page_id" value={page.id} />
                       <button type="submit" class="text-red-500 hover:text-red-700 p-2" title="Sil">
