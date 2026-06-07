@@ -1,0 +1,17 @@
+# Laflaf.net - AI Discovery Spec
+
+Welcome to the AI integration specification index for Laflaf.net. This portal is a hybrid interactive platform offering real-time content management, blog directories, and an advanced e-commerce catalog.
+
+## Essential Channels
+- **Homepage**: [https://laflaf.net/](https://laflaf.net/) - High-quality editorial stories, product categories, and dynamic feeds.
+- **Sitemap Index**: [https://laflaf.net/sitemap.xml](https://laflaf.net/sitemap.xml) - Automated index containing all active posts and catalog items.
+- **RSS Feed**: [https://laflaf.net/rss.xml](https://laflaf.net/rss.xml) - Real-time XML channel for latest blog releases.
+
+## Core Directories
+- **E-Commerce Catalog**: `/urunler` - Dynamic product search, category navigation, and toptan pricing barems.
+- **Product Categories**: `/urun-kategoriler` - Discoverable catalog directories.
+- **Blog Categories**: `/kategoriler` - Core editorial news, software reviews, technology journals, and lifestyle stories.
+
+## Full AI Specification
+For exhaustive catalog maps, dynamic database page specifications, and rich Markdown indices, read the full specification:
+- **Full Catalog Index**: [https://laflaf.net/llms-full.txt](https://laflaf.net/llms-full.txt)

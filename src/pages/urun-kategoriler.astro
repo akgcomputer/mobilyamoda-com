@@ -1,0 +1,108 @@
+---
+// src/pages/urun-kategoriler.astro
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCategories } from '../lib/db';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const categories = await getCategories(dbBinding, 'product');
+
+// Group into root and child categories
+const rootCategories = categories.filter((c: any) => !c.parent_id);
+
+function getChildren(parentId: number) {
+  return categories.filter((c: any) => c.parent_id === parentId);
+}
+---
+
+<BaseLayout title="Ürün Kategorileri | Laflaf E-Ticaret" description="Laflaf'taki tüm ürün kategorilerini keşfedin. Geniş ürün yelpazemize gözatın.">
+  
+  <!-- Hero Section -->
+  <div class="relative overflow-hidden bg-gradient-to-br from-orange-600 via-red-500 to-pink-600 text-white py-16 md:py-24">
+    <!-- Geometric decorative elements -->
+    <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none"></div>
+    <div class="absolute -top-40 -right-40 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+    
+    <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
+      <div class="inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 border border-white/20">
+        <i class="fas fa-shopping-bag animate-pulse"></i> Alışveriş Kataloğu
+      </div>
+      <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-4 drop-shadow-sm font-outfit">
+        Ürün Kategorileri
+      </h1>
+      <p class="max-w-2xl mx-auto text-base md:text-lg text-white/90 leading-relaxed font-light">
+        Aradığınız tüm ürün gruplarını kolayca keşfedin. Kaliteli ürünler, uygun fiyatlar ve zengin seçenekler sizi bekliyor.
+      </p>
+    </div>
+  </div>
+
+  <!-- Categories Grid -->
+  <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-16 min-h-[50vh]">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {rootCategories.map(root => {
+        const children = getChildren(root.id);
+        
+        return (
+          <div class="group bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700/80 shadow-sm hover:shadow-2xl hover:border-orange-500/20 dark:hover:border-orange-500/20 transition-all duration-300 flex flex-col h-full relative overflow-hidden">
+            {/* Background Glow */}
+            <div class="absolute -right-16 -top-16 w-32 h-32 bg-orange-500/5 rounded-full blur-3xl group-hover:bg-orange-500/10 transition-colors duration-300"></div>
+            
+            {/* Header */}
+            <a href={`/urunler?kategori=${root.slug}`} class="flex items-center gap-4 mb-6 group/title">
+              <div class="w-14 h-14 rounded-2xl bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400 flex items-center justify-center text-2xl group-hover:scale-110 group-hover:bg-orange-100 dark:group-hover:bg-orange-950/60 transition-all duration-300 shadow-sm">
+                <i class={`fas ${root.icon || 'fa-tag'}`}></i>
+              </div>
+              <div>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white group-hover/title:text-orange-600 dark:group-hover/title:text-orange-400 transition-colors duration-200">
+                  {root.name}
+                </h2>
+                <span class="text-xs text-gray-400 dark:text-gray-500 font-medium">
+                  {children.length > 0 ? `${children.length} Alt Kategori` : 'Ana Kategori'}
+                </span>
+              </div>
+            </a>
+            
+            {/* Children List */}
+            {children.length > 0 ? (
+              <div class="flex flex-wrap gap-2 mb-6">
+                {children.map(child => (
+                  <a 
+                    href={`/urunler?kategori=${child.slug}`} 
+                    class="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-xl bg-gray-50 text-gray-600 border border-gray-100 dark:bg-gray-900/50 dark:text-gray-300 dark:border-gray-800 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-950/30 dark:hover:text-orange-400 dark:hover:border-orange-500/20 hover:border-orange-200 transition-all duration-200"
+                  >
+                    {child.name}
+                    <i class="fas fa-chevron-right ml-1.5 opacity-0 group-hover:opacity-100 text-[8px] transition-opacity"></i>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p class="text-sm text-gray-400 dark:text-gray-500 italic mb-6">Alt kategori bulunmuyor.</p>
+            )}
+
+            {/* CTA Link */}
+            <div class="mt-auto pt-4 border-t border-gray-50 dark:border-gray-700/60">
+              <a 
+                href={`/urunler?kategori=${root.slug}`} 
+                class="inline-flex items-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 transition-colors"
+              >
+                Tüm Ürünleri İncele
+                <i class="fas fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
+              </a>
+            </div>
+          </div>
+        );
+      })}
+
+      {rootCategories.length === 0 && (
+        <div class="col-span-full py-20 text-center bg-gray-50 dark:bg-gray-800/30 rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
+          <div class="w-16 h-16 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+            <i class="fas fa-tags"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Kategori Bulunamadı</h3>
+          <p class="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">Sistemde henüz aktif e-ticaret kategori kaydı yer almıyor.</p>
+          <a href="/urunler" class="inline-block mt-6 bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl transition">Tüm Ürünlere Git</a>
+        </div>
+      )}
+    </div>
+  </div>
+</BaseLayout>

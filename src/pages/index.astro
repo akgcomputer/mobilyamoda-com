@@ -1,0 +1,613 @@
+---
+// index.astro - Ana Sayfa (Dinamik Galeri)
+// Public Frontend - Koyu tema, masonry grid, sonsuz kaydırma
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPosts, getCategories, getProducts, getBrands, getSettings, getPageBySlug } from '../lib/db';
+import HeroSlider from '../components/ecommerce/HeroSlider.astro';
+import StoryCategories from '../components/ecommerce/StoryCategories.astro';
+import ProductCard from '../components/ecommerce/ProductCard.astro';
+
+
+// Format sayıları (1.234 -> 1.2k)
+function formatNumber(num: number): string {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'k';
+  }
+  return num.toString();
+}
+
+// D1 veritabanı veya yerel JSON fallback'inden verileri çekelim
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const [dbPosts, dbCategories, dbProducts, dbBrands, dbSettings] = await Promise.all([
+  getPosts(dbBinding),
+  getCategories(dbBinding),
+  getProducts(dbBinding),
+  getBrands(dbBinding),
+  getSettings(dbBinding)
+]);
+const siteMode = dbSettings.site_mode || 'blog';
+
+const showBlog = ['blog', 'mixed1', 'mixed2a', 'mixed2b'].includes(siteMode);
+const showEcommerce = ['ecommerce', 'mixed1', 'mixed2b', 'mixed2c'].includes(siteMode);
+const showCorporate = ['corporate', 'mixed1', 'mixed2a', 'mixed2c'].includes(siteMode);
+
+let corporatePage = null;
+if (showCorporate) {
+  corporatePage = await getPageBySlug('kurumsal-ana-sayfa', dbBinding);
+  if (!corporatePage) {
+    const { createPage } = await import('../lib/db');
+    await createPage({
+      title: 'Kurumsal Ana Sayfa',
+      slug: 'kurumsal-ana-sayfa',
+      section1: `
+        <div class="space-y-6">
+          <h2 class="text-3xl font-extrabold font-outfit text-gray-900 dark:text-white">Vizyonumuz & Değerlerimiz</h2>
+          <p class="text-gray-600 dark:text-gray-300 leading-relaxed text-lg">Yenilikçi ve sürdürülebilir kurumsal çözümler sunarak sektörde fark yaratmayı amaçlıyoruz. Müşteri memnuniyetini en üst düzeyde tutmak en temel vizyonumuzdur.</p>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
+            <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm">
+              <div class="w-12 h-12 bg-orange-100 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-xl flex items-center justify-center text-xl mb-4"><i class="fas fa-gem"></i></div>
+              <h3 class="font-bold text-gray-900 dark:text-white mb-2">Üstün Kalite</h3>
+              <p class="text-sm text-gray-500">Tüm kurumsal süreçlerimizde en yüksek kalite standartlarını tavizsiz uyguluyoruz.</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm">
+              <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center text-xl mb-4"><i class="fas fa-lightbulb"></i></div>
+              <h3 class="font-bold text-gray-900 dark:text-white mb-2">İnovasyon</h3>
+              <p class="text-sm text-gray-500">Modern ve yaratıcı fikirlerle iş modelinizi bir sonraki seviyeye taşıyoruz.</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm">
+              <div class="w-12 h-12 bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400 rounded-xl flex items-center justify-center text-xl mb-4"><i class="fas fa-handshake"></i></div>
+              <h3 class="font-bold text-gray-900 dark:text-white mb-2">Güvenilirlik</h3>
+              <p class="text-sm text-gray-500">Sözlerimize sadık kalarak şeffaf ve dürüst iş ortaklıkları kuruyoruz.</p>
+            </div>
+          </div>
+        </div>
+      `,
+      hero_image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200',
+      hero_slogan: 'Güvenilir ve Sürdürülebilir Kurumsal Hizmetler',
+      hero_button_text: 'Hizmetlerimizi Keşfedin',
+      hero_button_link: '#vizyon',
+      metaTitle: 'Kurumsal Ana Sayfa - Laflaf',
+      metaDescription: 'Laflaf kurumsal ana sayfası.'
+    }, dbBinding);
+    corporatePage = await getPageBySlug('kurumsal-ana-sayfa', dbBinding);
+  }
+}
+
+// En yenilerden: Son 20 üründen rastgele 10 tanesi
+const latestProductsPool = dbProducts.slice(0, 20);
+const random10Products = [...latestProductsPool]
+  .sort(() => Math.random() - 0.5)
+  .slice(0, 10);
+
+// Gerçek içerikler
+const initialContents = dbPosts.map(p => ({
+  id: p.id,
+  title: p.title,
+  slug: p.slug,
+  excerpt: p.excerpt || '',
+  imageUrl: p.imageUrl || undefined,
+  category: p.category ? { id: p.category.id, name: p.category.name, slug: p.category.slug } : { id: 1, name: "Genel", slug: "genel" },
+  tags: p.tags ? p.tags.split(',').map((t: string, idx: number) => ({ id: idx, name: t.trim() })) : [],
+  views: p.views || 0,
+  likes: p.likes || 0,
+  commentCount: p.commentCount || 0,
+  readTime: p.readTime || 3,
+  readTime: p.readTime || 3,
+  createdAt: p.createdAt,
+  isSponsored: !!p.isSponsored
+}));
+
+// Sponsorlu ve normal içerikleri ayır ve harmanla
+const sponsoredPosts = initialContents.filter(p => p.isSponsored);
+const regularPosts = initialContents.filter(p => !p.isSponsored).sort(() => Math.random() - 0.5);
+
+let displayPosts = [];
+if (sponsoredPosts.length === 0) {
+  displayPosts = regularPosts;
+} else if (regularPosts.length === 0) {
+  displayPosts = sponsoredPosts;
+} else {
+  const spacing = Math.max(2, Math.floor(regularPosts.length / sponsoredPosts.length));
+  let sIdx = 0;
+  for (let i = 0; i < regularPosts.length; i++) {
+    displayPosts.push(regularPosts[i]);
+    if (i % spacing === 0 && sIdx < sponsoredPosts.length) {
+      displayPosts.push(sponsoredPosts[sIdx++]);
+    }
+  }
+  while(sIdx < sponsoredPosts.length) displayPosts.push(sponsoredPosts[sIdx++]);
+}
+
+// Dinamik Kategoriler
+const randomCategories = dbCategories
+  .map(c => ({
+    id: c.id,
+    name: c.name,
+    icon: c.icon || 'fa-tag',
+    slug: c.slug
+  }))
+  .sort(() => Math.random() - 0.5)
+  .slice(0, 6);
+
+const vibrantColors = [
+  { bg: 'bg-sky-400 hover:bg-sky-500', text: 'text-white' },
+  { bg: 'bg-blue-300 hover:bg-blue-400', text: 'text-gray-900' },
+  { bg: 'bg-indigo-400 hover:bg-indigo-500', text: 'text-white' },
+  { bg: 'bg-cyan-300 hover:bg-cyan-400', text: 'text-gray-900' },
+  { bg: 'bg-teal-300 hover:bg-teal-400', text: 'text-gray-900' },
+  { bg: 'bg-indigo-300 hover:bg-indigo-400', text: 'text-gray-900' },
+  { bg: 'bg-orange-500 hover:bg-orange-600', text: 'text-white' },
+  { bg: 'bg-blue-500 hover:bg-blue-600', text: 'text-white' },
+  { bg: 'bg-yellow-400 hover:bg-yellow-500', text: 'text-gray-900' },
+  { bg: 'bg-blue-600 hover:bg-blue-700', text: 'text-white' },
+  { bg: 'bg-purple-400 hover:bg-purple-500', text: 'text-white' },
+  { bg: 'bg-fuchsia-300 hover:bg-fuchsia-400', text: 'text-gray-900' },
+  { bg: 'bg-yellow-600 hover:bg-yellow-700', text: 'text-white' },
+  { bg: 'bg-lime-400 hover:bg-lime-500', text: 'text-gray-900' },
+  { bg: 'bg-green-500 hover:bg-green-600', text: 'text-white' },
+  { bg: 'bg-pink-500 hover:bg-pink-600', text: 'text-white' },
+  { bg: 'bg-fuchsia-600 hover:bg-fuchsia-700', text: 'text-white' },
+  { bg: 'bg-purple-600 hover:bg-purple-700', text: 'text-white' },
+  { bg: 'bg-teal-500 hover:bg-teal-600', text: 'text-white' },
+  { bg: 'bg-amber-800 hover:bg-amber-900', text: 'text-white' },
+  { bg: 'bg-amber-600 hover:bg-amber-700', text: 'text-white' },
+  { bg: 'bg-amber-100 hover:bg-amber-200', text: 'text-gray-900' },
+  { bg: 'bg-stone-100 hover:bg-stone-200', text: 'text-gray-900' }
+];
+
+// Dinamik Etiketler
+const allTags = new Set();
+dbPosts.forEach(p => {
+  if (p.tags) {
+    p.tags.split(',').forEach(t => allTags.add(t.trim()));
+  }
+});
+const randomSubTags = Array.from(allTags).sort(() => Math.random() - 0.5).slice(0, 8);
+
+const borderColors = [
+  'border-red-200 dark:border-red-800',
+  'border-orange-200 dark:border-orange-800',
+  'border-amber-200 dark:border-amber-800',
+  'border-green-200 dark:border-green-800',
+  'border-emerald-200 dark:border-emerald-800',
+  'border-teal-200 dark:border-teal-800',
+  'border-cyan-200 dark:border-cyan-800',
+  'border-blue-200 dark:border-blue-800',
+  'border-indigo-200 dark:border-indigo-800',
+  'border-violet-200 dark:border-violet-800',
+  'border-purple-200 dark:border-purple-800',
+  'border-fuchsia-200 dark:border-fuchsia-800',
+  'border-pink-200 dark:border-pink-800',
+  'border-rose-200 dark:border-rose-800'
+];
+---
+
+<BaseLayout title="Laflaf - En Yeni İçerikler">
+  <HeroSlider />
+  
+  {showCorporate && (
+    <>
+      {corporatePage ? (
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16">
+          {/* Parallax Hero Banner */}
+          {(corporatePage.hero_image || corporatePage.hero_slogan) && (
+            <div class="relative min-h-[460px] flex items-center justify-center rounded-3xl overflow-hidden shadow-xl border border-gray-100 dark:border-gray-800">
+              <div class="absolute inset-0 bg-cover bg-center" style={`background-image: url('${corporatePage.hero_image || 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200'}')`}></div>
+              <div class="absolute inset-0 bg-gray-950/60 backdrop-blur-[1px]"></div>
+              <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none"></div>
+              
+              <div class="relative z-10 max-w-4xl mx-auto text-center px-6 py-12 space-y-6">
+                {corporatePage.hero_slogan && (
+                  <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-white font-outfit leading-tight drop-shadow-md">
+                    {corporatePage.hero_slogan}
+                  </h1>
+                )}
+                {corporatePage.hero_button_text && (
+                  <div class="pt-4">
+                    <a 
+                      href={corporatePage.hero_button_link || '#vizyon'} 
+                      class="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-purple-600 hover:shadow-lg hover:opacity-95 text-white font-bold px-8 py-4 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"
+                    >
+                      {corporatePage.hero_button_text} <i class="fas fa-arrow-right text-xs"></i>
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Section 1: Introduction / Hakkımızda */}
+          {corporatePage.section1 && (
+            <div class="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-8 sm:p-12 shadow-sm" id="vizyon">
+              <div set:html={corporatePage.section1} class="prose dark:prose-invert max-w-none prose-orange"></div>
+            </div>
+          )}
+
+          {/* Section 3: Services Showcase */}
+          {corporatePage.section3 && (
+            <div class="bg-gray-50 dark:bg-gray-900/50 rounded-3xl border border-gray-150 dark:border-gray-800 p-8 sm:p-12 shadow-sm">
+              <div set:html={corporatePage.section3} class="prose dark:prose-invert max-w-none prose-orange"></div>
+            </div>
+          )}
+
+          {/* Section 6: Contact / CTA Banner */}
+          {corporatePage.section6 && (
+            <div class="bg-gradient-to-br from-gray-900 to-purple-950 text-white rounded-3xl border border-white/10 p-8 sm:p-12 shadow-xl relative overflow-hidden">
+              <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none"></div>
+              <div set:html={corporatePage.section6} class="prose prose-invert max-w-none relative z-10"></div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center border-b border-gray-200 dark:border-gray-800">
+          <h1 class="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl mb-6">
+            <span class="block text-orange-600">Kurumsal Altyapı</span>
+            <span class="block text-gray-900 dark:text-white">Çok Yakında</span>
+          </h1>
+          <p class="max-w-2xl mx-auto text-base text-gray-500 sm:text-lg md:text-xl md:max-w-3xl mb-8">
+            Bu alan, Kurumsal Sayfa Tasarımcısı modülü tamamlandığında aktif olacaktır.<br><br>
+            <strong class="text-orange-500">İpucu:</strong> Admin panelindeki "Sabit Sayfalar" bölümünden URL (slug) adresi <code>kurumsal-ana-sayfa</code> olan bir sayfa oluşturursanız, bu uyarı yazısı kaybolur ve sayfanın içerisindeki metin burada otomatik olarak gösterilir.
+          </p>
+        </div>
+      )}
+    </>
+  )}
+
+  {showEcommerce && (
+    <>
+      <StoryCategories />
+
+      {random10Products.length > 0 && (
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white font-outfit flex items-center gap-2">
+              <i class="fas fa-sparkles text-orange-500"></i> En yenilerden
+            </h2>
+            <a href="/urunler" class="text-orange-600 hover:text-orange-700 text-sm font-semibold flex items-center gap-1">
+              Tümünü Gör <i class="fas fa-chevron-right text-xs"></i>
+            </a>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            {random10Products.map(product => (
+              <ProductCard product={product} brands={dbBrands} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )}
+
+  {showBlog && (
+
+  <!-- Ana İçerik Konteyneri -->
+  <div class="max-w-[1600px] mx-auto px-4 md:px-6 lg:px-8 py-5">
+      
+      <!-- Slogan & Arama Alanı -->
+      <div class="flex justify-center items-center gap-4 mb-6">
+        <div class="w-full max-w-3xl">
+          <div class="relative">
+            <button id="searchSubmitBtn" class="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-500 transition z-10 cursor-pointer p-2">
+              <i class="fas fa-search"></i>
+            </button>
+            <input 
+              type="text" 
+              id="searchInput"
+              autocomplete="off"
+              placeholder="✨ Hayal gücünü keşfet, ilham seni bekliyor..." 
+              class="w-full py-4 pl-14 pr-5 rounded-full bg-gray-100 dark:bg-gray-800/80 border border-gray-300 dark:border-gray-700 focus:border-purple-500 focus:outline-none text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 text-base shadow-lg backdrop-blur-sm transition relative z-20"
+            >
+            <!-- Dropdown Menüsü -->
+            <div id="searchDropdown" class="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden z-30 hidden opacity-0 transition-opacity duration-200">
+              <ul id="searchResultsList" class="max-h-[300px] overflow-y-auto">
+                <!-- Sonuçlar buraya eklenecek -->
+              </ul>
+              <div id="searchLoading" class="p-4 text-center text-gray-500 hidden">
+                <i class="fas fa-spinner fa-spin text-purple-500"></i> Aranıyor...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Yatay Kategori Şeridi (random, ikonlu) -->
+      <div class="mb-5">
+        <div class="flex overflow-x-auto scrollable-x gap-3 pb-2" id="categoriesContainer">
+          {randomCategories.map(cat => {
+            const randomColor = vibrantColors[Math.floor(Math.random() * vibrantColors.length)];
+            return (
+            <a 
+              href={`/${cat.slug}`}
+              class={`category-chip flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full transition text-sm font-medium shadow-md ${randomColor.bg} ${randomColor.text}`}
+              data-category={cat.slug}
+            >
+              <i class={`fas ${cat.icon} text-sm`}></i>
+              <span>{cat.name}</span>
+            </a>
+          )})}
+          <a 
+            href="/kategoriler"
+            class="category-chip flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full bg-gray-800 text-white hover:bg-gray-900 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 transition text-sm font-bold shadow-md"
+          >
+            <i class="fas fa-th-large text-sm"></i>
+            <span>Tüm Kategoriler</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Alt Etiket Filtreleri (Trendler başlıklı) -->
+      {randomSubTags.length > 0 && (
+        <div class="mb-6 flex flex-wrap items-center gap-3">
+          <span class="text-sm font-semibold bg-red-500 text-white px-3 py-1.5 rounded-full shadow-md">
+            <i class="fas fa-fire-flame mr-1 text-yellow-300"></i> Trendler
+          </span>
+          <div class="flex overflow-x-auto scrollable-x gap-2 pb-1 flex-1" id="subTagsContainer">
+            {randomSubTags.map(tag => (
+              <a 
+                href={`/etiket/${tag.toLowerCase().replace(/ /g, '-')}`}
+                class="subtag-chip flex-shrink-0 px-3 py-1.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-800/60 transition text-xs font-medium"
+              >
+                #{tag}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <!-- Masonry Grid Galeri -->
+      <div id="masonryGrid" class="masonry-grid">
+        {displayPosts.map(item => {
+          const randomBorder = borderColors[Math.floor(Math.random() * borderColors.length)];
+          return (
+          <div class="grid-item relative overflow-hidden">
+            <article class={`card-hover-effect group border ${randomBorder} rounded-xl p-2 bg-white dark:bg-gray-800/20 relative overflow-hidden`}>
+              {item.isSponsored && (
+                <div class="absolute top-4 -right-8 z-10 w-32 bg-yellow-400 text-yellow-900 text-[10px] uppercase font-bold tracking-wider text-center py-1 rotate-45 shadow-sm">
+                  Sponsorlu
+                </div>
+              )}
+              <a href={`/${item.category.slug}/${item.slug}`} class="block">
+                {item.imageUrl ? (
+                  <img 
+                    src={item.imageUrl} 
+                    alt={item.title}
+                    loading="lazy"
+                    class="w-full h-auto rounded-xl object-cover"
+                  />
+                ) : (
+                  <div class="no-image-fallback min-h-[200px] flex flex-col items-center justify-center p-6 text-center rounded-xl bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-800 dark:to-gray-900">
+                    <i class="fas fa-image text-4xl mb-3 text-gray-500 dark:text-gray-600"></i>
+                    <p class="font-semibold text-gray-700 dark:text-gray-300 line-clamp-3">
+                      {item.title.length > 60 ? item.title.substring(0, 60) + "..." : item.title}
+                    </p>
+                  </div>
+                )}
+              </a>
+              
+              <!-- Kart alt bilgi (görsel ile başlık arasında - düz metin) -->
+              <div class="mt-3 px-1">
+                <!-- İstatistikler: görüntülenme, beğeni, okuma süresi (formatlanmış) -->
+                <div class="flex items-center gap-4 text-xs stats-text mb-2">
+                  <span class="flex items-center gap-1 whitespace-nowrap">
+                    <i class="far fa-eye"></i> {formatNumber(item.views)}
+                  </span>
+                  <span class="flex items-center gap-1 whitespace-nowrap">
+                    <i class="far fa-heart"></i> {formatNumber(item.likes)}
+                  </span>
+                  <span class="flex items-center gap-1 whitespace-nowrap">
+                    <i class="far fa-clock"></i> {item.readTime} dk
+                  </span>
+                </div>
+                
+                <!-- Kategori -->
+                <a href={`/${item.category.slug}`} class="text-xs text-purple-500 hover:text-purple-400">
+                  {item.category.name}
+                </a>
+                
+                <!-- Başlık -->
+                <a href={`/${item.category.slug}/${item.slug}`}>
+                  <h3 class="text-sm font-medium mt-1 line-clamp-2 hover:text-purple-400 transition text-gray-800 dark:text-gray-100">
+                    {item.title}
+                  </h3>
+                </a>
+              </div>
+            </article>
+          </div>
+        )})}
+      </div>
+
+      {displayPosts.length === 0 && (
+        <div class="text-center py-16 text-gray-500">
+          <i class="fas fa-box-open text-4xl mb-4"></i>
+          <p>Henüz içerik eklenmemiş.</p>
+        </div>
+      )}
+    </div>
+  </div>
+  )}
+
+  <style is:global>
+    /* Masonry Grid */
+    .masonry-grid {
+      column-count: 2;
+      column-gap: 1.25rem;
+    }
+    @media (min-width: 768px) {
+      .masonry-grid { column-count: 3; }
+    }
+    @media (min-width: 1024px) {
+      .masonry-grid { column-count: 4; }
+    }
+    @media (min-width: 1280px) {
+      .masonry-grid { column-count: 6; }
+    }
+    
+    .grid-item {
+      display: inline-block;
+      width: 100%;
+      break-inside: avoid;
+      margin-bottom: 1.25rem;
+    }
+    
+    /* Kart hover efekti */
+    .card-hover-effect {
+      position: relative;
+      overflow: hidden;
+      border-radius: 0.75rem;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .card-hover-effect:hover {
+      transform: scale(1.02);
+      box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.4);
+    }
+    
+    /* İstatistik metin renkleri */
+    .stats-text {
+      color: #4b5563;
+    }
+    .dark .stats-text {
+      color: #9ca3af;
+    }
+    
+    /* Scrollable yatay alanlar */
+    .scrollable-x {
+      scrollbar-width: thin;
+    }
+    .scrollable-x::-webkit-scrollbar {
+      height: 4px;
+    }
+    .scrollable-x::-webkit-scrollbar-track {
+      background: #e5e7eb;
+      border-radius: 10px;
+    }
+    .scrollable-x::-webkit-scrollbar-thumb {
+      background: #9ca3af;
+      border-radius: 10px;
+    }
+    .dark .scrollable-x::-webkit-scrollbar-track {
+      background: #374151;
+    }
+    .dark .scrollable-x::-webkit-scrollbar-thumb {
+      background: #6b7280;
+    }
+    
+    /* Görsel yoksa fallback */
+    .no-image-fallback {
+      aspect-ratio: 4 / 5;
+    }
+    
+    /* line-clamp */
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .line-clamp-3 {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  </style>
+
+  <script>
+    document.addEventListener('astro:page-load', () => {
+      // Format sayıları (client-side)
+      function formatNumberClient(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+        return num.toString();
+      }
+    
+    const searchInput = document.getElementById('searchInput');
+    const searchDropdown = document.getElementById('searchDropdown');
+    const searchResultsList = document.getElementById('searchResultsList');
+    const searchLoading = document.getElementById('searchLoading');
+    const searchSubmitBtn = document.getElementById('searchSubmitBtn');
+    let searchTimeout;
+
+    function executeSearch() {
+      const query = searchInput?.value.trim();
+      if (query && query.length >= 2) {
+        window.location.href = '/arama?q=' + encodeURIComponent(query);
+      }
+    }
+
+    searchSubmitBtn?.addEventListener('click', executeSearch);
+
+    searchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        executeSearch();
+      }
+    });
+
+    searchInput?.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      clearTimeout(searchTimeout);
+      
+      if (query.length < 2) {
+        if (searchDropdown) {
+          searchDropdown.classList.add('hidden');
+          searchDropdown.classList.remove('opacity-100');
+        }
+        return;
+      }
+
+      if (searchDropdown) {
+        searchDropdown.classList.remove('hidden');
+        setTimeout(() => searchDropdown.classList.add('opacity-100'), 10);
+      }
+      if (searchResultsList) searchResultsList.innerHTML = '';
+      if (searchLoading) searchLoading.classList.remove('hidden');
+
+      searchTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch('/api/search?q=' + encodeURIComponent(query));
+          const data = await res.json();
+          
+          if (searchLoading) searchLoading.classList.add('hidden');
+          
+          if (data.length === 0) {
+            if (searchResultsList) searchResultsList.innerHTML = '<li class="p-4 text-gray-500 text-sm">Sonuç bulunamadı.</li>';
+          } else {
+            let html = '';
+            data.forEach(item => {
+              const catSlug = item.category ? item.category.slug : 'genel';
+              html += `
+                <li>
+                  <a href="/${catSlug}/${item.slug}" class="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition border-b dark:border-gray-700 last:border-0">
+                    <div class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-md flex-shrink-0 overflow-hidden">
+                      ${item.imageUrl ? `<img src="${item.imageUrl}" class="w-full h-full object-cover" />` : '<i class="fas fa-image text-gray-400 flex items-center justify-center w-full h-full"></i>'}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900 dark:text-white truncate">${item.title}</p>
+                      <p class="text-xs text-purple-500">${item.category ? item.category.name : 'Genel'}</p>
+                    </div>
+                  </a>
+                </li>
+              `;
+            });
+            if (searchResultsList) searchResultsList.innerHTML = html;
+          }
+        } catch (err) {
+          if (searchLoading) searchLoading.classList.add('hidden');
+          if (searchResultsList) searchResultsList.innerHTML = '<li class="p-4 text-red-500 text-sm">Arama yapılırken hata oluştu.</li>';
+        }
+      }, 300);
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (searchInput && searchDropdown && !searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+        searchDropdown.classList.add('hidden');
+        searchDropdown.classList.remove('opacity-100');
+      }
+    });
+    });
+  </script>
+</BaseLayout>

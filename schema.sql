@@ -1,0 +1,278 @@
+-- schema.sql
+-- Laflaf.net D1 Database Schema Definition
+
+-- Categories Table
+CREATE TABLE IF NOT EXISTS categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  icon TEXT,
+  type TEXT NOT NULL DEFAULT 'blog', -- 'blog', 'product'
+  image_url TEXT
+);
+
+-- Posts Table
+CREATE TABLE IF NOT EXISTS posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  content TEXT NOT NULL,
+  excerpt TEXT,
+  status TEXT NOT NULL DEFAULT 'draft', -- 'draft', 'published', 'scheduled', 'archived'
+  isSponsored INTEGER DEFAULT 0, -- 0 = false, 1 = true
+  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  views INTEGER DEFAULT 0,
+  likes INTEGER DEFAULT 0,
+  commentCount INTEGER DEFAULT 0,
+  readTime INTEGER DEFAULT 1,
+  imageUrl TEXT,
+  tags TEXT, -- Comma-separated list of tags, e.g. "trend, yasam"
+  createdAt TEXT NOT NULL,
+  publishedAt TEXT,
+  metaTitle TEXT,
+  metaDescription TEXT
+);
+
+-- Comments Table
+CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+  author_name TEXT NOT NULL,
+  author_email TEXT,
+  content TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'approved', 'spam'
+  createdAt TEXT NOT NULL
+);
+
+-- Settings Table
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Ads Table
+CREATE TABLE IF NOT EXISTS ads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  code TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active', -- 'active', 'inactive'
+  createdAt TEXT NOT NULL
+);
+
+-- Pages Table (Sabit Sayfalar)
+CREATE TABLE IF NOT EXISTS pages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  section1 TEXT,
+  slider_images TEXT,
+  hero_image TEXT,
+  hero_slogan TEXT,
+  hero_button_text TEXT,
+  hero_button_link TEXT,
+  section3 TEXT,
+  gallery_images TEXT,
+  references_data TEXT,
+  section6 TEXT,
+  metaTitle TEXT,
+  metaDescription TEXT,
+  createdAt TEXT NOT NULL
+);
+
+-- Brands Table
+CREATE TABLE IF NOT EXISTS brands (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  logo_url TEXT,
+  is_popular INTEGER DEFAULT 0, -- 0 = false, 1 = true
+  createdAt TEXT NOT NULL
+);
+
+-- Products Table
+CREATE TABLE IF NOT EXISTS products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  brand_id INTEGER REFERENCES brands(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  excerpt TEXT,
+  description TEXT,
+  price REAL NOT NULL DEFAULT 0,
+  compare_at_price REAL,
+  image_url TEXT,
+  badge_top_left TEXT,
+  badge_top_right TEXT,
+  rating REAL DEFAULT 0,
+  review_count INTEGER DEFAULT 0,
+  currency TEXT DEFAULT '₺',
+  status TEXT NOT NULL DEFAULT 'aktif', -- 'aktif', 'pasif', 'taslak'
+  unit TEXT DEFAULT 'Adet',
+  min_order_qty INTEGER DEFAULT 1,
+  badges TEXT, -- JSON array of badge names e.g. ["Kargo Bedava", "Süper Fiyat"]
+  shipping_time TEXT, -- e.g. "Tahmini Kargoya Teslim: 2 gün içinde kargoda"
+  seller_name TEXT, -- e.g. "DepodanDirekt"
+  payment_options TEXT, -- JSON array of allowed payment methods
+  gallery_images TEXT, -- JSON array of additional image URLs
+  features TEXT, -- JSON array of key-value objects for attributes
+  tags TEXT, -- Comma-separated list of tags
+  stock INTEGER DEFAULT 10,
+  video_url TEXT,
+  allow_backorder BOOLEAN DEFAULT 0,
+  likes INTEGER DEFAULT 0,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+
+-- Product Variants Table
+CREATE TABLE IF NOT EXISTS product_variants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sku TEXT,
+  price REAL,
+  stock INTEGER DEFAULT 0,
+  image_url TEXT,
+  createdAt TEXT NOT NULL
+);
+
+-- Wholesale Prices Table (Now supports percentage discounts)
+CREATE TABLE IF NOT EXISTS wholesale_prices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  min_qty INTEGER NOT NULL,
+  discount_percentage REAL NOT NULL, -- e.g. 20 for 20% off
+  createdAt TEXT NOT NULL
+);
+
+-- Product Reviews Table
+CREATE TABLE IF NOT EXISTS product_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  user_name TEXT NOT NULL,
+  rating INTEGER NOT NULL, -- 1 to 5
+  comment TEXT,
+  likes INTEGER DEFAULT 0,
+  dislikes INTEGER DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'approved'
+  createdAt TEXT NOT NULL
+);
+
+-- Product Q&A Table
+CREATE TABLE IF NOT EXISTS product_qa (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  user_name TEXT NOT NULL,
+  question TEXT NOT NULL,
+  answer TEXT,
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'answered'
+  createdAt TEXT NOT NULL
+);
+
+-- Users Table
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL DEFAULT 'editor', -- 'admin', 'editor', 'abone'
+  phone TEXT,
+  address TEXT,
+  createdAt TEXT NOT NULL
+);
+
+-- E-commerce Sliders Table
+CREATE TABLE IF NOT EXISTS ecommerce_sliders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  image_url TEXT NOT NULL,
+  title TEXT,
+  subtitle TEXT,
+  button_text TEXT,
+  link_url TEXT,
+  status TEXT NOT NULL DEFAULT 'aktif', -- 'aktif', 'pasif'
+  sort_order INTEGER DEFAULT 0,
+  createdAt TEXT NOT NULL
+);
+
+-- Orders Table
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Null ise ziyaretçi
+  customer_name TEXT NOT NULL,
+  customer_email TEXT NOT NULL,
+  customer_phone TEXT,
+  shipping_address TEXT NOT NULL,
+  billing_address TEXT,
+  subtotal REAL NOT NULL DEFAULT 0,
+  shipping_fee REAL NOT NULL DEFAULT 0,
+  tax REAL NOT NULL DEFAULT 0,
+  discount_amount REAL NOT NULL DEFAULT 0, -- Sepete uygulanan indirim tutarı
+  coupon_code TEXT, -- Kullanılan kupon kodu
+  total_amount REAL NOT NULL DEFAULT 0,
+  payment_method TEXT NOT NULL, -- 'havale', 'kapida', 'kredi_karti', 'banka_kredisi'
+  status TEXT NOT NULL DEFAULT 'bekliyor', -- 'bekliyor', 'onaylandi', 'kargolandi', 'tamamlandi', 'iptal'
+  notes TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+
+-- Order Items Table
+CREATE TABLE IF NOT EXISTS order_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+  product_name TEXT NOT NULL,
+  variant_name TEXT,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  unit_price REAL NOT NULL,
+  total_price REAL NOT NULL
+);
+
+-- Coupons Table
+CREATE TABLE IF NOT EXISTS coupons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  discount_type TEXT NOT NULL, -- 'percentage', 'fixed'
+  discount_value REAL NOT NULL,
+  min_cart_amount REAL DEFAULT 0,
+  max_uses INTEGER DEFAULT NULL,
+  used_count INTEGER DEFAULT 0,
+  valid_from TEXT,
+  valid_until TEXT,
+  status TEXT NOT NULL DEFAULT 'aktif', -- 'aktif', 'pasif'
+  createdAt TEXT NOT NULL
+);
+
+-- Insert Initial Seed Data for Categories
+INSERT OR IGNORE INTO categories (id, name, slug, parent_id, icon) VALUES 
+(1, 'Yaşam', 'yasam', NULL, 'fa-leaf'),
+(2, 'Otomobil', 'otomobil', NULL, 'fa-car'),
+(3, 'Kadın', 'kadin', NULL, 'fa-female'),
+(4, 'Aile', 'aile', NULL, 'fa-users'),
+(5, 'Anne&Bebek', 'anne-bebek', NULL, 'fa-baby-carriage'),
+(6, 'Alışveriş', 'alisveris', NULL, 'fa-shopping-bag'),
+(7, 'Teknoloji', 'teknoloji', NULL, 'fa-microchip'),
+(8, 'Sanat', 'sanat', NULL, 'fa-palette'),
+(9, 'Spor', 'spor', NULL, 'fa-futbol'),
+(10, 'Seyahat', 'seyahat', NULL, 'fa-plane');
+
+-- Insert Initial Seed Data for Settings
+INSERT OR IGNORE INTO settings (key, value) VALUES 
+('site_title', 'Laflaf'),
+('site_description', 'Meraklı İçerikleri Keşfet'),
+('site_email', 'info@laflaf.net'),
+('site_lang', 'tr');
+
+CREATE TABLE IF NOT EXISTS badges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  bg_color TEXT,
+  text_color TEXT,
+  createdAt DATETIME
+);

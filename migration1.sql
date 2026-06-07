@@ -1,0 +1,11 @@
+ALTER TABLE categories ADD COLUMN type TEXT NOT NULL DEFAULT 'blog';
+ALTER TABLE categories ADD COLUMN image_url TEXT;
+
+CREATE TABLE IF NOT EXISTS brands (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  logo_url TEXT,
+  is_popular INTEGER DEFAULT 0,
+  createdAt TEXT NOT NULL
+);

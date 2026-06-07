@@ -1,0 +1,42 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCategories } from '../lib/db';
+import CategoryList from '../components/CategoryList.astro';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const categories = await getCategories(dbBinding);
+
+// Sadece ana kategoriler
+const rootCategories = categories.filter((c: any) => !c.parent_id);
+---
+
+<BaseLayout title="Tüm Kategoriler | Laflaf" description="Laflaf'taki tüm içerik ve ürün kategorilerini keşfedin.">
+  <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-12 min-h-screen">
+    <div class="mb-12 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">Tüm Kategoriler</h1>
+      <p class="text-gray-500 dark:text-gray-400">Aradığınızı bulmak için kategori ağacımızı inceleyin.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {rootCategories.map(root => (
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 hover:shadow-md transition">
+          <a href={`/${root.slug}`} class="flex items-center gap-4 mb-4 group">
+            <div class="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+              <i class={`fas ${root.icon || 'fa-folder'}`}></i>
+            </div>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white group-hover:text-orange-600 transition">{root.name}</h2>
+          </a>
+          
+          <CategoryList parentId={root.id} categories={categories} />
+        </div>
+      ))}
+      
+      {rootCategories.length === 0 && (
+        <div class="col-span-full py-16 text-center text-gray-500">
+          <i class="fas fa-folder-open text-4xl mb-4"></i>
+          <p>Henüz kategori eklenmemiş.</p>
+        </div>
+      )}
+    </div>
+  </div>
+</BaseLayout>

@@ -1,0 +1,12 @@
+ALTER TABLE products ADD COLUMN allow_backorder BOOLEAN DEFAULT 0;
+ALTER TABLE products ADD COLUMN likes INTEGER DEFAULT 0;
+
+CREATE TABLE badges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  bg_color TEXT,
+  text_color TEXT,
+  createdAt DATETIME
+);

@@ -1,0 +1,599 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { getAllPosts, getCategories, deletePost, updatePost, createPost } from '../../../lib/db';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+
+const sessionData = Astro.cookies.has('user_session') ? Astro.cookies.get('user_session')?.json() : null;
+const userRole = sessionData?.role || 'misafir';
+const userId = sessionData?.id;
+
+let message = '';
+
+// Handle POST actions
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const islem = formData.get('islem') as string;
+    
+    if (islem === 'sil') {
+      const id = parseInt(formData.get('id') as string);
+      await deletePost(id, dbBinding);
+      message = 'İçerik başarıyla silindi.';
+    } else if (islem === 'kopya') {
+      const id = parseInt(formData.get('id') as string);
+      const posts = await getAllPosts(dbBinding);
+      const original = posts.find(p => p.id === id);
+      if (original) {
+        await createPost({
+          title: `${original.title} (Kopya)`,
+          slug: `${original.slug}-kopya-${Math.floor(Math.random() * 1000)}`,
+          content: original.content,
+          excerpt: original.excerpt,
+          status: 'draft',
+          isSponsored: original.isSponsored ? 1 : 0,
+          category_id: original.category_id,
+          readTime: original.readTime,
+          imageUrl: original.imageUrl,
+          tags: original.tags,
+          metaTitle: original.metaTitle,
+          metaDescription: original.metaDescription
+        }, dbBinding);
+        message = 'İçerik başarıyla kopyalandı (taslak olarak).';
+      }
+    } else if (islem === 'hizli_duzenle') {
+      const id = parseInt(formData.get('id') as string);
+      const title = formData.get('title') as string;
+      await updatePost(id, { title }, dbBinding);
+      message = 'Başlık güncellendi.';
+    } else if (islem === 'toplu_sil') {
+      const ids = (formData.get('ids') as string).split(',').map(Number);
+      for (const deleteId of ids) {
+        await deletePost(deleteId, dbBinding);
+      }
+      message = `${ids.length} içerik silindi.`;
+    } else if (islem === 'toplu_durum') {
+      const ids = (formData.get('ids') as string).split(',').map(Number);
+      const status = formData.get('status') as string;
+      for (const updateId of ids) {
+        await updatePost(updateId, { status }, dbBinding);
+      }
+      message = `${ids.length} içeriğin durumu değiştirildi.`;
+    }
+  } catch (err) {
+    console.error('Action error:', err);
+  }
+}
+
+// Load real data from DB
+const dbPosts = userRole === 'yazar' ? await getAllPosts(dbBinding, userId) : await getAllPosts(dbBinding);
+const dbCategories = await getCategories(dbBinding);
+
+const canBulkUpload = userRole === 'admin' || userRole === 'editor';
+
+// Map database posts to match expected table columns
+const allPosts = dbPosts.map(p => ({
+  id: p.id,
+  title: p.title,
+  slug: p.slug,
+  status: p.status,
+  isSponsored: !!p.isSponsored,
+  category: p.category ? p.category.name : 'Genel',
+  categorySlug: p.category ? p.category.slug : 'genel',
+  author: p.authorName || 'Bilinmiyor',
+  tags: p.tags ? p.tags.split(',').map((t: string) => t.trim()) : [],
+  viewCount: p.views || 0,
+  likeCount: p.likes || 0,
+  createdAt: p.createdAt,
+  publishedAt: p.publishedAt || null,
+  image: p.imageUrl || null
+}));
+
+// Status Labels
+const statusLabels = {
+  published: 'Yayında',
+  draft: 'Taslak',
+  scheduled: 'Planlanmış'
+};
+---
+
+<BaseLayout title="İçerikler - Admin" isAdmin={true}>
+  <div class="max-w-full mx-auto px-4 py-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">İçerikler</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Tüm içeriklerinizi yönetin</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        {canBulkUpload && (
+          <>
+            <a href="/api/admin/posts/template" class="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition shadow-sm text-sm font-medium">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> Şablonu İndir
+            </a>
+            <label for="excelUpload" class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition shadow-sm cursor-pointer text-sm font-medium">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> Toplu Ekle (Excel)
+            </label>
+            <input type="file" id="excelUpload" accept=".xlsx" class="hidden" />
+          </>
+        )}
+        
+        <a href="/admin/posts/new" class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition shadow-sm text-sm font-medium">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          <span>Yeni İçerik</span>
+        </a>
+      </div>
+    </div>
+
+    {message && (
+      <div class="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 p-4 rounded-xl border border-green-200 dark:border-green-800 mb-6 flex justify-between items-center">
+        <span>✅ {message}</span>
+        <button onclick="this.parentElement.remove()" class="text-green-700 dark:text-green-300">✕</button>
+      </div>
+    )}
+
+    <!-- Arama ve Filtreler -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+      <div class="flex flex-col lg:flex-row gap-4">
+        <!-- Arama -->
+        <div class="flex-1">
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <input type="text" id="searchInput" placeholder="İçerik ara (en az 2 karakter)..." class="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-900">
+          </div>
+          <div id="searchResults" class="mt-2 text-sm text-gray-500 hidden">Sonuçlar gösteriliyor</div>
+        </div>
+        
+        <!-- Filtre Butonu -->
+        <div class="relative">
+          <button id="filterToggle" class="w-full lg:w-auto px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+            Filtrele
+            <span id="activeFilterCount" class="bg-orange-500 text-white text-xs rounded-full px-2 py-0.5">0</span>
+          </button>
+          
+          <!-- Filtre Panel -->
+          <div id="filterPanel" class="hidden absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4">
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium mb-2">Durum</label>
+                <div class="flex flex-wrap gap-2">
+                  {Object.entries(statusLabels).map(([value, label]) => (
+                    <label class="flex items-center gap-1 text-sm">
+                      <input type="checkbox" value={value} class="status-filter w-4 h-4 rounded border-gray-300" /> {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-2">Kategori</label>
+                <select id="categoryFilter" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                  <option value="">Tümü</option>
+                  {dbCategories.map(cat => (
+                    <option value={cat.name}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-2">Sponsorlu</label>
+                <select id="sponsoredFilter" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                  <option value="">Tümü</option>
+                  <option value="true">Sponsorlu</option>
+                  <option value="false">Sponsorsuz</option>
+                </select>
+              </div>
+              <div class="flex gap-2 pt-2">
+                <button id="clearFilters" class="flex-1 px-3 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">Temizle</button>
+                <button id="applyFilters" class="flex-1 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">Uygula</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sıralama -->
+        <select id="sortSelect" class="w-full lg:w-48 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
+          <option value="date_desc">Tarih (Yeni→Eski)</option>
+          <option value="date_asc">Tarih (Eski→Yeni)</option>
+          <option value="title_asc">Başlık (A→Z)</option>
+          <option value="title_desc">Başlık (Z→A)</option>
+          <option value="popular">Popülerlik</option>
+          <option value="likes_desc">En Çok Beğenilenler</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Seçili Post Sayısı -->
+    <div id="selectionBar" class="hidden fixed bottom-20 sm:bottom-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-xl px-4 py-2 z-50 flex items-center gap-3">
+      <span id="selectedCount">0</span> içerik seçili
+      <button id="bulkDelete" class="px-3 py-1 bg-red-600 rounded-lg hover:bg-red-700 text-sm">Sil</button>
+      <select id="bulkStatus" class="px-3 py-1 bg-gray-700 rounded-lg text-sm">
+        <option value="">Durum Değiştir</option>
+        <option value="published">Yayında</option>
+        <option value="draft">Taslak</option>
+      </select>
+      <button id="closeSelection" class="w-6 h-6 bg-gray-700 rounded-full flex items-center justify-center">✕</button>
+    </div>
+
+    <!-- Posts Grid/Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+            <tr>
+              <th class="w-10 px-4 py-3"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">İçerik</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Yazar</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Durum</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Kategori</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">İstatistik</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Yayın Tarihi</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="postsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700">
+            <!-- JS ile doldurulacak -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Sonsuz Kaydırma Yükleniyor -->
+    <div id="loadingMore" class="text-center py-8 hidden">
+      <div class="inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-sm text-gray-500 mt-2">Daha fazla içerik yükleniyor...</p>
+    </div>
+  </div>
+
+  <!-- Real database CRUD submission form -->
+  <form id="actionForm" method="POST" class="hidden">
+    <input type="hidden" name="islem" id="actionIslem" />
+    <input type="hidden" name="id" id="actionId" />
+    <input type="hidden" name="title" id="actionTitle" />
+    <input type="hidden" name="ids" id="actionIds" />
+    <input type="hidden" name="status" id="actionStatus" />
+  </form>
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.18.5/package/dist/xlsx.full.min.js"></script>
+  <script is:inline define:vars={{ allPosts }}>
+    let filteredPosts = [...allPosts];
+    let currentOffset = 0;
+    const limit = 10;
+    let isLoading = false;
+    let selectedPosts = new Set();
+
+    // Submit operation to the server using the hidden form
+    function submitAction(islem, id = '', extra = {}) {
+      const form = document.getElementById('actionForm');
+      const inputIslem = document.getElementById('actionIslem');
+      const inputId = document.getElementById('actionId');
+      
+      inputIslem.value = islem;
+      inputId.value = id;
+
+      if (islem === 'hizli_duzenle') {
+        document.getElementById('actionTitle').value = extra.title;
+      } else if (islem === 'toplu_sil') {
+        document.getElementById('actionIds').value = extra.ids;
+      } else if (islem === 'toplu_durum') {
+        document.getElementById('actionIds').value = extra.ids;
+        document.getElementById('actionStatus').value = extra.status;
+      }
+
+      form.submit();
+    }
+
+    // Durum rozeti HTML
+    function getStatusBadge(status, isSponsored) {
+      const colors = {
+        published: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+        draft: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
+        scheduled: 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300'
+      };
+      const labels = {
+        published: 'Yayında',
+        draft: 'Taslak',
+        scheduled: 'Planlanmış'
+      };
+      return `
+        <div class="flex flex-wrap gap-1">
+          ${isSponsored ? '<span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">Sponsorlu</span>' : ''}
+          <span class="px-2 py-1 text-xs rounded-full ${colors[status]}">${labels[status]}</span>
+        </div>
+      `;
+    }
+
+    // Tarih formatı
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diff = now - date;
+      const hours = diff / (1000 * 60 * 60);
+      if (hours < 24) {
+        const h = Math.floor(hours);
+        return `${h} saat önce`;
+      }
+      return date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    // Satır oluştur
+    function createRow(post) {
+      return `
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition border-b dark:border-gray-700" data-post-id="${post.id}">
+          <td class="px-4 py-4"><input type="checkbox" class="post-checkbox w-4 h-4 rounded border-gray-300" data-id="${post.id}"></td>
+          <td class="px-4 py-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                ${post.image ? `<img src="${post.image}" class="w-full h-full object-cover rounded-lg">` : '<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>'}
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-medium text-gray-900 dark:text-white editable-title" data-id="${post.id}" data-title="${post.title.replace(/"/g, '&quot;')}">${post.title}</h3>
+                  <a href="/${post.categorySlug}/${post.slug}" target="_blank" class="text-orange-500 hover:text-orange-700 text-xs flex-shrink-0" title="Sitede Görüntüle">
+                    <i class="fas fa-external-link-alt"></i>
+                  </a>
+                </div>
+                <div class="flex flex-wrap gap-1 mt-1">
+                  ${post.tags.slice(0, 2).map(t => `<span class="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-full">${t}</span>`).join('')}
+                  ${post.tags.length > 2 ? `<span class="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-full">+${post.tags.length - 2}</span>` : ''}
+                </div>
+              </div>
+            </div>
+          </td>
+          <td class="px-4 py-4"><span class="text-sm font-medium text-gray-700 dark:text-gray-300">${post.author}</span></td>
+          <td class="px-4 py-4">${getStatusBadge(post.status, post.isSponsored)}</td>
+          <td class="px-4 py-4"><span class="text-sm">${post.category}</span></td>
+          <td class="px-4 py-4">
+            <div class="text-sm">
+              <div>👁️ ${post.viewCount.toLocaleString()}</div>
+              <div>❤️ ${post.likeCount.toLocaleString()}</div>
+            </div>
+          </td>
+          <td class="px-4 py-4 text-sm text-gray-500">${formatDate(post.publishedAt || post.createdAt)}</td>
+          <td class="px-4 py-4 text-right">
+            <div class="flex items-center justify-end gap-2">
+              <button onclick="quickEdit(${post.id})" class="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900 rounded-lg transition" title="Hızlı Düzenle">✏️</button>
+              <a href="/admin/posts/${post.id}" class="p-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition" title="Düzenle">📝</a>
+              <button onclick="duplicatePost(${post.id})" class="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900 rounded-lg transition" title="Kopyala">📋</button>
+              <button onclick="deletePost(${post.id})" class="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition" title="Sil">🗑️</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    // Tabloyu render et
+    function renderTable() {
+      const tbody = document.getElementById('postsTableBody');
+      const toShow = filteredPosts.slice(0, currentOffset + limit);
+      tbody.innerHTML = toShow.map(post => createRow(post)).join('');
+      
+      // Seçili checkbox'ları geri yükle
+      document.querySelectorAll('.post-checkbox').forEach(cb => {
+        if (selectedPosts.has(parseInt(cb.dataset.id))) cb.checked = true;
+        cb.addEventListener('change', updateSelection);
+      });
+      
+      // Sonsuz scroll kontrol
+      if (toShow.length >= filteredPosts.length) {
+        document.getElementById('loadingMore')?.classList.add('hidden');
+      }
+    }
+
+    // Filtreleme
+    function applyFilters() {
+      const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
+      const statusFilters = Array.from(document.querySelectorAll('.status-filter:checked')).map(cb => cb.value);
+      const categoryFilter = document.getElementById('categoryFilter')?.value;
+      const sponsoredFilter = document.getElementById('sponsoredFilter')?.value;
+      
+      filteredPosts = allPosts.filter(post => {
+        if (searchTerm.length >= 2 && !post.title.toLowerCase().includes(searchTerm)) return false;
+        if (statusFilters.length > 0 && !statusFilters.includes(post.status)) return false;
+        if (categoryFilter && post.category !== categoryFilter) return false;
+        if (sponsoredFilter === 'true' && !post.isSponsored) return false;
+        if (sponsoredFilter === 'false' && post.isSponsored) return false;
+        return true;
+      });
+      
+      // Sıralama
+      const sortBy = document.getElementById('sortSelect')?.value;
+      if (sortBy === 'date_desc') filteredPosts.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+      else if (sortBy === 'date_asc') filteredPosts.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
+      else if (sortBy === 'title_asc') filteredPosts.sort((a,b) => a.title.localeCompare(b.title));
+      else if (sortBy === 'title_desc') filteredPosts.sort((a,b) => b.title.localeCompare(a.title));
+      else if (sortBy === 'popular') filteredPosts.sort((a,b) => (b.viewCount + b.likeCount) - (a.viewCount + a.likeCount));
+      else if (sortBy === 'likes_desc') filteredPosts.sort((a,b) => b.likeCount - a.likeCount);
+      
+      currentOffset = limit;
+      renderTable();
+      
+      // Filtre sayacı
+      const activeCount = (searchTerm.length >= 2 ? 1 : 0) + statusFilters.length + (categoryFilter ? 1 : 0) + (sponsoredFilter ? 1 : 0);
+      document.getElementById('activeFilterCount').innerText = activeCount;
+    }
+
+    // Sonsuz kaydırma
+    function handleScroll() {
+      if (isLoading) return;
+      const scrollPosition = window.innerHeight + window.scrollY;
+      const threshold = document.body.offsetHeight - 500;
+      if (scrollPosition >= threshold && currentOffset + limit < filteredPosts.length) {
+        isLoading = true;
+        document.getElementById('loadingMore')?.classList.remove('hidden');
+        setTimeout(() => {
+          currentOffset += limit;
+          renderTable();
+          isLoading = false;
+          document.getElementById('loadingMore')?.classList.add('hidden');
+        }, 500);
+      }
+    }
+
+    // Seçim yönetimi
+    function updateSelection() {
+      document.querySelectorAll('.post-checkbox:checked').forEach(cb => {
+        selectedPosts.add(parseInt(cb.dataset.id));
+      });
+      document.querySelectorAll('.post-checkbox:not(:checked)').forEach(cb => {
+        selectedPosts.delete(parseInt(cb.dataset.id));
+      });
+      
+      const count = selectedPosts.size;
+      const selectionBar = document.getElementById('selectionBar');
+      if (count > 0) {
+        selectionBar.classList.remove('hidden');
+        document.getElementById('selectedCount').innerText = count;
+      } else {
+        selectionBar.classList.add('hidden');
+      }
+    }
+
+    // Hızlı düzenleme (Real DB saving on blur)
+    window.quickEdit = (id) => {
+      const row = document.querySelector(`tr[data-post-id="${id}"]`);
+      const titleSpan = row.querySelector('.editable-title');
+      const oldTitle = titleSpan.dataset.title;
+      const input = document.createElement('input');
+      input.value = oldTitle;
+      input.className = 'w-full px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white';
+      input.addEventListener('blur', () => {
+        const newTitle = input.value.trim();
+        if (newTitle && newTitle !== oldTitle) {
+          titleSpan.dataset.title = newTitle;
+          titleSpan.innerText = newTitle;
+          submitAction('hizli_duzenle', id, { title: newTitle });
+        } else {
+          titleSpan.style.display = '';
+          input.remove();
+        }
+      });
+      titleSpan.style.display = 'none';
+      titleSpan.parentNode.insertBefore(input, titleSpan);
+      input.focus();
+    };
+
+    window.duplicatePost = (id) => {
+      submitAction('kopya', id);
+    };
+
+    window.deletePost = (id) => {
+      if (confirm('Bu içeriği silmek istediğinize emin misiniz?')) {
+        submitAction('sil', id);
+      }
+    };
+
+    // Excel Toplu Yükleme
+    document.getElementById('excelUpload')?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const label = document.querySelector('label[for="excelUpload"]');
+      const originalHtml = label.innerHTML;
+      label.innerHTML = '⏳ İşleniyor...';
+      label.classList.add('pointer-events-none', 'opacity-70');
+      
+      if(confirm('Şablon sunucuya yüklenecek ve işlenecek, onaylıyor musunuz?')) {
+        label.innerHTML = '⏳ Yükleniyor...';
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+          const res = await fetch('/api/admin/posts/bulk', {
+            method: 'POST',
+            body: formData
+          });
+          const resultData = await res.json();
+          
+          if (resultData.success) {
+            alert(resultData.count + ' içerik başarıyla eklendi.');
+            window.location.reload();
+          } else {
+            alert('Hata: ' + resultData.error);
+            resetLabel();
+          }
+        } catch (err) {
+          alert('Sunucuya bağlanılamadı: ' + err.message);
+          resetLabel();
+        }
+      } else {
+        resetLabel();
+      }
+      
+      function resetLabel() {
+        label.innerHTML = originalHtml;
+        label.classList.remove('pointer-events-none', 'opacity-70');
+        document.getElementById('excelUpload').value = '';
+      }
+    });
+
+    // Event Listeners
+    document.getElementById('searchInput')?.addEventListener('input', (e) => {
+      if (e.target.value.length >= 2 || e.target.value.length === 0) applyFilters();
+    });
+    document.getElementById('sortSelect')?.addEventListener('change', applyFilters);
+    document.getElementById('applyFilters')?.addEventListener('click', () => {
+      document.getElementById('filterPanel')?.classList.add('hidden');
+      applyFilters();
+    });
+    document.getElementById('clearFilters')?.addEventListener('click', () => {
+      document.querySelectorAll('.status-filter').forEach(cb => cb.checked = false);
+      document.getElementById('categoryFilter').value = '';
+      document.getElementById('sponsoredFilter').value = '';
+      applyFilters();
+    });
+    document.getElementById('filterToggle')?.addEventListener('click', () => {
+      document.getElementById('filterPanel')?.classList.toggle('hidden');
+    });
+    document.getElementById('selectAll')?.addEventListener('change', (e) => {
+      document.querySelectorAll('.post-checkbox').forEach(cb => {
+        cb.checked = e.target.checked;
+        if (e.target.checked) selectedPosts.add(parseInt(cb.dataset.id));
+        else selectedPosts.delete(parseInt(cb.dataset.id));
+      });
+      updateSelection();
+    });
+    
+    document.getElementById('bulkDelete')?.addEventListener('click', () => {
+      if (confirm(`${selectedPosts.size} içerik silinecek. Devam?`)) {
+        const idsArray = Array.from(selectedPosts).join(',');
+        submitAction('toplu_sil', '', { ids: idsArray });
+      }
+    });
+    
+    document.getElementById('bulkStatus')?.addEventListener('change', (e) => {
+      if (e.target.value) {
+        const idsArray = Array.from(selectedPosts).join(',');
+        submitAction('toplu_durum', '', { ids: idsArray, status: e.target.value });
+      }
+    });
+    
+    document.getElementById('closeSelection')?.addEventListener('click', () => {
+      document.querySelectorAll('.post-checkbox').forEach(cb => cb.checked = false);
+      selectedPosts.clear();
+      updateSelection();
+    });
+    
+    window.addEventListener('scroll', handleScroll);
+    
+    applyFilters();
+    
+    // Filtreleri localStorage'dan hatırla
+    const savedFilters = localStorage.getItem('postFilters');
+    if (savedFilters) {
+      try {
+        const filters = JSON.parse(savedFilters);
+        if (filters.search) document.getElementById('searchInput').value = filters.search;
+        if (filters.sort) document.getElementById('sortSelect').value = filters.sort;
+      } catch(e) {}
+    }
+    
+    window.addEventListener('beforeunload', () => {
+      const filters = {
+        search: document.getElementById('searchInput')?.value,
+        sort: document.getElementById('sortSelect')?.value,
+      };
+      localStorage.setItem('postFilters', JSON.stringify(filters));
+    });
+  </script>
+</BaseLayout>

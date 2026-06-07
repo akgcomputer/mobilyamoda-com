@@ -1,0 +1,401 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { getCategories, createPost } from '../../../lib/db';
+import { sendPushNotification } from '../../../lib/push';
+import { uploadFile } from '../../../lib/storage';
+import MediaPicker from '../../../components/admin/MediaPicker.astro';
+
+const dbBinding = Astro.locals.runtime?.env?.DB;
+const mediaBinding = Astro.locals.runtime?.env?.MEDIA_BUCKET;
+
+let success = false;
+let error = '';
+
+// Turkish Slugification Helper
+function slugify(text: string): string {
+  const trMap: Record<string, string> = {
+    'ç': 'c', 'Ç': 'C', 'ğ': 'g', 'Ğ': 'G', 'ı': 'i', 'İ': 'I',
+    'ö': 'o', 'Ö': 'O', 'ş': 's', 'Ş': 'S', 'ü': 'u', 'Ü': 'U'
+  };
+  return text
+    .replace(/[çÇğĞıİöÖşŞüÜ]/g, match => trMap[match])
+    .toLowerCase()
+    .replace(/[^a-z0-9 -]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim();
+}
+
+const sessionData = Astro.cookies.has('user_session') ? Astro.cookies.get('user_session')?.json() : null;
+const userId = sessionData?.id || 1; // Default to Admin (1) if not found
+
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const title = formData.get('title') as string;
+    const content = formData.get('content') as string;
+    const status = (formData.get('status') as string) || 'draft';
+    const category_id = formData.get('category_id') ? parseInt(formData.get('category_id') as string) : null;
+    const tags = formData.get('tags') as string;
+    const isSponsored = formData.get('isSponsored') === 'on' ? 1 : 0;
+    
+    // SEO Meta
+    const metaTitle = formData.get('meta_title') as string;
+    const metaDescription = formData.get('meta_description') as string;
+
+    let imageUrl = formData.get('featured_image_url') as string;
+
+    // Handle Image Upload
+    const featuredImageFile = formData.get('featured_image');
+    if (featuredImageFile && featuredImageFile instanceof File && featuredImageFile.size > 0) {
+      const uploadedPath = await uploadFile(featuredImageFile, mediaBinding, 'post');
+      if (uploadedPath) {
+        imageUrl = uploadedPath;
+      }
+    }
+
+    if (!title || !content || content === '<p><br></p>') {
+      error = 'Başlık ve içerik doldurulması zorunludur.';
+    } else {
+      const slug = slugify(title);
+      
+      // Calculate read time (rough estimate: 200 words per minute)
+      const wordCount = content.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(w => w.length > 0).length;
+      const readTime = Math.max(1, Math.ceil(wordCount / 200));
+
+      const newPost = await createPost({
+        title,
+        slug,
+        content,
+        excerpt: content.replace(/<[^>]*>/g, '').slice(0, 150) + '...',
+        status,
+        isSponsored,
+        category_id,
+        author_id: userId,
+        readTime,
+        imageUrl,
+        tags,
+        metaTitle,
+        metaDescription
+      }, dbBinding);
+
+      if (newPost) {
+        success = true;
+        if (status === 'published') {
+          // Send push notifications async (don't block UI)
+          try {
+            sendPushNotification(
+              title, 
+              newPost.excerpt || 'Yeni bir içerik eklendi!', 
+              `/${newPost.slug}`, 
+              dbBinding
+            ).catch(e => console.error(e));
+          } catch (e) {
+            console.error("Push notification trigger error:", e);
+          }
+        }
+      } else {
+        error = 'İçerik veritabanına kaydedilemedi. Slug benzersiz olmalıdır.';
+      }
+    }
+  } catch (err) {
+    console.error('New post save error:', err);
+    error = 'İçerik kaydedilirken bir hata oluştu.';
+  }
+}
+
+// Fetch categories from DB
+const categories = await getCategories(dbBinding);
+---
+
+<BaseLayout title="Yeni İçerik - Admin" isAdmin={true}>
+  <div class="max-w-4xl mx-auto px-4 py-8 pb-24">
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+      <a href="/admin" class="hover:text-orange-500 transition">Dashboard</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      <a href="/admin/posts" class="hover:text-orange-500 transition">İçerikler</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      <span class="text-gray-700 dark:text-gray-300 font-medium">İçerik Ekle</span>
+    </div>
+
+    <!-- Geri Butonu -->
+    <a href="/admin/posts" class="inline-flex items-center gap-2 text-gray-600 hover:text-orange-500 transition mb-6">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+      Geri
+    </a>
+
+    {success && (
+        <div class="bg-green-100 border border-green-200 text-green-700 p-4 rounded-lg mb-6">
+          ✅ İçerik başarıyla kaydedildi! <a href="/admin/posts" class="underline font-semibold ml-2">Tüm İçeriklere Dön</a>
+        </div>
+        <script>
+          // Reload admin posts page after a short delay to reflect new post
+          setTimeout(() => {
+            window.location.href = '/admin/posts';
+          }, 500);
+        </script>
+      )}
+
+    {error && (
+      <div class="bg-red-100 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+        ❌ {error}
+      </div>
+    )}
+
+    <form id="postForm" method="POST" enctype="multipart/form-data" class="space-y-8">
+      <!-- Başlık -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Başlık *</label>
+        <input 
+          type="text" 
+          name="title" 
+          required 
+          class="w-full px-4 py-3 text-2xl font-bold border-0 border-b-2 border-gray-200 dark:border-gray-700 focus:border-orange-500 focus:ring-0 bg-transparent dark:bg-transparent text-gray-900 dark:text-white transition"
+          placeholder="İçerik başlığını girin..."
+        />
+      </div>
+
+      <!-- Zengin Metin Editörü (TinyMCE) -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide p-6 pb-0">İçerik *</label>
+        
+        <!-- Editor alanı -->
+        <div class="p-6 bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+          <div id="editor-container" class="min-h-[400px] bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-b-lg text-gray-900 dark:text-gray-100"></div>
+          <input type="hidden" name="content" id="hiddenContent">
+        </div>
+        <div class="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
+          <div class="text-sm text-gray-500">
+            💡 İpucu: Metin yazdıktan sonra Taslak veya Yayınla butonlarıyla kaydedebilirsiniz.
+          </div>
+        </div>
+      </div>
+
+      <!-- Kategori ve Etiket -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Kategori</label>
+          <select name="category_id" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+            <option value="">Seçiniz</option>
+            {categories.map(cat => (
+              <option value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Etiketler</label>
+          <input 
+            type="text" 
+            name="tags" 
+            placeholder="teknoloji, yapay-zeka, yazılım"
+            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+          />
+          <p class="text-xs text-gray-500 mt-2">Virgül ile ayırın</p>
+        </div>
+      </div>
+
+      <!-- Sponsorlu İçerik -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" name="isSponsored" class="w-6 h-6 text-orange-500 rounded border-gray-300 focus:ring-orange-500" />
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Bu bir Sponsorlu İçeriktir</span>
+        </label>
+        <p class="text-xs text-gray-500 mt-2">İşaretlendiğinde, bu içerik ana sayfada her zaman kalıcı olarak ve özel bir rozet ile gösterilir.</p>
+      </div>
+
+      <!-- Görseller -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Ana Görsel - Dosya ve URL -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Ana Görsel</label>
+          <div class="space-y-3">
+            <div id="featuredArea" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-gray-700 cursor-pointer transition">
+              <svg class="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p class="text-sm text-gray-500">Dosyadan seçin veya sürükleyin</p>
+              <img id="featuredPreview" class="hidden mt-4 max-h-32 mx-auto rounded shadow" />
+              <input type="file" id="featuredInput" name="featured_image" accept="image/*" class="hidden" />
+            </div>
+            <div class="flex gap-2">
+              <input type="text" id="featured_image_url" name="featured_image_url" placeholder="veya görsel URL'si girin" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
+              <MediaPicker inputId="featured_image_url" />
+            </div>
+          </div>
+        </div>
+        
+        <!-- Galeri - Dosya ve URL (Demo amaçlı yerel) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Galeri (Ek Görseller)</label>
+          <div class="space-y-3">
+            <div id="galleryArea" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-gray-700 cursor-pointer transition">
+              <svg class="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p class="text-sm text-gray-500">Birden fazla görsel seçin</p>
+              <div id="galleryPreview" class="flex flex-wrap gap-2 mt-4 justify-center"></div>
+              <input type="file" id="galleryInput" multiple accept="image/*" class="hidden" />
+            </div>
+            <div>
+              <input type="text" name="gallery_urls" placeholder="veya görsel URL'lerini virgülle girin" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEO -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 uppercase tracking-wide">🔍 SEO Ayarları</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Meta Başlık</label>
+            <input type="text" name="meta_title" maxlength="60" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
+            <div class="text-xs text-gray-500 mt-1"><span id="metaTitleCount">0</span>/60</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Meta Açıklama</label>
+            <textarea name="meta_description" rows="2" maxlength="160" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"></textarea>
+            <div class="text-xs text-gray-500 mt-1"><span id="metaDescCount">0</span>/160</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alt sabit çubuk -->
+      <div class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t dark:border-gray-800 shadow-lg p-4 z-50">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+          <div class="text-sm text-gray-500">
+            📝 <span id="wordCount">0</span> kelime
+          </div>
+          <div class="flex gap-3">
+            <button type="submit" name="status" value="draft" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition font-medium">
+              Taslak Kaydet
+            </button>
+            <button type="submit" name="status" value="published" class="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition font-medium shadow-lg">
+              Yayınla
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" is:inline>
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js" is:inline></script>
+  <style is:global>
+    .ql-toolbar {
+      @apply bg-gray-50 dark:bg-gray-700 dark:border-gray-600 rounded-t-lg;
+    }
+    .ql-container {
+      @apply text-base font-sans;
+    }
+    .ql-editor {
+      @apply min-h-[400px] text-gray-900 dark:text-gray-100;
+    }
+    .dark .ql-snow .ql-stroke {
+      stroke: #d1d5db;
+    }
+    .dark .ql-snow .ql-fill {
+      fill: #d1d5db;
+    }
+    .dark .ql-snow .ql-picker {
+      color: #d1d5db;
+    }
+  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script is:inline>
+    const wordCountSpan = document.getElementById('wordCount');
+    const form = document.getElementById('postForm');
+
+    // Quill Customizations
+    const Link = Quill.import('formats/link');
+    class MyLink extends Link {
+      static create(value) {
+        if (value && typeof value === 'string') {
+          if (!value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('mailto:') && !value.startsWith('tel:') && !value.startsWith('/')) {
+            value = 'https://' + value;
+          }
+        }
+        return super.create(value);
+      }
+    }
+    Quill.register(MyLink, true);
+
+    const ColorStyle = Quill.import('attributors/style/color');
+    const BackgroundStyle = Quill.import('attributors/style/background');
+    Quill.register(ColorStyle, true);
+    Quill.register(BackgroundStyle, true);
+
+    // Quill Initialization
+    const quill = new Quill('#editor-container', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          ['link', 'image', 'video'],
+          [{ 'color': [] }, { 'background': [] }],
+          ['clean']
+        ]
+      },
+      placeholder: 'İçeriğinizi buraya yazın...'
+    });
+
+    quill.on('text-change', function() {
+      const text = quill.getText();
+      const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+      if (wordCountSpan) wordCountSpan.innerText = text.trim().length > 0 ? words : 0;
+      document.getElementById('hiddenContent').value = quill.root.innerHTML;
+    });
+
+    form?.addEventListener('submit', function() {
+      document.getElementById('hiddenContent').value = quill.root.innerHTML;
+    });
+
+    // Featured image - dosya
+    const featInput = document.getElementById('featuredInput');
+    const featArea = document.getElementById('featuredArea');
+    const featPreview = document.getElementById('featuredPreview');
+    featArea.addEventListener('click', () => featInput.click());
+    featInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          featPreview.src = ev.target.result;
+          featPreview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Gallery - dosya
+    const galInput = document.getElementById('galleryInput');
+    const galArea = document.getElementById('galleryArea');
+    const galPreview = document.getElementById('galleryPreview');
+    galArea.addEventListener('click', () => galInput.click());
+    galInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      galPreview.innerHTML = '';
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = document.createElement('img');
+          img.src = ev.target.result;
+          img.className = 'w-16 h-16 object-cover rounded border shadow';
+          galPreview.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    // Meta counters
+    const mt = document.querySelector('input[name="meta_title"]');
+    const md = document.querySelector('textarea[name="meta_description"]');
+    mt?.addEventListener('input', () => document.getElementById('metaTitleCount').innerText = mt.value.length);
+    md?.addEventListener('input', () => document.getElementById('metaDescCount').innerText = md.value.length);
+
+    updateWordCount();
+  </script>
+</BaseLayout>

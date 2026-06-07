@@ -1,0 +1,40 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+// Sadece basit bir statik tasarım, order_id URL parametresinden JS ile alınabilir 
+// veya SSR ile Astro.url.searchParams üzerinden alınabilir.
+const orderId = Astro.url.searchParams.get('order_id') || 'Bilinmiyor';
+---
+
+<BaseLayout title="Sipariş Başarılı | Laflaf E-Ticaret">
+  <div class="min-h-[70vh] bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    
+    <div class="max-w-md w-full bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden p-8 text-center border border-gray-100 dark:border-gray-700">
+      
+      <div class="w-24 h-24 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+        <i class="fas fa-check text-5xl text-green-500"></i>
+      </div>
+      
+      <h2 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-2">Siparişiniz Alındı!</h2>
+      <p class="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+        Bizi tercih ettiğiniz için teşekkür ederiz. Sipariş detaylarınız e-posta adresinize gönderilecektir.
+      </p>
+      
+      <div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 mb-8 border border-gray-100 dark:border-gray-700">
+        <span class="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Sipariş Numarası</span>
+        <span class="block text-2xl font-black text-gray-900 dark:text-white tracking-widest">#{orderId}</span>
+      </div>
+      
+      <div class="space-y-3">
+        <a href="/profil" class="w-full block bg-gray-900 hover:bg-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition">
+          Siparişlerimi Görüntüle
+        </a>
+        <a href="/" class="w-full block bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-600 font-bold py-3 px-4 rounded-xl transition">
+          Alışverişe Devam Et
+        </a>
+      </div>
+      
+    </div>
+    
+  </div>
+</BaseLayout>

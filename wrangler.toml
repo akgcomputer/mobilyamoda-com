@@ -1,0 +1,16 @@
+name = "laflaf"
+compatibility_date = "2026-01-01"
+pages_build_output_dir = "dist"
+
+[vars]
+SITE_TITLE = "Laflaf"
+SITE_DESCRIPTION = "Meraklı İçerikleri Keşfet"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "laflaf-db"
+database_id = "5848be5c-b201-4d87-a0a1-cb67d3279538"
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "laflaf-media"
