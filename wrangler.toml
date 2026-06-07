@@ -1,4 +1,4 @@
-name = "laflaf"
+name = "mobilyamoda-com"
 compatibility_date = "2026-01-01"
 pages_build_output_dir = "dist"
 
@@ -8,9 +8,9 @@ SITE_DESCRIPTION = "Meraklı İçerikleri Keşfet"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "laflaf-db"
-database_id = "5848be5c-b201-4d87-a0a1-cb67d3279538"
+database_name = "mobilyamoda-com"
+database_id = "c3d37abc-9613-486a-a1db-9497df0f9968"
 
 [[r2_buckets]]
 binding = "MEDIA_BUCKET"
-bucket_name = "laflaf-media"
+bucket_name = "mobilyamoda-com"
