@@ -8,9 +8,9 @@ SITE_DESCRIPTION = "Meraklı İçerikleri Keşfet"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "mobilyamoda-com"
+database_name = "db-mobilyamoda-com"
 database_id = "c3d37abc-9613-486a-a1db-9497df0f9968"
 
 [[r2_buckets]]
 binding = "MEDIA_BUCKET"
-bucket_name = "mobilyamoda-com"
+bucket_name = "r2-mobilyamoda-com"
