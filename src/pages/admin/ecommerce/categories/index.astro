@@ -85,7 +85,7 @@ function altKategoriler(parent_id: number) {
     <!-- Kategori Ekleme Formu -->
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6 mb-6">
       <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Yeni Kategori Ekle</h2>
-      <form method="POST" class="flex flex-wrap gap-3">
+      <form method="POST" data-astro-reload class="flex flex-wrap gap-3">
         <input type="hidden" name="islem" value="ekle" />
         <input 
           type="text" 
@@ -133,7 +133,7 @@ function altKategoriler(parent_id: number) {
   <div id="editModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
     <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-200 dark:border-gray-700 shadow-2xl">
       <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Kategori Düzenle</h2>
-      <form method="POST" class="space-y-4">
+      <form method="POST" data-astro-reload class="space-y-4">
         <input type="hidden" name="islem" value="guncelle" />
         <input type="hidden" name="id" id="editId" />
         <div>
@@ -156,37 +156,59 @@ function altKategoriler(parent_id: number) {
   </div>
 
   <script>
-    // Safe modern script to attach event listeners and open modal
-    document.querySelectorAll('.edit-category-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const ad = btn.getAttribute('data-ad');
-        const img = btn.getAttribute('data-img');
-        
-        const inputId = document.getElementById('editId') as HTMLInputElement;
-        const inputAd = document.getElementById('editAd') as HTMLInputElement;
-        const inputImg = document.getElementById('editImg') as HTMLInputElement;
-        const modal = document.getElementById('editModal');
-        
-        if (inputId && inputAd && modal) {
-          inputId.value = id || '';
-          inputAd.value = ad || '';
-          if (inputImg) inputImg.value = img || '';
-          modal.classList.remove('hidden');
+    function initEcommerceCategoriesPage() {
+      // Safe modern script to attach event listeners and open modal
+      document.querySelectorAll('.edit-category-btn').forEach(btn => {
+        if (!btn.dataset.bound) {
+          btn.dataset.bound = 'true';
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const ad = btn.getAttribute('data-ad');
+            const img = btn.getAttribute('data-img');
+            
+            const inputId = document.getElementById('editId') as HTMLInputElement;
+            const inputAd = document.getElementById('editAd') as HTMLInputElement;
+            const inputImg = document.getElementById('editImg') as HTMLInputElement;
+            const modal = document.getElementById('editModal');
+            
+            if (inputId && inputAd && modal) {
+              inputId.value = id || '';
+              inputAd.value = ad || '';
+              if (inputImg) inputImg.value = img || '';
+              modal.classList.remove('hidden');
+            }
+          });
         }
       });
-    });
 
-    // Close Modal Button
-    document.getElementById('closeModalBtn')?.addEventListener('click', () => {
-      document.getElementById('editModal')?.classList.add('hidden');
-    });
-
-    // Close on outside click
-    document.getElementById('editModal')?.addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) {
-        document.getElementById('editModal')?.classList.add('hidden');
+      // Close Modal Button
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      if (closeModalBtn && !closeModalBtn.dataset.bound) {
+        closeModalBtn.dataset.bound = 'true';
+        closeModalBtn.addEventListener('click', () => {
+          document.getElementById('editModal')?.classList.add('hidden');
+        });
       }
-    });
+
+      // Close on outside click
+      const editModal = document.getElementById('editModal');
+      if (editModal && !editModal.dataset.bound) {
+        editModal.dataset.bound = 'true';
+        editModal.addEventListener('click', (e) => {
+          if (e.target === e.currentTarget) {
+            editModal.classList.add('hidden');
+          }
+        });
+      }
+    }
+
+    document.addEventListener('astro:page-load', initEcommerceCategoriesPage);
+    
+    // Fallback if page-load already fired
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(initEcommerceCategoriesPage, 100);
+    } else {
+      document.addEventListener('DOMContentLoaded', initEcommerceCategoriesPage);
+    }
   </script>
 </BaseLayout>
