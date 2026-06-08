@@ -61,7 +61,7 @@ function getSvgForPlatform(platform: string) {
           <img src={settings.site_logo} alt={settings.site_title || 'Logo'} class="h-8 w-auto object-contain" />
         ) : (
           <span class="text-2xl font-black tracking-tighter bg-gradient-to-r from-orange-500 to-purple-600 bg-clip-text text-transparent">
-            {settings.site_logo && settings.site_logo.length <= 3 ? settings.site_logo : (settings.site_title || 'LAF')}
+            {settings.site_logo || settings.site_title || 'LAF'}
           </span>
         )}
       </a>

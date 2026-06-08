@@ -10,7 +10,7 @@ const categories = await getCategories(dbBinding);
 const rootCategories = categories.filter((c: any) => !c.parent_id);
 ---
 
-<BaseLayout title="Tüm Kategoriler | Laflaf" description="Laflaf'taki tüm içerik ve ürün kategorilerini keşfedin.">
+<BaseLayout title="Tüm Kategoriler" description="Tüm içerik ve ürün kategorilerini keşfedin.">
   <div class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-12 min-h-screen">
     <div class="mb-12 border-b border-gray-200 dark:border-gray-700 pb-4">
       <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">Tüm Kategoriler</h1>

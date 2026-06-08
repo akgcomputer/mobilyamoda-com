@@ -14,7 +14,7 @@ if (sliders.length === 0) {
 <div class="relative w-full max-w-[1600px] mx-auto overflow-hidden group mb-8 md:mb-12" id="heroCarousel">
   
   <!-- Slider Container -->
-  <div class="flex transition-transform duration-700 ease-in-out h-[400px] md:h-[500px] lg:h-[600px] w-full" id="carouselInner">
+  <div class="flex transition-transform duration-700 ease-in-out h-auto aspect-[16/9] sm:aspect-[21/10] md:h-[450px] lg:h-[550px] xl:h-[600px] w-full" id="carouselInner">
     {sliders.map((slider, index) => (
       <div class="min-w-full h-full relative flex-shrink-0">
         <!-- Arkaplan Görseli -->
@@ -29,16 +29,16 @@ if (sliders.length === 0) {
         <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent"></div>
         
         <!-- İçerik -->
-        <div class="absolute inset-0 flex flex-col justify-center px-8 md:px-16 lg:px-24">
-          <div class="max-w-xl text-left transform transition-all duration-700 translate-y-8 opacity-0 slider-content">
+        <div class="absolute inset-0 flex flex-col justify-center px-4 sm:px-8 md:px-16 lg:px-24">
+          <div class="max-w-[75%] sm:max-w-xl text-left transform transition-all duration-700 translate-y-8 opacity-0 slider-content">
             {slider.title && (
-              <h2 class="text-3xl md:text-5xl lg:text-6xl font-extrabold text-white mb-4 leading-tight drop-shadow-lg">
+              <h2 class="text-lg sm:text-3xl md:text-5xl lg:text-6xl font-outfit font-extrabold text-white mb-1.5 sm:mb-4 leading-tight drop-shadow-lg">
                 {slider.title}
               </h2>
             )}
             
             {slider.subtitle && (
-              <p class="text-lg md:text-2xl text-gray-200 mb-8 font-light drop-shadow-md">
+              <p class="text-[10px] sm:text-base md:text-2xl text-gray-200 mb-3 sm:mb-8 font-light drop-shadow-md line-clamp-2 sm:line-clamp-none">
                 {slider.subtitle}
               </p>
             )}
@@ -46,7 +46,7 @@ if (sliders.length === 0) {
             {slider.button_text && slider.link_url && (
               <a 
                 href={slider.link_url} 
-                class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 md:py-4 px-8 md:px-10 rounded-full shadow-xl hover:shadow-orange-600/40 hover:-translate-y-1 transition-all duration-300 text-base md:text-lg"
+                class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold py-1 px-3.5 sm:py-3.5 sm:px-10 rounded-full shadow-xl hover:shadow-orange-600/40 hover:-translate-y-0.5 transition-all duration-300 text-[10px] sm:text-base md:text-lg"
               >
                 {slider.button_text}
               </a>
