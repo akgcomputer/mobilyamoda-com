@@ -76,7 +76,7 @@ const markalar = await getBrands(dbBinding);
     <!-- Marka Ekleme Formu -->
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6 mb-6">
       <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Yeni Marka Ekle</h2>
-      <form method="POST" class="flex flex-col md:flex-row gap-3 items-start md:items-center">
+      <form method="POST" data-astro-reload class="flex flex-col md:flex-row gap-3 items-start md:items-center">
         <input type="hidden" name="islem" value="ekle" />
         <input 
           type="text" 
@@ -134,7 +134,7 @@ const markalar = await getBrands(dbBinding);
                   >
                     ✏️
                   </button>
-                  <form method="POST" class="inline" onsubmit="return confirm('Silmek istediğinize emin misiniz?')">
+                  <form method="POST" data-astro-reload class="inline" onsubmit="return confirm('Silmek istediğinize emin misiniz?')">
                     <input type="hidden" name="islem" value="sil" />
                     <input type="hidden" name="id" value={marka.id} />
                     <button type="submit" class="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition" title="Sil">🗑️</button>
@@ -157,7 +157,7 @@ const markalar = await getBrands(dbBinding);
   <div id="editModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
     <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-200 dark:border-gray-700 shadow-2xl">
       <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Marka Düzenle</h2>
-      <form method="POST" class="space-y-4">
+      <form method="POST" data-astro-reload class="space-y-4">
         <input type="hidden" name="islem" value="guncelle" />
         <input type="hidden" name="id" id="editId" />
         <div>
@@ -186,37 +186,58 @@ const markalar = await getBrands(dbBinding);
   </div>
 
   <script>
-    document.querySelectorAll('.edit-brand-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const ad = btn.getAttribute('data-ad');
-        const logo = btn.getAttribute('data-logo');
-        const pop = btn.getAttribute('data-popular') === '1';
-        
-        const inputId = document.getElementById('editId') as HTMLInputElement;
-        const inputAd = document.getElementById('editAd') as HTMLInputElement;
-        const inputLogo = document.getElementById('editLogo') as HTMLInputElement;
-        const inputPop = document.getElementById('editPopular') as HTMLInputElement;
-        const modal = document.getElementById('editModal');
-        
-        if (inputId && inputAd && modal) {
-          inputId.value = id || '';
-          inputAd.value = ad || '';
-          if (inputLogo) inputLogo.value = logo || '';
-          if (inputPop) inputPop.checked = pop;
-          modal.classList.remove('hidden');
+    function initBrandsPage() {
+      document.querySelectorAll('.edit-brand-btn').forEach(btn => {
+        if (!btn.dataset.bound) {
+          btn.dataset.bound = 'true';
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const ad = btn.getAttribute('data-ad');
+            const logo = btn.getAttribute('data-logo');
+            const pop = btn.getAttribute('data-popular') === '1';
+            
+            const inputId = document.getElementById('editId') as HTMLInputElement;
+            const inputAd = document.getElementById('editAd') as HTMLInputElement;
+            const inputLogo = document.getElementById('editLogo') as HTMLInputElement;
+            const inputPop = document.getElementById('editPopular') as HTMLInputElement;
+            const modal = document.getElementById('editModal');
+            
+            if (inputId && inputAd && modal) {
+              inputId.value = id || '';
+              inputAd.value = ad || '';
+              if (inputLogo) inputLogo.value = logo || '';
+              if (inputPop) inputPop.checked = pop;
+              modal.classList.remove('hidden');
+            }
+          });
         }
       });
-    });
 
-    document.getElementById('closeModalBtn')?.addEventListener('click', () => {
-      document.getElementById('editModal')?.classList.add('hidden');
-    });
-
-    document.getElementById('editModal')?.addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) {
-        document.getElementById('editModal')?.classList.add('hidden');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      if (closeModalBtn && !closeModalBtn.dataset.bound) {
+        closeModalBtn.dataset.bound = 'true';
+        closeModalBtn.addEventListener('click', () => {
+          document.getElementById('editModal')?.classList.add('hidden');
+        });
       }
-    });
+
+      const editModal = document.getElementById('editModal');
+      if (editModal && !editModal.dataset.bound) {
+        editModal.dataset.bound = 'true';
+        editModal.addEventListener('click', (e) => {
+          if (e.target === e.currentTarget) {
+            editModal.classList.add('hidden');
+          }
+        });
+      }
+    }
+
+    document.addEventListener('astro:page-load', initBrandsPage);
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(initBrandsPage, 100);
+    } else {
+      document.addEventListener('DOMContentLoaded', initBrandsPage);
+    }
   </script>
 </BaseLayout>
