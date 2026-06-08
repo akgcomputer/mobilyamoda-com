@@ -23,6 +23,8 @@ jobs:
         run: git fetch template main
       - name: Merge template
         run: |
+          # Try to merge template main, allowing unrelated histories
+          # We use '|| true' to catch conflicts so we can resolve them in the next steps
           git merge template/main --allow-unrelated-histories -m "chore: sync with template repository" || true
           
           # Resolve conflicts
