@@ -1,6 +1,11 @@
 import { defineMiddleware } from "astro:middleware";
 
 export const onRequest = defineMiddleware((context, next) => {
+  // Map Cloudflare bindings in newer Astro versions to the deprecated locals.runtime property
+  if (!context.locals.runtime && (context.locals as any).cloudflare) {
+    (context.locals as any).runtime = (context.locals as any).cloudflare;
+  }
+
   const { url, cookies, redirect } = context;
 
   // Sadece /admin ile başlayan yolları kontrol et
