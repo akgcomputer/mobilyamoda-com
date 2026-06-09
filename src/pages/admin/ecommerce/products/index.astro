@@ -379,7 +379,7 @@ function getBadgeNames(badgesJson: string | null) {
                   )}
                 </td>
                 <td class="px-3 py-4 text-center">
-                  <form method="POST" class="inline">
+                  <form method="POST" data-astro-reload class="inline">
                     <input type="hidden" name="action" value="toggle_backorder" />
                     <input type="hidden" name="id" value={product.id} />
                     <button type="submit" class={`px-3 py-1 rounded-full text-xs font-bold transition ${product.allow_backorder === 1 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
@@ -407,7 +407,7 @@ function getBadgeNames(badgesJson: string | null) {
                     <a href={`/urunler/${product.slug}`} target="_blank" title="Görüntüle" class="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded transition">
                       <i class="fas fa-external-link-alt"></i>
                     </a>
-                    <form method="POST" class="inline" onsubmit="return confirm('Bu ürünü kopyalamak istiyor musunuz?');">
+                    <form method="POST" data-astro-reload class="inline" onsubmit="return confirm('Bu ürünü kopyalamak istiyor musunuz?');">
                       <input type="hidden" name="action" value="duplicate" />
                       <input type="hidden" name="id" value={product.id} />
                       <button type="submit" title="Kopyala/Çoğalt" class="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/50 rounded transition">
@@ -417,7 +417,7 @@ function getBadgeNames(badgesJson: string | null) {
                     <a href={`/admin/ecommerce/products/${product.id}`} title="Düzenle" class="p-1.5 text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-gray-700 rounded transition">
                       <i class="fas fa-edit"></i>
                     </a>
-                    <form method="POST" class="inline" onsubmit="return confirm('Bu ürünü silmek istediğinize emin misiniz?');">
+                    <form method="POST" data-astro-reload class="inline" onsubmit="return confirm('Bu ürünü silmek istediğinize emin misiniz?');">
                       <input type="hidden" name="action" value="delete" />
                       <input type="hidden" name="id" value={product.id} />
                       <button type="submit" title="Sil" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded transition">
@@ -472,7 +472,7 @@ function getBadgeNames(badgesJson: string | null) {
           </div>
 
           <!-- Yükleme Formu -->
-          <form method="POST" enctype="multipart/form-data">
+          <form method="POST" data-astro-reload enctype="multipart/form-data">
             <input type="hidden" name="action" value="import_products" />
             <h4 class="font-bold text-gray-800 dark:text-gray-200 mb-3">Excel Dosyası Yükleyin</h4>
             <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer" onclick="document.getElementById('fileUpload').click()">

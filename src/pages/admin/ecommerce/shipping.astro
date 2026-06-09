@@ -58,7 +58,7 @@ if (Astro.request.method === 'POST') {
         </div>
       </div>
       
-      <form method="POST" id="shippingInfoForm">
+      <form method="POST" data-astro-reload id="shippingInfoForm">
         <input type="hidden" name="return_shipping_info" id="returnShippingInput" value={returnShippingInfo} />
         
         <div class="mb-6">
